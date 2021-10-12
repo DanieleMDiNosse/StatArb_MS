@@ -20,34 +20,31 @@ def trading(df_returns, df_score, df_price, df_dividends, beta_tensor, factors, 
     total_returns = np.ones(df_score.shape[0])
     total_returns[0] = 1000
     lookback_for_factors = 252
-
-    # The following arrays are used to register the returns of stocks and factors in such a way that the non zero values are only the ones
-    # I need each day. The arrays are all of shape number of days x number of stocks and they have all zero value at the beginning of each
-    # day. When a trade is open on jth-stock at i'th-day (e.g. a long one) I assign to the i-j component the return taken from df_returns.
-    # At the end of the day, so, I have sparse matrices that I used to sum up the returns. Then I put all to zero another time and the cycle
-    # continues.
     long_stocks = np.zeros(shape=df_score.shape)
     long_factors = np.zeros(shape=df_score.shape)
     short_stocks = np.zeros(shape=df_score.shape)
     short_factors = np.zeros(shape=df_score.shape)
     div = np.zeros(shape=df_score.shape)
-
-    state = np.empty(shape=df_score.shape[1], dtype=str) # Array of string used for tracking the trading-state of the stock
+    state = np.empty(shape=df_score.shape[1], dtype=str)
 
     for day in range(df_score.shape[0] - 1):
         logging.info(f'========= Day : {day} =========')
-        returns = np.array([]) # This array will be used for daily returns
+        returns = np.array([])
+        n = 0
+        beta = 0
         for stock in df_score.columns:
             logging.info(
                 f'-------- Day : {day} Stock : {stock} {df_score.columns.get_loc(stock)+1}/{df_score.shape[1]} State : {state[df_score.columns.get_loc(stock)]} s_score : {df_score[stock][day]} --------')
 
-            if df_score[stock][day] == 0: # s_score = 0 means that the speed of mean reverting is less than 8.4 (that is the threshold chosen)
-                logging.info(f'mean reverting speed for {stock} too slow')
+            if df_score[stock][day] == 0:
+                print(f'mean reverting speed for {stock} too slow')
                 pass
 
             if df_score[stock][day] < -s_bo and (state[df_returns.columns.get_loc(stock)] != 's'):
                 state[df_score.columns.get_loc(stock)] = 'l'
-                logging.info(f'I have opened a long trade on {stock}')
+                n += 1
+                beta += beta_spy[day + 1, df_score.columns.get_loc(stock)]
+                print(f'I have opened a long trade on {stock}')
 
                 long_stocks[day][df_returns.columns.get_loc(
                     stock)] = df_returns[stock][day + lookback_for_factors + 1]
@@ -61,7 +58,7 @@ def trading(df_returns, df_score, df_price, df_dividends, beta_tensor, factors, 
                         stock)] = (-factors[day + lookback_for_factors + 1] * beta_tensor[day + 1, df_score.columns.get_loc(stock), :]).sum()
 
             if (day > 0) and (df_score[stock][day] < -s_sc) and (df_score[stock][day] > -s_bo) and (state[df_returns.columns.get_loc(stock)] == 'l'):
-                logging.info(f'Still long on {stock}')
+                print(f'Still long on {stock}')
 
                 long_stocks[day][df_returns.columns.get_loc(
                     stock)] = df_returns[stock][day + lookback_for_factors + 1]
@@ -76,7 +73,9 @@ def trading(df_returns, df_score, df_price, df_dividends, beta_tensor, factors, 
 
             if df_score[stock][day] > s_so and (state[df_returns.columns.get_loc(stock)] != 'l'):
                 state[df_score.columns.get_loc(stock)] = 's'
-                logging.info(f'I have opened a short trade on {stock}')
+                n += 1
+                beta += beta_spy[day + 1, df_score.columns.get_loc(stock)]
+                print(f'I have opened a short trade on {stock}')
 
                 short_stocks[day][df_returns.columns.get_loc(
                     stock)] = -df_returns[stock][day + lookback_for_factors + 1]
@@ -90,7 +89,7 @@ def trading(df_returns, df_score, df_price, df_dividends, beta_tensor, factors, 
                         factors[day + lookback_for_factors + 1] * beta_tensor[day + 1, df_score.columns.get_loc(stock), :]).sum()
 
             if (day > 0) and (df_score[stock][day] < s_so) and (df_score[stock][day] > s_bc) and (state[df_returns.columns.get_loc(stock)] == 's'):
-                logging.info(f'Still short on {stock}')
+                print(f'Still short on {stock}')
 
                 short_stocks[day][df_returns.columns.get_loc(
                     stock)] = -df_returns[stock][day + lookback_for_factors + 1]
@@ -105,7 +104,7 @@ def trading(df_returns, df_score, df_price, df_dividends, beta_tensor, factors, 
 
             if (day > 0) and (df_score[stock][day] < s_bc) and (df_score[stock][day] > -s_sc):
                 if state[df_score.columns.get_loc(stock)] == 'l':
-                    logging.info(
+                    print(
                         f'I have closed the trade {state[df_returns.columns.get_loc(stock)]} on {stock}')
                     state[df_returns.columns.get_loc(stock)] = 'c'
 
@@ -125,11 +124,9 @@ def trading(df_returns, df_score, df_price, df_dividends, beta_tensor, factors, 
 
                     returns = np.append(
                         returns, profit_long_stocks + profit_short_factors + div_profit)
-                    print(returns)
-                    time.sleep(2)
 
                 if state[df_returns.columns.get_loc(stock)] == 's':
-                    logging.info(
+                    print(
                         f'I have closed the trade {state[df_returns.columns.get_loc(stock)]} on {stock}')
                     state[df_returns.columns.get_loc(stock)] = 'c'
 
