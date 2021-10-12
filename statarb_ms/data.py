@@ -70,15 +70,16 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
         try:
             data[tick] = web.DataReader(
                 tick, data_source=data_source, start=start, end=end).Close
-            logging.info(f'Downloading price data of {tick}')
+            logging.info(f'{tickers.index(tick)}/{len(tickers)} Downloading price data of {tick}')
         except Exception:
-            logging.info(f"There is no price data for {tick}")
+            logging.info(f"{tickers.index(tick)}/{len(tickers)} There is no price data for {tick}")
 
     # ATTENZIONE: in questo modo avrò dei giorni vuoti
     data = data.dropna(axis=1)
 
     if export_csv:
-        data.to_csv(go_up(1) + '/saved_data/PriceData.csv')
+        name = input('Name of the file that will be saved: ')
+        data.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
 
     return data
 
@@ -86,23 +87,22 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
 def dividends_data(df_price, start, end, export_csv=True):
 
     dividends = pd.DataFrame()
-    c = 0
     # Max request per hour is 500. I have to do this once I dropped some columns from data (without dropping there are 600+ companies)
     for tick in df_price.columns[1:]:
-        c += 1
         try:
             dividends[tick] = web.DataReader(
                 tick, data_source='tiingo', api_key='49e3a81d8b71b6db04c17fda948be2490d3cdaf9', start=start, end=end).divCash
-            logging.info(f'{c} Downloading dividend data of {tick}')
+            logging.info(f'{df_price.columns[1:].index(tick)}/{df_price.columns[1:].shape} Downloading dividend data of {tick}')
         except Exception:
-            logging.info(f'{c} There is no dividend data for {tick}')
+            logging.info(f'{df_price.columns[1:].index(tick)}/{df_price.columns[1:].shape} There is no dividend data for {tick}')
 
     # dividends = pd.DataFrame(dividends)
     dividends = dividends.fillna(value=0.0)
     # dividends = dividends.drop(columns=['symbol', 'date'])
 
     if export_csv:
-        dividends.to_csv(go_up(1) + '/saved_data/DividendsData.csv', index=False)
+        name = input('Name of the file that will be saved: ')
+        dividends.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
 
     return dividends
 
@@ -139,7 +139,7 @@ def get_returns(dataframe, export_returns_csv=True, m=1):
         sys.exit()
 
     df = pd.DataFrame()
-    for col in dataframe.columns:  # Not pick Data column
+    for col in dataframe.columns[1:]:  # Not pick Data column
         today = dataframe[col]
         tomorrow = today[m:]
         df[col] = (np.array(tomorrow) / np.array(today)[:-m]) - 1
@@ -147,6 +147,28 @@ def get_returns(dataframe, export_returns_csv=True, m=1):
     if export_returns_csv:
         name = input('Name of the file that will be saved: ')
         df.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
+
+    return df
+
+def etf_assignment(df_returns):
+    df = df_returns
+    tickers = df_returns.columns.to_list()
+    etf = ['fdn', 'iyr', 'iyt', 'kre', 'rth', 'smh', 'xle', 'xlf', 'xlk', 'xlp', 'xlu', 'xlv', 'xly', 'xop', 'xu']
+    df_etf = [[pd.read_csv(go_up(1) + f'/saved_data/etf/{i}.csv').Ticker.to_list()] for i in etf]
+    for tick in tickers:
+        for df_etf_columns in df_etf:
+            if tick in df_etf_columns[0]:
+                # print(tick, etf[df_etf.index(df_etf_columns)])
+                df = df.rename(columns={tick: tick + '_' + etf[df_etf.index(df_etf_columns)]})
+
+    file = open(go_up(1) + '/saved_data/no_etf_assignment.txt', 'w')
+    c = 0
+    for col in df.columns.to_list():
+        if '_' not in col:
+            c += 1
+            file.write(col + '\n')
+    file.write(f'Total: {c}')
+    file.close()
 
     return df
 
@@ -168,9 +190,14 @@ if __name__ == '__main__':
               'debug': logging.DEBUG}
 
     logging.basicConfig(level=levels[args.log])
-    tickers = get_ticker()
+    # tickers = get_ticker() # this will download SPY tickers
+    # tickers = pd.read_csv(go_up(1) + '/saved_data/iSharesRussel3000.csv').Ticker.to_list()
     # data = price_data(tickers,args.start, args.end)
-    df_price = pd.read_csv(
-        "/home/danielemdn/Documents/thesis/StatArb_MS/saved_data/PriceData.csv")
-    # returns = get_returns(df_price)
-    div = dividends_data(df_price, start=args.start, end=args.end)
+    russel_data = pd.read_csv(go_up(1) + '/saved_data/RusselPriceData.csv')
+    # df_price = pd.read_csv(
+    #     "/home/danielemdn/Documents/thesis/StatArb_MS/saved_data/PriceData.csv")
+    returns = get_returns(russel_data)
+    # div = dividends_data(df_price, start=args.start, end=args.end)
+    # df_returns = pd.read_csv(go_up(1) + '/saved_data/ReturnsData.csv')
+    # new_df_returns = etf_assignment(df_returns)
+    # new_df_returns.to_csv(go_up(1) + '/saved_data/ReturnsDatawETF.csv', index=False)
