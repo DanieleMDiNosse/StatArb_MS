@@ -8,7 +8,7 @@ import time
 from tqdm import tqdm
 
 
-def generate_score(df_returns, n_factor, variable_n_factor, lookback_for_factors=252, lookback_for_residual=60, export=True):
+def generate_score(df_returns, n_factor, variable_n_factor, lookback_for_factors=252, lookback_for_residual=60, export=False):
     '''This function uses an amount of days equal to lookback_for_factors to evaluate the PCA components and an amount equal to lookback_for_residual
     to evaluate the parameters of the Ornstein-Uhlenbeck process for the residuals. The output is composed by the dataframe of s_score for each stock
     and the beta factors.
@@ -65,6 +65,7 @@ def generate_score(df_returns, n_factor, variable_n_factor, lookback_for_factors
                 discreteOU[j] = residuals[:j + 1].sum()
             discreteOU_predicted, a, b, discrete_residuals = regression(
                 discreteOU[:-1].reshape(-1, 1), discreteOU[1:])
+            print(a,b)
             k = -np.log(b) * lookback_for_factors
             if k < lookback_for_factors / (0.5 * lookback_for_residual):
                 df_score[stock][i] = 0
@@ -77,10 +78,8 @@ def generate_score(df_returns, n_factor, variable_n_factor, lookback_for_factors
                 df_score[stock][i] = s_score[0]
 
     if export:
-        df_name = input('Name of the file that will be saved (dataframe): ')
-        df_score.to_csv(go_up(1) + f'/saved_data/{df_name}.csv', index=False)
-        beta_tensor_name = input('Name of the file that will be saved (beta tensor): ')
-        np.save(go_up(1) + f'/saved_data/{beta_tensor_name}', beta_tensor)
+        df_score.to_csv(go_up(1) + '/saved_data/ScoreData.csv', index=False)
+        np.save(go_up(1) + '/saved_data/beta_tensor', beta_tensor)
 
     return df_score, beta_tensor
 
@@ -128,11 +127,10 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     start = time.time()
-    # df_returns = pd.read_csv(go_up(1) +
-    #                          "/saved_data/ReturnsData.csv")
-    df_returns_russel = pd.read_csv(go_up(1) +
-                           "/saved_data/RusselReturnsData.csv")
-    df_score, beta_tensor = generate_score(df_returns_russel, n_factor=args.n_components, variable_n_factor=args.variable_number,
+    df_returns = pd.read_csv(go_up(1) +
+                             "/saved_data/RusselReturnsData.csv")
+    print(df_returns.shape)
+    df_score, beta_tensor = generate_score(df_returns, n_factor=args.n_components, variable_n_factor=args.variable_number,
                                            lookback_for_factors=252, lookback_for_residual=60, export=args.save_outputs)
 
     # spy = pd.read_csv(go_up(1) + '/saved_data/spy.csv')

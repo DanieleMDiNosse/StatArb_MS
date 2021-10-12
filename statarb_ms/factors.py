@@ -111,10 +111,11 @@ def risk_factors(df_returns, eigenvectors, export=False):
     factors = np.zeros((n_days, n_factors))
     dev_t = 1 / df_returns.std()
     logging.info(f'Number of factors extracted from PCA: {n_factors}')
+    returns = df_returns.values
 
     for j in range(n_factors):
         for i in range(n_days):
-            factors[i, j] = (df_returns.iloc[i] *
+            factors[i, j] = (returns[i] *
                              dev_t * eigenvectors[j]).sum()
 
     if export:
