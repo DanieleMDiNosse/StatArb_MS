@@ -129,5 +129,5 @@ dmypy.json
 .pyre/
 
 # Large files
-beta_tensor.npy
-RusselReturnsData.csv
+.npy
+.csv
