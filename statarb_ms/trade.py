@@ -175,14 +175,14 @@ if __name__ == '__main__':
 
     start = time.time()
     df_returns = pd.read_csv(go_up(1) +
-                             "/saved_data/ReturnsData.csv")
+                             "/saved_data/RusselReturnsData.csv")
     df_score = pd.read_csv(go_up(1) +
                            "/saved_data/ScoreData.csv")
-    df_price = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv')
-    df_dividends = pd.read_csv(go_up(1) + '/saved_data/DividendsData.csv')
+    df_price = pd.read_csv(go_up(1) + '/saved_data/RusselPriceData.csv')
+    df_dividends = pd.read_csv(go_up(1) + '/saved_data/RusselDividendsData.csv')
     beta_tensor = np.load(go_up(1) + '/saved_data/beta_tensor.npy')
-    factors = np.load(go_up(1) + '/saved_data/factors.npy')
-    beta_spy = np.load(go_up(1) + '/saved_data/beta_spy.npy')
+    factors = np.load(go_up(1) + '/saved_data/Russelfactors.npy')
+    beta_spy = np.load(go_up(1) + '/saved_data/russel_beta_spy.npy')
     spy_returns = pd.read_csv(go_up(1) + '/saved_data/ReturnsSPY.csv')
 
     returns = trading(df_returns, df_score, df_price,

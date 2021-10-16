@@ -28,11 +28,6 @@ def pca(df_returns, n_components, variable_number=False, threshold=0.55):
     eigenvalues, eigenvectors : list
     '''
 
-    # Normalization
-    # mean = df_returns.mean()
-    # std = df_returns.std()
-    # for i_stock in range(len(df_returns.columns)):
-    #     df_returns.iloc[:,i_stock] = (df_returns.iloc[:, i_stock] - mean[i_stock]) / std[i_stock]
     scaler = StandardScaler()
     df_returns_norm = pd.DataFrame(scaler.fit_transform(
         df_returns), columns=df_returns.columns)
@@ -49,7 +44,7 @@ def pca(df_returns, n_components, variable_number=False, threshold=0.55):
         explained_variance = 0
         for i, eigenval in zip(range(len(eigenvalues)), pca.explained_variance_ratio_):
             explained_variance += eigenval
-            if explained_variance > threshold:
+            if explained_variance >= threshold:
                 eigenvalues, eigenvectors = pca.explained_variance_ratio_[
                     :i], pca.components_[:i]
                 break
@@ -119,7 +114,8 @@ def risk_factors(df_returns, eigenvectors, export=False):
                              dev_t * eigenvectors[j]).sum()
 
     if export:
-        np.save(go_up(1) + '/saved_data/factors', factors)
+        name = input('Name of the file that will be saved: ')
+        np.save(go_up(1) + f'/saved_data/{name}', factors)
 
     return factors
 
@@ -131,13 +127,13 @@ if __name__ == '__main__':
                         help=("Provide logging level. Example --log debug', default='info"))
     parser.add_argument("-vn", "--variable_number", action='store_true',
                         help=("Use a variable number of PCA components. Each time the explained variance is 0.55. The default is False"))
-    parser.add_argument('-n', '--n_components', type=int, default=15,
-                        help='Number of PCA components to keep. Valid if variable_number is False. The default is 15')
+    parser.add_argument('-n', '--n_components', type=int,
+                        help='Number of PCA components to keep. Valid if variable_number is False.')
     parser.add_argument('-tv', '--threshold_variance', type=float, default=0.55,
                         help='Explained variance to keep. Valid if variable_number is True. The default is 0.55')
     parser.add_argument('-p', '--plots', action='store_true',
                         help='Display some plots')
-    parser.add_argument('-e', '--export', action='store_true',
+    parser.add_argument('-e', '--export', action='store_false',
                         help='Choose whether or not to save factors as npy. The default is False')
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -148,12 +144,11 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     look_back = 252
-    df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
-    eigenvalues, eigenvectors = pca(df_returns[:look_back], n_components=args.n_components,
+    df_returns = pd.read_csv(go_up(1) + "/saved_data/RusselReturnsData.csv")
+    eigenvalues, eigenvectors = pca(df_returns, n_components=args.n_components,
                                     variable_number=args.variable_number, threshold=args.threshold_variance)
     # factors = risk_factors(df_returns, eigenvectors, export=args.export)
     eigenportfolios = eigenportfolios(df_returns, eigenvectors)
-    # print(eigenvalues)
     print(eigenportfolios[0])
 
     if args.plots:

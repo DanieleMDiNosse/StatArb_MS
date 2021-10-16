@@ -5,10 +5,10 @@ import pandas as pd
 from factors import *
 from regression_parameters import *
 import time
-from tqdm import tqdm
+import multiprocessing as mp
+import os
 
-
-def generate_score(df_returns, n_factor, variable_n_factor, lookback_for_factors=252, lookback_for_residual=60, export=False):
+def generate_score(df_returns, n_factor, variable_n_factor=False, lookback_for_factors=252, lookback_for_residual=60, export=True):
     '''This function uses an amount of days equal to lookback_for_factors to evaluate the PCA components and an amount equal to lookback_for_residual
     to evaluate the parameters of the Ornstein-Uhlenbeck process for the residuals. The output is composed by the dataframe of s_score for each stock
     and the beta factors.
@@ -39,10 +39,9 @@ def generate_score(df_returns, n_factor, variable_n_factor, lookback_for_factors
 
     trading_days = df_returns.shape[0] - lookback_for_factors
     n_stocks = df_returns.shape[1]
-    df_score = df_returns[:trading_days].copy(deep=True)
+    df_score = df_returns[:trading_days+1].copy(deep=True)
     beta_tensor = np.zeros(
         shape=(trading_days, n_stocks, n_factor))
-    dev_t = 1 / df_returns.std()
 
     for i in range(trading_days):
         logging.info(f'Trading day: {lookback_for_factors+i}')
@@ -55,33 +54,35 @@ def generate_score(df_returns, n_factor, variable_n_factor, lookback_for_factors
                 period, n_components=n_factor, variable_number=variable_n_factor)
         factors = risk_factors(period, eigenvectors)
 
-        for stock in df_returns.columns:
+        for stock in df_returns.columns[:3]:
             predictions, beta0, betas, residuals = regression(
-                factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])
+                factors[-lookback_for_residual:], period[-lookback_for_residual:][stock], fit_intercept=False)
             beta_tensor[i, df_returns.columns.get_loc(stock), :] = betas
 
             discreteOU = np.zeros(len(residuals[-lookback_for_residual:]))
             for j in range(len(discreteOU)):
                 discreteOU[j] = residuals[:j + 1].sum()
             discreteOU_predicted, a, b, discrete_residuals = regression(
-                discreteOU[:-1].reshape(-1, 1), discreteOU[1:])
-            print(a,b)
+                discreteOU[:-1].reshape(-1, 1), discreteOU[1:], fit_intercept=True)
+
+            if b == 0.0:
+                print(f'B NULLO PER {stock}')
+                break
+
             k = -np.log(b) * lookback_for_factors
             if k < lookback_for_factors / (0.5 * lookback_for_residual):
-                df_score[stock][i] = 0
+                df_score[stock][i+1] = 0
             else:
                 m = a / (1 - b)
                 sgm = np.std(discrete_residuals) * np.sqrt(2 * k / (1 - b * b))
                 sgm_eq = np.std(discrete_residuals) * np.sqrt(1 / (1 - b * b))
                 # naive method. Keep in mind that s-score depends on the risk factors
                 s_score = -m / sgm_eq
-                df_score[stock][i] = s_score[0]
+                df_score[stock][i+1] = s_score[0]
 
     if export:
-        df_score.to_csv(go_up(1) + '/saved_data/ScoreData.csv', index=False)
-        np.save(go_up(1) + '/saved_data/beta_tensor', beta_tensor)
-
-    return df_score, beta_tensor
+        df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
+        np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
 
 
 def SPY_beta(df_returns, spy, export=True):
@@ -92,17 +93,18 @@ def SPY_beta(df_returns, spy, export=True):
     trading_days = df_returns.shape[0] - lookback_for_factors
     n_stocks = df_returns.shape[1]
     vec_beta_spy = np.zeros(shape=(trading_days, n_stocks))
-    for i in range(trading_day):
+    for i in range(trading_days):
         print(f'Trading day: {lookback_for_factors+i}')
         period = df_returns[i:lookback_for_factors + i]
         spy_period = spy[i:lookback_for_factors + i]
 
         for stock in range(df_returns.shape[1]):
             projection_on_spy, beta0_spy, beta_spy, residuals_spy = regression(
-                spy_period[-lookback_for_residual:], period[-lookback_for_residual:, stock])
+                spy_period[-lookback_for_residual:], period[-lookback_for_residual:, stock], fit_intercept=True)
             vec_beta_spy[i, stock] = beta_spy[0]
     if export:
-        np.save(go_up(1) + '/saved_data/beta_spy1', vec_beta_spy)
+        name = input('Name of the file that will be saved: ')
+        np.save(go_up(1) + f'/saved_data/{name}', vec_beta_spy)
 
     return vec_beta_spy
 
@@ -125,16 +127,31 @@ if __name__ == '__main__':
               'info': logging.INFO,
               'debug': logging.DEBUG}
     logging.basicConfig(level=levels[args.log])
+    # L_tilde -> Lenght of the slice of the DataFrame, n -> number of slices, L -> total lenght, k -> overlap (i.e. trailing window for s_score estimate)
+    # L_tilde = (L + k*(n-1))/n
+    # with n=3 L_tilde=2222
+
 
     start = time.time()
     df_returns = pd.read_csv(go_up(1) +
-                             "/saved_data/RusselReturnsData.csv")
-    print(df_returns.shape)
-    df_score, beta_tensor = generate_score(df_returns, n_factor=args.n_components, variable_n_factor=args.variable_number,
-                                           lookback_for_factors=252, lookback_for_residual=60, export=args.save_outputs)
+                             "/saved_data/ReturnsData.csv")
+    df = [df_returns[:1510], df_returns[1258:2768], df_returns[2517:4027], df_returns[3776:5286], df_returns[5035:]]
+    # df = [df_returns[:260], df_returns[260:520], df_returns[520:780]]
+
+    processes = [mp.Process(target=generate_score, args=(i, args.n_components)) for i in df]
+
+    for p in processes:
+        p.start()
+
+    for p in processes:
+        p.join()
+
+    # df_score, beta_tensor = generate_score(df_returns, n_factor=args.n_components, variable_n_factor=args.variable_number,
+    #                                        lookback_for_factors=252, lookback_for_residual=60, export=args.save_outputs)
 
     # spy = pd.read_csv(go_up(1) + '/saved_data/spy.csv')
     # beta_spy = SPY_beta(df_returns, spy, export=args.save_outputs)
 
+    end = time.time()
     time_elapsed = (end - start)
     logging.info('Elapsed time: %.2f seconds' %time_elapsed)

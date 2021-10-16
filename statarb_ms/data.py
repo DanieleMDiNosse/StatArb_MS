@@ -88,13 +88,13 @@ def dividends_data(df_price, start, end, export_csv=True):
 
     dividends = pd.DataFrame()
     # Max request per hour is 500. I have to do this once I dropped some columns from data (without dropping there are 600+ companies)
-    for tick in df_price.columns[1:]:
+    for tick in df_price.columns[445:]:
         try:
             dividends[tick] = web.DataReader(
-                tick, data_source='tiingo', api_key='49e3a81d8b71b6db04c17fda948be2490d3cdaf9', start=start, end=end).divCash
-            logging.info(f'{df_price.columns[1:].index(tick)}/{df_price.columns[1:].shape} Downloading dividend data of {tick}')
+                tick, data_source='tiingo', api_key='77db1f9b52ca2a404420fe0e850ddb042651f945', start=start, end=end).divCash
+            logging.info(f'{df_price.columns[1:].to_list().index(tick)}/{df_price.columns[1:].shape} Downloading dividend data of {tick}')
         except Exception:
-            logging.info(f'{df_price.columns[1:].index(tick)}/{df_price.columns[1:].shape} There is no dividend data for {tick}')
+            logging.info(f'{df_price.columns[1:].to_list().index(tick)}/{df_price.columns[1:].shape} There is no dividend data for {tick}')
 
     # dividends = pd.DataFrame(dividends)
     dividends = dividends.fillna(value=0.0)
@@ -196,8 +196,8 @@ if __name__ == '__main__':
     russel_data = pd.read_csv(go_up(1) + '/saved_data/RusselPriceData.csv')
     # df_price = pd.read_csv(
     #     "/home/danielemdn/Documents/thesis/StatArb_MS/saved_data/PriceData.csv")
-    returns = get_returns(russel_data)
-    # div = dividends_data(df_price, start=args.start, end=args.end)
+    # returns = get_returns(russel_data)
+    div = dividends_data(russel_data, start=args.start, end=args.end)
     # df_returns = pd.read_csv(go_up(1) + '/saved_data/ReturnsData.csv')
     # new_df_returns = etf_assignment(df_returns)
     # new_df_returns.to_csv(go_up(1) + '/saved_data/ReturnsDatawETF.csv', index=False)

@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-def regression(x, y):
+def regression(x, y, fit_intercept):
     '''
     Simple linear regression model that relies on sklearn LinearRegression
     '''
-    lm = linear_model.LinearRegression(fit_intercept=False)
+    lm = linear_model.LinearRegression(fit_intercept=fit_intercept)
     model = lm.fit(x, y)
     r2 = lm.score(x, y)
     predictions = lm.predict(x)
