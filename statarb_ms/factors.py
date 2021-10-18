@@ -74,12 +74,24 @@ def eigenportfolios(df_returns, eigenvectors):
     eigenporfolios : list
         List of dictionaries ordered according to the greatest variance explained by the principal components.
 '''
+
     portfolio = [{df_returns.columns[i]: eigenvectors[j][i]
                   for i in range(df_returns.shape[1])} for j in range(len(eigenvectors))]
-    eigenportfolios = [dict(sorted(portfolio[i].items(
+    eigenport = [dict(sorted(portfolio[i].items(
     ), key=lambda item: item[1])) for i in range(len(portfolio))]
 
-    return eigenportfolios # Non ritrovo le componenti del primo eigenportfolio positive (sono tutte negative)
+    return eigenport
+
+def money_on_stock(df_returns, eigenvectors):
+    ''' This function will output a matrix of shape n_factors x n_stocks in which the i-j elements corresponds
+    to the amount of money to be invested in the company j relative to the risk_factor i
+    '''
+    dev_t = df_returns.std()
+    q = np.zeros(shape=(eigenvectors.shape[0], df_returns.shape[1]))
+    for i in range(eigenvectors.shape[0]):
+        q[i] = eigenvectors[i,:] * dev_t
+
+    return q
 
 
 def risk_factors(df_returns, eigenvectors, export=False):
@@ -117,7 +129,7 @@ def risk_factors(df_returns, eigenvectors, export=False):
         name = input('Name of the file that will be saved: ')
         np.save(go_up(1) + f'/saved_data/{name}', factors)
 
-    return factors
+    return np.array(factors)
 
 
 if __name__ == '__main__':
@@ -143,13 +155,12 @@ if __name__ == '__main__':
               'debug': logging.DEBUG}
     logging.basicConfig(level=levels[args.log])
 
-    look_back = 252
-    df_returns = pd.read_csv(go_up(1) + "/saved_data/RusselReturnsData.csv")
+    df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
     eigenvalues, eigenvectors = pca(df_returns, n_components=args.n_components,
                                     variable_number=args.variable_number, threshold=args.threshold_variance)
     # factors = risk_factors(df_returns, eigenvectors, export=args.export)
-    eigenportfolios = eigenportfolios(df_returns, eigenvectors)
-    print(eigenportfolios[0])
+    eigenportfolio = eigenportfolios(df_returns, eigenvectors)
+    q = money_on_stock(df_returns, eigenvectors)
 
     if args.plots:
         plt.figure()

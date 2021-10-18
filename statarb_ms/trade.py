@@ -18,138 +18,118 @@ def trading(df_returns, df_score, df_price, df_dividends, beta_tensor, factors, 
     df_returns :
     '''
     total_returns = np.ones(df_score.shape[0])
-    total_returns[0] = 1000
     lookback_for_factors = 252
     long_stocks = np.zeros(shape=df_score.shape)
     long_factors = np.zeros(shape=df_score.shape)
     short_stocks = np.zeros(shape=df_score.shape)
     short_factors = np.zeros(shape=df_score.shape)
+    invested_money = np.zeros(shape=df_score.shape[1])
     div = np.zeros(shape=df_score.shape)
     state = np.empty(shape=df_score.shape[1], dtype=str)
+    day_counter_long = np.zeros(shape=df_score.shape[1])
+    day_counter_short = np.zeros(shape=df_score.shape[1])
 
+    # for day in range(df_score.shape[0] - 1):
     for day in range(df_score.shape[0] - 1):
         logging.info(f'========= Day : {day} =========')
         returns = np.array([])
-        n = 0
-        beta = 0
         for stock in df_score.columns:
             logging.info(
                 f'-------- Day : {day} Stock : {stock} {df_score.columns.get_loc(stock)+1}/{df_score.shape[1]} State : {state[df_score.columns.get_loc(stock)]} s_score : {df_score[stock][day]} --------')
 
             if df_score[stock][day] == 0:
                 print(f'mean reverting speed for {stock} too slow')
-                pass
+                continue
 
             if df_score[stock][day] < -s_bo and (state[df_returns.columns.get_loc(stock)] != 's'):
                 state[df_score.columns.get_loc(stock)] = 'l'
-                n += 1
-                beta += beta_spy[day + 1, df_score.columns.get_loc(stock)]
                 print(f'I have opened a long trade on {stock}')
-
-                long_stocks[day][df_returns.columns.get_loc(
-                    stock)] = df_returns[stock][day + lookback_for_factors + 1]
-                div[day][df_returns.columns.get_loc(
-                    stock)] = df_dividends[stock][day + lookback_for_factors + 1] / df_price[stock][day + lookback_for_factors + 1]
+                invested_money[df_returns.columns.get_loc(stock)] = 1 + (Q[day, :, df_returns.columns.get_loc(stock)] * beta_tensor[day, df_score.columns.get_loc(stock), :]).sum()
+                long_stocks[day][df_returns.columns.get_loc(stock)] = df_returns[stock][day + lookback_for_factors]
+                # div[day][df_returns.columns.get_loc(
+                #     stock)] = df_dividends[stock][day + lookback_for_factors + 1] / df_price[stock][day + lookback_for_factors + 1]
                 if spy_market_neutrality:
-                    short_factors[day][df_returns.columns.get_loc(
-                        stock)] = -beta_spy[day + 1, df_score.columns.get_loc(stock)] * spy_returns.iloc[day + lookback_for_factors + 1]
+                    short_factors[day][df_returns.columns.get_loc(stock)] = -beta_spy[day, df_score.columns.get_loc(stock)] * spy_returns.iloc[day + lookback_for_factors]
                 else:
-                    short_factors[day][df_returns.columns.get_loc(
-                        stock)] = (-factors[day + lookback_for_factors + 1] * beta_tensor[day + 1, df_score.columns.get_loc(stock), :]).sum()
+                    short_factors[day][df_returns.columns.get_loc(stock)] = (-factors[day] * beta_tensor[day, df_score.columns.get_loc(stock), :]).sum()
+                continue
 
             if (day > 0) and (df_score[stock][day] < -s_sc) and (df_score[stock][day] > -s_bo) and (state[df_returns.columns.get_loc(stock)] == 'l'):
                 print(f'Still long on {stock}')
-
-                long_stocks[day][df_returns.columns.get_loc(
-                    stock)] = df_returns[stock][day + lookback_for_factors + 1]
-                div[day][df_returns.columns.get_loc(
-                    stock)] = df_dividends[stock][day + lookback_for_factors + 1] / df_price[stock][day + lookback_for_factors + 1]
+                day_counter_long[df_returns.columns.get_loc(stock)] += 1
+                long_stocks[day][df_returns.columns.get_loc(stock)] = df_returns[stock][day + lookback_for_factors]
+                # div[day][df_returns.columns.get_loc(
+                #     stock)] = df_dividends[stock][day + lookback_for_factors + 1] / df_price[stock][day + lookback_for_factors + 1]
                 if spy_market_neutrality:
-                    short_factors[day][df_returns.columns.get_loc(
-                        stock)] = -beta_spy[day + 1, df_score.columns.get_loc(stock)] * spy_returns.iloc[day + lookback_for_factors + 1]
+                    short_factors[day][df_returns.columns.get_loc(stock)] = -beta_spy[day, df_score.columns.get_loc(stock)] * spy_returns.iloc[day + lookback_for_factors]
                 else:
-                    short_factors[day][df_returns.columns.get_loc(
-                        stock)] = (-factors[day + lookback_for_factors + 1] * beta_tensor[day + 1, df_score.columns.get_loc(stock), :]).sum()
+                    short_factors[day][df_returns.columns.get_loc(stock)] = (-factors[day] * beta_tensor[day - day_counter_long[df_returns.columns.get_loc(stock)], df_score.columns.get_loc(stock), :]).sum()
+                continue
 
             if df_score[stock][day] > s_so and (state[df_returns.columns.get_loc(stock)] != 'l'):
                 state[df_score.columns.get_loc(stock)] = 's'
-                n += 1
-                beta += beta_spy[day + 1, df_score.columns.get_loc(stock)]
                 print(f'I have opened a short trade on {stock}')
-
-                short_stocks[day][df_returns.columns.get_loc(
-                    stock)] = -df_returns[stock][day + lookback_for_factors + 1]
-                div[day][df_returns.columns.get_loc(
-                    stock)] = -df_dividends[stock][day + lookback_for_factors + 1] / df_price[stock][day + lookback_for_factors + 1]
+                invested_money[df_returns.columns.get_loc(stock)] = 1 + (Q[day, :, df_returns.columns.get_loc(stock)] * beta_tensor[day, df_score.columns.get_loc(stock), :]).sum()
+                short_stocks[day][df_returns.columns.get_loc(stock)] = -df_returns[stock][day + lookback_for_factors]
+                # div[day][df_returns.columns.get_loc(
+                #     stock)] = -df_dividends[stock][day + lookback_for_factors + 1] / df_price[stock][day + lookback_for_factors + 1]
                 if spy_market_neutrality:
-                    long_factors[day][df_returns.columns.get_loc(
-                        stock)] = beta_spy[day + 1, df_score.columns.get_loc(stock)] * spy_returns.iloc[day + lookback_for_factors + 1]
+                    long_factors[day][df_returns.columns.get_loc(stock)] = beta_spy[day, df_score.columns.get_loc(stock)] * spy_returns.iloc[day + lookback_for_factors]
                 else:
-                    long_factors[day][df_returns.columns.get_loc(stock)] = (
-                        factors[day + lookback_for_factors + 1] * beta_tensor[day + 1, df_score.columns.get_loc(stock), :]).sum()
+                    long_factors[day][df_returns.columns.get_loc(stock)] = (factors[day] * beta_tensor[day, df_score.columns.get_loc(stock), :]).sum()
+                continue
 
             if (day > 0) and (df_score[stock][day] < s_so) and (df_score[stock][day] > s_bc) and (state[df_returns.columns.get_loc(stock)] == 's'):
                 print(f'Still short on {stock}')
-
-                short_stocks[day][df_returns.columns.get_loc(
-                    stock)] = -df_returns[stock][day + lookback_for_factors + 1]
-                div[day][df_returns.columns.get_loc(
-                    stock)] = -df_dividends[stock][day + lookback_for_factors + 1] / df_price[stock][day + lookback_for_factors + 1]
+                day_counter_short[df_returns.columns.get_loc(stock)] += 1
+                short_stocks[day][df_returns.columns.get_loc(stock)] = -df_returns[stock][day + lookback_for_factors]
+                # div[day][df_returns.columns.get_loc(
+                #     stock)] = -df_dividends[stock][day + lookback_for_factors + 1] / df_price[stock][day + lookback_for_factors + 1]
                 if spy_market_neutrality:
-                    long_factors[day][df_returns.columns.get_loc(
-                        stock)] = beta_spy[day + 1, df_score.columns.get_loc(stock)] * spy_returns.iloc[day + lookback_for_factors + 1]
+                    long_factors[day][df_returns.columns.get_loc(stock)] = beta_spy[day, df_score.columns.get_loc(stock)] * spy_returns.iloc[day + lookback_for_factors]
                 else:
-                    long_factors[day][df_returns.columns.get_loc(stock)] = (
-                        factors[day + lookback_for_factors + 1] * beta_tensor[day + 1, df_score.columns.get_loc(stock), :]).sum()
+                    long_factors[day][df_returns.columns.get_loc(stock)] = (factors[day] * beta_tensor[day - day_counter_short[df_returns.columns.get_loc(stock)], df_score.columns.get_loc(stock), :]).sum()
+                continue
 
-            if (day > 0) and (df_score[stock][day] < s_bc) and (df_score[stock][day] > -s_sc):
-                if state[df_score.columns.get_loc(stock)] == 'l':
-                    print(
-                        f'I have closed the trade {state[df_returns.columns.get_loc(stock)]} on {stock}')
-                    state[df_returns.columns.get_loc(stock)] = 'c'
+            if (day > 0) and (df_score[stock][day] > -s_sc) and (state[df_score.columns.get_loc(stock)] == 'l'):
+                print(f'I have closed the trade {state[df_returns.columns.get_loc(stock)]} on {stock}')
+                day_counter_long[df_returns.columns.get_loc(stock)] = 0
+                state[df_returns.columns.get_loc(stock)] = 'c'
 
-                    profit_long_stocks = long_stocks[:, df_returns.columns.get_loc(stock)].sum()
-                    long_stocks[:, df_returns.columns.get_loc(
-                        stock)] = np.zeros(shape=df_score.shape[0])
+                profit_long_stocks = invested_money[df_returns.columns.get_loc(stock)] * long_stocks[:, df_returns.columns.get_loc(stock)].sum()
+                long_stocks[:, df_returns.columns.get_loc(stock)] = np.zeros(shape=df_score.shape[0])
 
-                    profit_short_factors = short_factors[:, df_returns.columns.get_loc(
-                        stock)].sum()
-                    short_factors[:, df_returns.columns.get_loc(
-                        stock)] = np.zeros(shape=df_score.shape[0])
+                profit_short_factors = short_factors[:, df_returns.columns.get_loc(stock)].sum()
+                short_factors[:, df_returns.columns.get_loc(stock)] = np.zeros(shape=df_score.shape[0])
 
-                    div_profit = div[:,
-                                     df_returns.columns.get_loc(stock)].sum()
-                    div[:, df_returns.columns.get_loc(stock)] = np.zeros(
-                        shape=df_score.shape[0])
+                # div_profit = div[:,
+                #                  df_returns.columns.get_loc(stock)].sum()
+                # div[:, df_returns.columns.get_loc(stock)] = np.zeros(
+                #     shape=df_score.shape[0])
 
-                    returns = np.append(
-                        returns, profit_long_stocks + profit_short_factors + div_profit)
+                returns = np.append(returns, profit_long_stocks + profit_short_factors) # + div_profit)
+                continue
 
-                if state[df_returns.columns.get_loc(stock)] == 's':
-                    print(
-                        f'I have closed the trade {state[df_returns.columns.get_loc(stock)]} on {stock}')
-                    state[df_returns.columns.get_loc(stock)] = 'c'
+            if (day > 0) and (df_score[stock][day] < s_bc) and (state[df_score.columns.get_loc(stock)] == 's'):
+                print(f'I have closed the trade {state[df_returns.columns.get_loc(stock)]} on {stock}')
+                day_counter_short[df_returns.columns.get_loc(stock)] = 0
+                state[df_returns.columns.get_loc(stock)] = 'c'
 
-                    profit_short_stocks = short_stocks[:, df_returns.columns.get_loc(
-                            stock)].sum()
-                    short_stocks[:, df_returns.columns.get_loc(
-                        stock)] = np.zeros(shape=df_score.shape[0])
+                profit_short_stocks = short_stocks[:, df_returns.columns.get_loc(stock)].sum()
+                short_stocks[:, df_returns.columns.get_loc(stock)] = np.zeros(shape=df_score.shape[0])
+                profit_long_factors = short_factors[:, df_returns.columns.get_loc(stock)].sum()
+                long_factors[:, df_returns.columns.get_loc(stock)] = np.zeros(shape=df_score.shape[0])
 
-                    profit_long_factors = short_factors[:, df_returns.columns.get_loc(
-                        stock)].sum()
-                    long_factors[:, df_returns.columns.get_loc(
-                        stock)] = np.zeros(shape=df_score.shape[0])
+                # div_profit = div[:,
+                #                  df_returns.columns.get_loc(stock)].sum()
+                # div[:, df_returns.columns.get_loc(stock)] = np.zeros(
+                #     shape=df_score.shape[0])
 
-                    div_profit = div[:,
-                                     df_returns.columns.get_loc(stock)].sum()
-                    div[:, df_returns.columns.get_loc(stock)] = np.zeros(
-                        shape=df_score.shape[0])
-
-                    returns = np.append(
-                        returns, profit_short_stocks + profit_long_factors + div_profit)
+                returns = np.append(returns, profit_short_stocks + profit_long_factors) # + div_profit)
+                continue
 
             else:
-                pass
+                continue
 
         total_returns[day + 1] = total_returns[day] + returns.sum()
 
@@ -174,19 +154,17 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     start = time.time()
-    df_returns = pd.read_csv(go_up(1) +
-                             "/saved_data/RusselReturnsData.csv")
-    df_score = pd.read_csv(go_up(1) +
-                           "/saved_data/ScoreData.csv")
-    df_price = pd.read_csv(go_up(1) + '/saved_data/RusselPriceData.csv')
-    df_dividends = pd.read_csv(go_up(1) + '/saved_data/RusselDividendsData.csv')
+    df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
+    df_score = pd.read_csv(go_up(1) + '/saved_data/ScoreData.csv') # ottenuti unendo quelli dei processi
+    df_price = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv')
+    df_dividends = pd.read_csv(go_up(1) + '/saved_data/DividendsData.csv')
     beta_tensor = np.load(go_up(1) + '/saved_data/beta_tensor.npy')
-    factors = np.load(go_up(1) + '/saved_data/Russelfactors.npy')
-    beta_spy = np.load(go_up(1) + '/saved_data/russel_beta_spy.npy')
+    factors = np.load(go_up(1) + '/saved_data/risk_factors.npy') # ottenuti unendo quelli dei processi
+    beta_spy = np.load(go_up(1) + '/saved_data/beta_spy.npy')
     spy_returns = pd.read_csv(go_up(1) + '/saved_data/ReturnsSPY.csv')
 
     returns = trading(df_returns, df_score, df_price,
-                      df_dividends, beta_tensor, factors, beta_spy, spy_returns, spy_market_neutrality=False)
+                      df_dividends, beta_tensor, factors, beta_spy, spy_returns)
     name = input('Name of the file that will be saved: ')
     np.save(go_up(1) + f'/saved_data/{name}', returns)
 
