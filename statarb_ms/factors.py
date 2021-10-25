@@ -50,7 +50,7 @@ def pca(df_returns, n_components, variable_number=False, threshold=0.55):
                 break
 
     logging.info(
-        f"Fraction of variance preserved: {eigenvalues.sum():.2f}")
+        f"Fraction of variance preserved with {len(eigenvectors)} components: {eigenvalues.sum():.2f}")
 
     return eigenvalues, eigenvectors
 
@@ -116,8 +116,7 @@ def risk_factors(df_returns, eigenvectors, export=False):
     n_stocks = df_returns.shape[1]
     n_factors = len(eigenvectors)
     factors = np.zeros((n_days, n_factors))
-    dev_t = 1 / df_returns.std()
-    logging.info(f'Number of factors extracted from PCA: {n_factors}')
+    dev_t = 1 / df_returns.std() # deviazione standard per compagnia
     returns = df_returns.values
 
     for j in range(n_factors):
