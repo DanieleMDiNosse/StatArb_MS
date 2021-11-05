@@ -1,25 +1,51 @@
 from sklearn import linear_model
+import statsmodels.api as sm
 from factors import pca, risk_factors
 import numpy as np
 import argparse
 import logging
 import matplotlib.pyplot as plt
 import pandas as pd
+import time
+from statsmodels.tsa.ar_model import AutoReg
 
 
-def regression(x, y, fit_intercept):
+def regression(X, Y, const=True):
     '''
     Simple linear regression model that relies on sklearn LinearRegression
-    '''
-    lm = linear_model.LinearRegression(fit_intercept=fit_intercept)
-    model = lm.fit(x, y)
-    r2 = lm.score(x, y)
-    predictions = lm.predict(x)
-    residuals = np.array(y) - np.array(predictions)
-    betas = lm.coef_
-    beta0 = lm.intercept_
 
-    return predictions, beta0, betas, residuals
+    Parameters
+    ----------
+    X : numpy ndarray
+        Features.
+    Y : numpy ndarray
+        Target.
+    '''
+
+    if const:
+        X = sm.add_constant(X)
+    model = sm.OLS(Y,X)
+    res = model.fit()
+    beta0 = np.array(res.params[0])
+    betas = np.array(res.params[1:])
+    conf_intervals = np.array(res.conf_int(alpha=0.05, cols=None))
+    predictions = model.predict(res.params)
+    residuals = np.array(res.resid)
+    rsquared = res.rsquared
+
+
+    return beta0, betas, conf_intervals, residuals, predictions, rsquared
+
+def auto_regression(X):
+    mod = AutoReg(X, lags=1, old_names=False)
+    res = mod.fit()
+    a = np.array(res.params[0])
+    b = np.array(res.params[1])
+    pred = mod.predict(res.params)
+    resid = np.array(res.resid)
+    conf_int = np.array(res.conf_int(alpha=0.05, cols=None))
+
+    return a, b, pred, resid, conf_int
 
 
 if __name__ == '__main__':
@@ -40,19 +66,19 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     df_returns = pd.read_csv(
-        "/home/danielemdn/Documents/thesis/StatArb_MS/ReturnsData.csv")
-    eigenvalues, eigenvectors = pca(
-        df_returns, n_components=args.n_components, variable_number=args.variable_number)
-    factors = risk_factors(df_returns, eigenvectors)
+        "/home/danielemdn/Documents/thesis/StatArb_MS/saved_data/ReturnsData.csv")
+    # eigenvalues, eigenvectors = pca(
+    #     df_returns[:252], n_components=args.n_components, variable_number=args.variable_number)
+    # factors = risk_factors(df_returns, eigenvectors)
 
-    # Regression of the stock returns on the PCA components
-    predictions, beta0, betas, residuals = regression(factors, df_returns.AN)
 
-    discreteOU = np.zeros(len(residuals[-60:]))
-    for i in range(len(discreteOU)):
-        discreteOU[i] = residuals[:i + 1].sum()
-    discreteOU_predicted, a, b, residuals = regression(
-        discreteOU[:-1].reshape(-1, 1), discreteOU[1:])  # NON VA BENE
+    # beta0, betas, residuals, conf_intervals = regression(factors, df_returns.AN)
+    a, b, predictions, residuals, conf_intervals = auto_regression(df_returns.AN)
+    print(a, b)
+    plt.figure()
+    plt.hist(residuals, bins=500)
+    plt.show()
+
 
     # plt.figure()
     # plt.plot(df_returns.AAPL-1, label='Apple')
@@ -60,10 +86,3 @@ if __name__ == '__main__':
     # plt.legend()
     # plt.grid()
     # plt.show()
-
-    plt.figure()
-    plt.plot(discreteOU, label='discreteOU')
-    plt.plot(discreteOU_predicted, label='discreteOU_predicted')
-    plt.legend()
-    plt.grid()
-    plt.show()
