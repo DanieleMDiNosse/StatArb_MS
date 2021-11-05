@@ -4,10 +4,12 @@ import argparse
 import pandas as pd
 from makedir import go_up
 from factors import pca, risk_factors, money_on_stock
-from regression_parameters import regression
+from regression_parameters import regression, auto_regression
+from sklearn.metrics import r2_score
 import time
 import multiprocessing as mp
 import os
+import matplotlib.pyplot as plt
 
 def generate_score(df_returns, n_factor, variable_n_factor=False, lookback_for_factors=252, lookback_for_residual=60, export=True):
     '''This function uses an amount of days equal to lookback_for_factors to evaluate the PCA components and an amount equal to lookback_for_residual
@@ -32,18 +34,17 @@ def generate_score(df_returns, n_factor, variable_n_factor=False, lookback_for_f
 
     Returns
     -------
-    df_score : pandas.core.frame.DataFrame
-        Pandas DataFrame of s_score
-    beta_tensor : numpy array
-        Vector of betas of shape [number of days, number of stock, number of factors]
+    None
     '''
 
-    trading_days = df_returns.shape[0] - lookback_for_factors
+    trading_days = df_returns.shape[0] - lookback_for_factors # 6294
     n_stocks = df_returns.shape[1]
     score = np.zeros(shape=(trading_days, n_stocks)) # Il primo score corrisponderà al 252° giorno (indice 251)
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     risk_fact = np.zeros(shape=(trading_days, n_factor))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
+    b_values = np.zeros(shape=(trading_days, n_stocks, 3))
+    R_squared = np.zeros(shape=(trading_days, n_stocks))
 
     for i in range(trading_days):
         # Una finestra temporale di 252 giorni è traslata di 1 giorno. Ogni volta viene eseguita una PCA su tale periodo
@@ -56,27 +57,23 @@ def generate_score(df_returns, n_factor, variable_n_factor=False, lookback_for_f
         else:
             eigenvalues, eigenvectors = pca(
                 period, n_components=n_factor, variable_number=variable_n_factor)
-        eigenvectors = -eigenvectors
         factors = risk_factors(period, eigenvectors) # ritorni dei fattori di rischio per ogni periodo
-
-        risk_fact[i,:] = factors[-1] # mi serve sostanzialmente solamente l'ultimo vettore dei ritorni dei fattori per il trading
         Q[i,:,:] = money_on_stock(period, eigenvectors) # trading_days x n_factors x n_stocks. Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori
-
-        # Ogni giorno i ritorni dei fattori sono valutati su finestre temporali di lunghezza 252 giorni ma che differiscono di un giorno.
-        # Devo tener traccia di tutti i ritorni dei fattori di rischio giorno per giorno poiché mi serviranno per il trading.
-        # Nota: finora ho utilizzato i fattori di rischio valutati sull'intero dataframe dei ritorni, guardando il futuro!
-
 
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
         for stock in df_returns.columns:
             stock_idx = df_returns.columns.get_loc(stock)
-            predictions, beta0, betas, residuals = regression(factors[-lookback_for_residual:], period[-lookback_for_residual:][stock], fit_intercept=True)
+            beta0, betas, conf_inter, residuals, pred, _ = regression(factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])
             beta_tensor[i, stock_idx, :] = betas
 
-            discreteOU = np.zeros(len(residuals[-lookback_for_residual:]))
-            for j in range(len(discreteOU)):
-                discreteOU[j] = residuals[:j + 1].sum()
-            discreteOU_predicted, a, b, discrete_residuals = regression(discreteOU[:-1].reshape(-1, 1), discreteOU[1:], fit_intercept=True)
+            discreteOU = np.cumsum(residuals)
+            discreteOU = np.append(discreteOU, discreteOU[-1])
+            a, b, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU)
+            # Registro la dinamica di b nel tempo, memorizzando media e intervallo di confidenza. L'idea successiva è quella di modellizzare b
+            # tramite un GAS model.
+            b_values[i, stock_idx, 0] = b
+            b_values[i, stock_idx, 1:] = discrete_conf_int[1,:]
+            R_squared[i, stock_idx] = r2_score(discreteOU[:-1], discrete_pred)
 
             if b == 0.0:
                 print(f'B NULLO PER {stock}')
@@ -87,25 +84,24 @@ def generate_score(df_returns, n_factor, variable_n_factor=False, lookback_for_f
                 score[i, stock_idx] = 0
             else:
                 m = a / (1 - b)
-                sgm = np.std(discrete_residuals) * np.sqrt(2 * k / (1 - b * b))
-                sgm_eq = np.std(discrete_residuals) * np.sqrt(1 / (1 - b * b))
+                sgm = np.std(discrete_resid) * np.sqrt(2 * k / (1 - b * b))
+                sgm_eq = np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
                 # naive method. Keep in mind that s-score depends on the risk factors
                 s_score = -m / sgm_eq
-                score[i, stock_idx] = s_score[0]
+                score[i, stock_idx] = s_score
 
     df_score = pd.DataFrame(score, columns=df_returns.columns)
     if export:
         df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
         np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
-        np.save(go_up(1) + f'/saved_data/risk_fact_{os.getpid()}', risk_fact)
         np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
+        np.save(go_up(1) + f'/saved_data/b_values_{os.getpid()}', b_values)
+        np.save(go_up(1) + f'/saved_data/R_squared_{os.getpid()}', R_squared)
 
 
-def SPY_beta(df_returns, spy, export=True):
+def SPY_beta(df_returns, spy, lookback_for_factors=252, lookback_for_residual=60, export=True):
 
     df_returns = np.array(df_returns)
-    lookback_for_factors = 252
-    lookback_for_residual = 60
     trading_days = df_returns.shape[0] - lookback_for_factors
     n_stocks = df_returns.shape[1]
     vec_beta_spy = np.zeros(shape=(trading_days, n_stocks))
@@ -150,7 +146,7 @@ if __name__ == '__main__':
 
     start = time.time()
     df_returns = pd.read_csv(go_up(1) +
-                             "/saved_data/RusselReturnsData.csv")
+                             "/saved_data/ReturnsData.csv")
     df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
     processes = [mp.Process(target=generate_score, args=(i, args.n_components)) for i in df]
 
