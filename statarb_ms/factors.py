@@ -14,8 +14,8 @@ def pca(df_returns, n_components, variable_number=False, threshold=0.55):
     Compute the PCA decomposition of a dataset.
     Parameters
     ----------
-    df_returns_price : str
-        Path to the csv dataframe file.
+    df_returns : pandas.core.frame.DataFrame
+        Dataframe of 1-day returns for each stock.
     n_components : int
         Number of components you want your dataframe be projected to.
     variable_n_factor : bool
@@ -23,6 +23,7 @@ def pca(df_returns, n_components, variable_number=False, threshold=0.55):
         If it is True, n_components can be any value: the PCA will ignore and not use it.
     threshold : float
         Explained variance to keep. This parameter acts only when variable_n_factor is set to True.
+
     Returns
     -------
     eigenvalues, eigenvectors : list
@@ -37,22 +38,22 @@ def pca(df_returns, n_components, variable_number=False, threshold=0.55):
         pca = PCA(n_components=n_components)
     pca.fit(df_returns_norm.values)
     n_pca = pca.n_components_
-    eigenvalues = pca.explained_variance_ratio_
+    eigenvalues = pca.explained_variance_
     eigenvectors = pca.components_
 
     if variable_number:
         explained_variance = 0
-        for i, eigenval in zip(range(len(eigenvalues)), pca.explained_variance_ratio_):
+        for i, eigenval in zip(range(len(eigenvalues)), pca.explained_variance_):
             explained_variance += eigenval
             if explained_variance >= threshold:
-                eigenvalues, eigenvectors = pca.explained_variance_ratio_[
+                eigenvalues, eigenvectors = pca.explained_variance_[
                     :i], pca.components_[:i]
                 break
 
     logging.info(
-        f"Fraction of variance preserved with {len(eigenvectors)} components: {eigenvalues.sum():.2f}")
+        f"Fraction of variance preserved with {len(eigenvectors)} components: {eigenvalues.sum()/df_returns.shape[1]:.2f}")
 
-    return eigenvalues, eigenvectors
+    return eigenvalues, -eigenvectors
 
 
 def eigenportfolios(df_returns, eigenvectors):
@@ -84,7 +85,20 @@ def eigenportfolios(df_returns, eigenvectors):
 
 def money_on_stock(df_returns, eigenvectors):
     ''' This function will output a matrix of shape n_factors x n_stocks in which the i-j elements corresponds
-    to the amount of money to be invested in the company j relative to the risk_factor i
+    to the amount of money to be invested in the company j relative to the risk factor i.
+
+    Parameters
+    ----------
+    df_returns : pandas.core.frame.Dataframe
+        Dataframe of 1 day returns for each stock.
+    eigenvectors : numpy array
+        Eigenvectors obtained from PCA.
+
+    Returns
+    -------
+    q : numpy.ndarray
+        Numpy array of shape (n_factors, n_stocks). The i-j element indicates the amount of money invested in
+        the company j in the factor i.
     '''
     dev_t = df_returns.std()
     q = np.zeros(shape=(eigenvectors.shape[0], df_returns.shape[1]))
@@ -155,32 +169,37 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
-    eigenvalues, eigenvectors = pca(df_returns, n_components=args.n_components,
+    eigenvalues, eigenvectors = pca(df_returns[-252:], n_components=args.n_components,
                                     variable_number=args.variable_number, threshold=args.threshold_variance)
-    # factors = risk_factors(df_returns, eigenvectors, export=args.export)
-    eigenportfolio = eigenportfolios(df_returns, eigenvectors)
-    q = money_on_stock(df_returns, eigenvectors)
+    print(eigenvalues.sum())
+    # # factors = risk_factors(df_returns, eigenvectors, export=args.export)
+    # eigenportfolio = eigenportfolios(df_returns, eigenvectors)
+    # q = money_on_stock(df_returns, eigenvectors)
 
     if args.plots:
+        trading_days = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date
+        x_label_position = np.arange(0, len(trading_days)-252, 252)
+        x_label_day = [trading_days[i] for i in x_label_position]
         plt.figure()
-        plt.bar(np.arange(1, len(eigenvalues) + 1), eigenvalues, alpha=0.8)
+        plt.bar(np.arange(len(eigenvalues)), eigenvalues,color='k', alpha=0.8)
         plt.xlabel('Eigenvalues')
-        plt.ylabel('Variance Explained')
+        plt.ylabel('Explained Variance')
         plt.show()
 
         plt.figure()
-        plt.hist(eigenvalues, bins=30, alpha=0.8)
+        plt.hist(eigenvalues, color='k', bins=50, alpha=0.8)
         plt.title('Density of states')
         plt.show()
 
         # explained_variance = []
-        # for i in range(0,6301,2):
+        # look_back = 252
+        # for i in tqdm(range(0,6301,2)):
         #     eigenvalues, eigenvectors = pca(df_returns[i:i+look_back], n_components=args.n_components,
         #                                     variable_number=args.variable_number, threshold=args.threshold_variance)
         #     explained_variance.append(eigenvalues.sum())
         # plt.figure()
-        # plt.plot(list(range(0,6301,2)), explained_variance)
-        # plt.title(f'Explained variance in time with {args.n_components} PCA components')
-        # plt.xlabel('Time')
+        # plt.plot(list(range(0,6301,2)), explained_variance, 'k')
         # plt.ylabel('Explained variance')
+        # plt.xticks(x_label_position, x_label_day, rotation=60)
+        # plt.grid(True)
         # plt.show()
