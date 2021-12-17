@@ -33,19 +33,28 @@ def regression(X, Y, const=True):
     residuals = np.array(res.resid)
     rsquared = res.rsquared
 
-
     return beta0, betas, conf_intervals, residuals, predictions, rsquared
 
-def auto_regression(X):
-    mod = AutoReg(X, lags=1, old_names=False)
-    res = mod.fit()
-    a = np.array(res.params[0])
-    b = np.array(res.params[1])
-    pred = mod.predict(res.params)
+def auto_regression(X, mod, diagnostics=False):
+    if mod == 'cmle':
+        mod = AutoReg(X, lags=1, old_names=False)
+        res = mod.fit()
+        pred = mod.predict(res.params)
+    if mod == 'mle':
+        mod = SARIMAX(X, trend='c')
+        res = mod.fit(disp=False)
+        pred = res.predict()
+    parameters = np.array(res.params)
+    # intercept = np.array(res.params[0])
+    # arL1 = np.array(res.params[1])
     resid = np.array(res.resid)
+    if diagnostics:
+        res.plot_diagnostics(lags=30)
+        print(res.summary())
+        plt.show()
     conf_int = np.array(res.conf_int(alpha=0.05, cols=None))
 
-    return a, b, pred, resid, conf_int
+    return parameters, pred, resid, conf_int
 
 
 if __name__ == '__main__':
