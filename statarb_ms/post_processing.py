@@ -111,26 +111,15 @@ def ljung_box_test(name, order):
     plt.show()
 
 
-def file_merge(pidnums, one_file=False):
+def file_merge(pidnums, file_list):
 
-    if one_file:
-        file_name = input('Additional file name: ')
-        add_file = [np.load(go_up(1) + f'/saved_data/{file_name}_{i}.npy') for i in pidnums]
-
-        np.save(go_up(1) + f'/saved_data/{file_name}', np.vstack(add_file))
-
-    else:
-        df_score = [pd.read_csv(go_up(1) + f'/saved_data/df_score_{i}.csv') for i in pidnums]
-        beta_tensor = [np.load(go_up(1) + f'/saved_data/beta_tensor_{i}.npy') for i in pidnums]
-        Q = [np.load(go_up(1) + f'/saved_data/Q_{i}.npy') for i in pidnums]
-        b_values = [np.load(go_up(1) + f'/saved_data/b_values_{i}.npy') for i in pidnums]
-        R_squared = [np.load(go_up(1) + f'/saved_data/R_squared_{i}.npy') for i in pidnums]
-
-        pd.concat(df_score, ignore_index=True).to_csv(go_up(1) + '/saved_data/ScoreData.csv', index=False)
-        np.save(go_up(1) + '/saved_data/beta_tensor', np.vstack(beta_tensor))
-        np.save(go_up(1) + '/saved_data/Q', np.vstack(Q))
-        np.save(go_up(1) + '/saved_data/b_values', np.vstack(b_values))
-        np.save(go_up(1) + '/saved_data/R_squared', np.vstack(R_squared))
+    for file in file_list:
+        try:
+            df_score = [pd.read_csv(go_up(1) + f'/saved_data/{file}_{i}.csv') for i in pidnums]
+            pd.concat(df_score, ignore_index=True).to_csv(go_up(1) + '/saved_data/ScoreDataPP.csv', index=False)
+        except:
+            splitted_files = [np.load(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
+            np.save(go_up(1) + f'/saved_data/{file}PP', np.vstack(splitted_files))
 
 
 if __name__ == '__main__':
