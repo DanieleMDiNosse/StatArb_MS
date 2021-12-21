@@ -10,7 +10,7 @@ from tqdm import tqdm
 from numba import njit, prange
 
 
-def pca(df_returns, n_components, threshold=0.55):
+def pca(df_returns, n_components, threshold=0.55, verbose=False):
     '''
     Compute the PCA decomposition of a dataset.
     Parameters
@@ -39,8 +39,9 @@ def pca(df_returns, n_components, threshold=0.55):
     eigenvalues = pca.explained_variance_
     eigenvectors = pca.components_
 
-    logging.info(
-        f"Fraction of variance preserved with {len(eigenvectors)} components: {eigenvalues.sum()/df_returns.shape[1]:.2f}")
+    if verbose:
+        logging.info(
+            f"Fraction of variance preserved with {len(eigenvectors)} components: {eigenvalues.sum()/df_returns.shape[1]:.2f}")
 
     return eigenvalues, -eigenvectors
 
