@@ -164,7 +164,7 @@ if __name__ == '__main__':
         Q = np.load(go_up(1) + '/saved_data/RusselQ.npy')
     else:
         df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
-        df_score = pd.read_csv(go_up(1) + '/saved_data/ScoreData.csv') # ottenuti unendo quelli dei processi
+        df_score = pd.read_csv(go_up(1) + '/saved_data/ScoreData.csv')
         beta_tensor = np.load(go_up(1) + '/saved_data/beta_tensor.npy')
         Q = np.load(go_up(1) + '/saved_data/Q.npy')
 
