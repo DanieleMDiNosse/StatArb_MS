@@ -4,7 +4,7 @@ import argparse
 import pandas as pd
 from tqdm import tqdm
 from makedir import go_up
-from post_processing import file_merge
+from post_processing import file_merge, remove_file
 from reduced_loglikelihood import reduced_loglikelihood
 from gas import estimation
 from factors import pca, risk_factors, money_on_stock
@@ -50,6 +50,7 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
     '''
 
     trading_days = df_returns.shape[0] - lookback_for_factors # 6294
+    trading_days = 2
     n_stocks = df_returns.shape[1]
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
@@ -301,6 +302,7 @@ if __name__ == '__main__':
         file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared']
     logging.info('Merging files...')
     file_merge(pidnums, file_list)
+    remove_file(pidnums, file_list)
     # os.system('rm tmp/*')
     for x in os.listdir('tmp'):
         os.remove(f'tmp/{x}')
