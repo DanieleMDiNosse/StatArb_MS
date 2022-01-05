@@ -80,7 +80,6 @@ def normtest_discreteOU(name):
     plt.yticks(y_label_position, y_label_day, fontsize=13)
     plt.show()
 
-<<<<<<< Updated upstream
     plt.figure()
     plt.hist(normtest.flatten(), bins=20, color='k')
     plt.grid(True)
@@ -117,17 +116,10 @@ def file_merge(pidnums, file_list):
     for file in file_list:
         try:
             df_score = [pd.read_csv(go_up(1) + f'/saved_data/{file}_{i}.csv') for i in pidnums]
-            pd.concat(df_score, ignore_index=True).to_csv(go_up(1) + '/saved_data/ScoreDataPP.csv', index=False)
+            pd.concat(df_score, ignore_index=True).to_csv(go_up(1) + '/saved_data/ScoreData.csv', index=False)
         except:
             splitted_files = [np.load(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
-            np.save(go_up(1) + f'/saved_data/{file}PP', np.vstack(splitted_files))
-=======
-    pd.concat(df_score, ignore_index=True).to_csv(go_up(1) + '/saved_data/ScoreData_new.csv', index=False)
-    np.save(go_up(1) + '/saved_data/beta_tenso_newr', np.vstack(beta_tensor))
-    np.save(go_up(1) + '/saved_data/Q_new', np.vstack(Q))
-    np.save(go_up(1) + '/saved_data/b_values_new', np.vstack(b_values))
-    np.save(go_up(1) + '/saved_data/R_squared_new', np.vstack(R_squared))
->>>>>>> Stashed changes
+            np.save(go_up(1) + f'/saved_data/{file}', np.vstack(splitted_files))
 
 
 if __name__ == '__main__':
