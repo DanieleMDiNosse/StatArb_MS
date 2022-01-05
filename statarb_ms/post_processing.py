@@ -9,6 +9,7 @@ from tqdm import tqdm
 import matplotlib.patches as mpatches
 from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.stats.diagnostic import acorr_ljungbox
+import os
 
 def plot_returns(name1, name2):
     ret = np.load(go_up(1) + f'/saved_data/{name1}.npy')
@@ -123,6 +124,12 @@ def file_merge(pidnums, file_list):
             name = input(f'Name for the {file} file: ')
             np.save(go_up(1) + f'/saved_data/{name}', np.vstack(splitted_files))
 
+def remove_file(pidnums, file_list):
+    for file in file_list:
+        try:
+            [os.remove(go_up(1) + f'/saved_data/{file}_{i}.csv') for i in pidnums]
+        except:
+            [os.remove(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
