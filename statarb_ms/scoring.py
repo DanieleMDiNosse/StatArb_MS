@@ -50,7 +50,6 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
     '''
 
     trading_days = df_returns.shape[0] - lookback_for_factors # 6294
-    trading_days = 2
     n_stocks = df_returns.shape[1]
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
@@ -282,9 +281,9 @@ if __name__ == '__main__':
     start = time.time()
     df_returns = pd.read_csv(go_up(1) +
                              "/saved_data/ReturnsData.csv")
-    df = [df_returns[768:1789], df_returns[1537:2558], df_returns[2306:3327], df_returns[3075:4096]]
+    # df = [df_returns[768:1789], df_returns[1537:2558], df_returns[2306:3327], df_returns[3075:4096]]
     # df = [df_returns[:1020], df_returns[768:1789], df_returns[1537:2558], df_returns[2306:3327], df_returns[3075:4096], df_returns[3844:4865], df_returns[4613:5634], df_returns[5382:]]
-    # df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
+    df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
 
     processes = [mp.Process(target=generate_data, args=(i, args.n_components, 'constant_speed', 252, 60, args.save_outputs)) for i in df]
     os.system('rm tmp/*')
