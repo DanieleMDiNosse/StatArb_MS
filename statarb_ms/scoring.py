@@ -6,7 +6,7 @@ from tqdm import tqdm
 from makedir import go_up
 from post_processing import file_merge
 from reduced_loglikelihood import reduced_loglikelihood
-from gas import estimation, recostruction
+from gas import estimation
 from factors import pca, risk_factors, money_on_stock
 from regression_parameters import regression, auto_regression
 from sklearn.metrics import r2_score
@@ -69,8 +69,10 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
         # ed i fattori di rischio sono quindi valutati.
         period = df_returns[i:lookback_for_factors + i] # [0,252[, [1,253[ ecc -> ogni period comprende un anno di trading (252 giorni)
         eigenvalues, eigenvectors = pca(period, n_components=n_factor)
-        factors = risk_factors(np.array(period), period.shape[0], period.shape[1], eigenvectors, np.array(period).std(axis=0, ddof=1)) # ritorni dei fattori di rischio per ogni periodo
-        Q[i,:,:] = money_on_stock(np.array(period), eigenvectors, np.array(period).std(axis=0, ddof=1)) # trading_days x n_factors x n_stocks. Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori
+        period_np = np.array(period)
+        dev_t = period_np.std(axis=0, ddof=1)
+        factors = risk_factors(period_np, eigenvectors, dev_t, period.shape[0], period.shape[1]) # ritorni dei fattori di rischio per ogni periodo
+        Q[i,:,:] = money_on_stock(period_np, eigenvectors, dev_t, eigenvectors.shape) # trading_days x n_factors x n_stocks. Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori
 
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
         for stock in df_returns.columns:
@@ -284,7 +286,7 @@ if __name__ == '__main__':
     # df = [df_returns[:1020], df_returns[768:1789], df_returns[1537:2558], df_returns[2306:3327], df_returns[3075:4096], df_returns[3844:4865], df_returns[4613:5634], df_returns[5382:]]
     df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
 
-    processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, 252, 60, args.save_outputs)) for i in df]
+    processes = [mp.Process(target=generate_data, args=(i, args.n_components, 'constant_speed', 252, 60, args.save_outputs)) for i in df]
     os.system('rm tmp/*')
     for p in processes:
         p.start()

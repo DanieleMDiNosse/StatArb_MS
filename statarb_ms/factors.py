@@ -7,9 +7,10 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from makedir import go_up
 from tqdm import tqdm
+from numba import njit, prange
 
 
-def pca(df_returns, n_components, variable_number=False, threshold=0.55):
+def pca(df_returns, n_components):
     '''
     Compute the PCA decomposition of a dataset.
     Parameters
@@ -32,26 +33,23 @@ def pca(df_returns, n_components, variable_number=False, threshold=0.55):
     scaler = StandardScaler()
     df_returns_norm = pd.DataFrame(scaler.fit_transform(
         df_returns), columns=df_returns.columns)
-    if variable_number:
-        pca = PCA()
-    else:
-        pca = PCA(n_components=n_components)
+    pca = PCA(n_components=n_components)
     pca.fit(df_returns_norm.values)
     n_pca = pca.n_components_
     eigenvalues = pca.explained_variance_
     eigenvectors = pca.components_
 
-    if variable_number:
-        explained_variance = 0
-        for i, eigenval in zip(range(len(eigenvalues)), pca.explained_variance_):
-            explained_variance += eigenval
-            if explained_variance >= threshold:
-                eigenvalues, eigenvectors = pca.explained_variance_[
-                    :i], pca.components_[:i]
-                break
+    # if variable_number:
+    #     explained_variance = 0
+    #     for i, eigenval in zip(range(len(eigenvalues)), pca.explained_variance_):
+    #         explained_variance += eigenval
+    #         if explained_variance >= threshold:
+    #             eigenvalues, eigenvectors = pca.explained_variance_[
+    #                 :i], pca.components_[:i]
+    #             break
 
-    logging.info(
-        f"Fraction of variance preserved with {len(eigenvectors)} components: {eigenvalues.sum()/df_returns.shape[1]:.2f}")
+    # logging.info(
+    #     f"Fraction of variance preserved with {len(eigenvectors)} components: {eigenvalues.sum()/df_returns.shape[1]:.2f}")
 
     return eigenvalues, -eigenvectors
 
@@ -83,14 +81,15 @@ def eigenportfolios(df_returns, eigenvectors):
 
     return eigenport
 
-def money_on_stock(df_returns, eigenvectors):
+@njit(parallel = True)
+def money_on_stock(returns, eigenvectors, dev, eigenvectors_shape):
     ''' This function will output a matrix of shape n_factors x n_stocks in which the i-j elements corresponds
     to the amount of money to be invested in the company j relative to the risk factor i.
 
     Parameters
     ----------
-    df_returns : pandas.core.frame.Dataframe
-        Dataframe of 1 day returns for each stock.
+    returns : numpy array
+        Numpy array of 1 day returns for each stock.
     eigenvectors : numpy array
         Eigenvectors obtained from PCA.
 
@@ -100,15 +99,15 @@ def money_on_stock(df_returns, eigenvectors):
         Numpy array of shape (n_factors, n_stocks). The i-j element indicates the amount of money invested in
         the company j in the factor i.
     '''
-    dev_t = df_returns.std()
-    q = np.zeros(shape=(eigenvectors.shape[0], df_returns.shape[1]))
-    for i in range(eigenvectors.shape[0]):
+    dev_t = 1 / dev
+    q = np.zeros(shape=(eigenvectors_shape[0], eigenvectors_shape[1]))
+    for i in prange(eigenvectors_shape[0]):
         q[i] = eigenvectors[i,:] * dev_t
 
     return q
 
-
-def risk_factors(df_returns, eigenvectors, export=False):
+@njit(parallel = True)
+def risk_factors(returns, eigenvectors, dev, n_days, n_stocks):
     '''This function evaluates the returns of the eigenportfolios. In the PCA
     approach the returns of the eigenportolios are the factors
 
@@ -126,23 +125,20 @@ def risk_factors(df_returns, eigenvectors, export=False):
     factors : numpy array
         Numpy array of eigenportfolios'''
 
-    n_days = df_returns.shape[0]
-    n_stocks = df_returns.shape[1]
     n_factors = len(eigenvectors)
     factors = np.zeros((n_days, n_factors))
-    dev_t = 1 / df_returns.std() # deviazione standard per compagnia
-    returns = df_returns.values
+    dev_t = 1 / dev # deviazione standard per compagnia
 
-    for j in range(n_factors):
-        for i in range(n_days):
+    for j in prange(n_factors):
+        for i in prange(n_days):
             factors[i, j] = (returns[i] *
                              dev_t * eigenvectors[j]).sum()
 
-    if export:
-        name = input('Name of the file that will be saved: ')
-        np.save(go_up(1) + f'/saved_data/{name}', factors)
+    # if export:
+    #     name = input('Name of the file that will be saved: ')
+    #     np.save(go_up(1) + f'/saved_data/{name}', factors)
 
-    return np.array(factors)
+    return factors
 
 
 if __name__ == '__main__':

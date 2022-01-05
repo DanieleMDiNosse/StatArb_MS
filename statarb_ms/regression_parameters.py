@@ -39,13 +39,12 @@ def regression(X, Y, const=True):
 def auto_regression(X):
     mod = AutoReg(X, lags=1, old_names=False)
     res = mod.fit()
-    a = np.array(res.params[0])
-    b = np.array(res.params[1])
+    par = res.params
     pred = mod.predict(res.params)
     resid = np.array(res.resid)
     conf_int = np.array(res.conf_int(alpha=0.05, cols=None))
 
-    return a, b, pred, resid, conf_int
+    return par, pred, resid, conf_int
 
 
 if __name__ == '__main__':

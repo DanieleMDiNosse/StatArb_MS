@@ -116,10 +116,12 @@ def file_merge(pidnums, file_list):
     for file in file_list:
         try:
             df_score = [pd.read_csv(go_up(1) + f'/saved_data/{file}_{i}.csv') for i in pidnums]
-            pd.concat(df_score, ignore_index=True).to_csv(go_up(1) + '/saved_data/ScoreData.csv', index=False)
+            name = input('Name for the Score csv file: ')
+            pd.concat(df_score, ignore_index=True).to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
         except:
             splitted_files = [np.load(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
-            np.save(go_up(1) + f'/saved_data/{file}', np.vstack(splitted_files))
+            name = input(f'Name for the {file} file: ')
+            np.save(go_up(1) + f'/saved_data/{name}', np.vstack(splitted_files))
 
 
 if __name__ == '__main__':
