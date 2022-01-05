@@ -105,9 +105,9 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     start = time.time()
-    df_returns = pd.read_csv(go_up(1) + "/saved_data/RusselReturnsData.csv")
-    df_score = pd.read_csv(go_up(1) + '/saved_data/RusselScoreData.csv') # ottenuti unendo quelli dei processi
-    df_price = pd.read_csv(go_up(1) + '/saved_data/RusselPriceData.csv')
+    df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
+    df_score = pd.read_csv(go_up(1) + '/saved_data/ScoreData.csv') # ottenuti unendo quelli dei processi
+    df_price = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv')
     df_dividends = pd.read_csv(go_up(1) + '/saved_data/DividendsData.csv')
     beta_tensor = np.load(go_up(1) + '/saved_data/Russel_beta_tensor.npy')
     factors = np.load(go_up(1) + '/saved_data/Russel_risk_factors.npy') # ottenuti unendo quelli dei processi
