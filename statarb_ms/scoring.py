@@ -68,10 +68,10 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
         # ed i fattori di rischio sono quindi valutati.
         period = df_returns[i:lookback_for_factors + i] # [0,252[, [1,253[ ecc -> ogni period comprende un anno di trading (252 giorni)
         eigenvalues, eigenvectors = pca(period, n_components=n_factor)
-        period_np = np.array(period)
-        dev_t = period_np.std(axis=0, ddof=1)
-        factors = risk_factors(period_np, eigenvectors, dev_t, period.shape[0], period.shape[1]) # ritorni dei fattori di rischio per ogni periodo
-        Q[i,:,:] = money_on_stock(period_np, eigenvectors, dev_t, eigenvectors.shape) # trading_days x n_factors x n_stocks. Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori
+        # period_np = np.array(period)
+        # dev_t = period_np.std(axis=0, ddof=1)
+        factors = risk_factors(period, eigenvectors)# dev_t, period.shape[0], period.shape[1]) # ritorni dei fattori di rischio per ogni periodo
+        Q[i,:,:] = money_on_stock(period, eigenvectors)# dev_t, eigenvectors.shape) # trading_days x n_factors x n_stocks. Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori
 
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
         for stock in df_returns.columns:
