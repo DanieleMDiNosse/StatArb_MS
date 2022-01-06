@@ -10,20 +10,20 @@ import math
 import reduced_loglikelihood
 
 
-def estimation(fun, X, method, update, verbose=False):
+def estimation(fun, X, method, update, verbose=False, visualization=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
     b = np.ones(shape=T)
     xi = np.zeros(shape=T)
     init_params = np.random.uniform(0, 1, size=4)
-    sigma = 0.01
+    sigma = 1
     sq_sgm = sigma * sigma
     res = minimize(fun, init_params, (X, sigma, update),
                    method=method)
     if verbose:
         print(f'Initial guess: \n {init_params}')
         print(res)
-    alpha, beta, omega, a = res.x[0], res.x[1], res.x[2], res.x[3]
+    omega, a, alpha, beta = res.x[0], res.x[1], res.x[2], res.x[3]
 
     for i in range(1, T - 1):
         if update == 'gaussian':
@@ -40,15 +40,15 @@ def estimation(fun, X, method, update, verbose=False):
     if update == 'logistic': b = 1 / (1 + np.exp(-b))
     if update == 'logarithm': b = np.log(b)
 
-    # if visualization:
-    #     X_est = np.zeros_like(X)
-    #     for i in range(X.shape[0] - 1):
-    #         X_est[i+1] = a + b[i]*X_est[i] + xi[i+1]
-    #     plt.figure()
-    #     plt.plot(X, label='True')
-    #     plt.plot(X_est, label='Estimated')
-    #     plt.legend()
-    #     plt.show()
+    if visualization:
+        X_est = np.zeros_like(X)
+        for i in range(X.shape[0] - 1):
+            X_est[i + 1] = a + b[i + 1]*X_est[i] + xi[i + 1]
+        plt.figure()
+        plt.plot(X, label='True')
+        plt.plot(X_est, label='Estimated')
+        plt.legend()
+        plt.show()
 
     return b, a, xi
 
@@ -65,7 +65,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     plt.style.use('seaborn')
-    start = time.time()
     np.random.seed(666)
 
     if args.method == 0:
@@ -85,20 +84,15 @@ if __name__ == '__main__':
     n_stocks = X.shape[1]
     time_list = []
     for day in range(100):
+        start = time.time()
         for stock in range(n_stocks):
-            start = time.time()
             x = X[day, stock, :]
             b, a, xi = estimation(
                 reduced_loglikelihood.reduced_loglikelihood, x, update=update, method=method, verbose=args.verbose)
             if (math.isnan(b[-1])) or (b[-1] < 0):
                 print(b[-1])
-            end = time.time()
-            time_list.append(end-start)
-
-    print(np.array(time_list).mean())
-    end = time.time()
-    time_elapsed = (end - start)
-    print('Elapsed time: %.2f seconds' % time_elapsed)
+        end = time.time()
+        print(f'time day {day}: ', end-start)
 
 
 #     fig = plt.figure()

@@ -50,6 +50,7 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
     '''
 
     trading_days = df_returns.shape[0] - lookback_for_factors # 6294
+    trading_days = 500
     n_stocks = df_returns.shape[1]
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
@@ -88,18 +89,17 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
                 # tramite un GAS model.
                 b_values[i, stock_idx, 0], b_values[i, stock_idx, 1:] = b, discrete_conf_int[1,:]
                 R_squared[i, stock_idx] = r2_score(discreteOU[:-1], np.array(discrete_pred))
+                # Registro tutti i residui per i test sulla normalità ed "indipendenza" da fare successivamente
+                dis_res_reg[i, stock_idx, :] = discrete_resid
 
             if method == 'gas_modelization':
-                omega, a, alpha, beta = estimation(reduced_loglikelihood, discreteOU, method='Nelder-Mead', verbose=False)
-                b, discrete_resid = recostruction(discreteOU, omega, a, alpha, beta)
+                b, a, xi = estimation(reduced_loglikelihood, discreteOU, method='Nelder-Mead', update='gaussian', verbose=False)
                 b = b[-1] # Mi serve solo l'ultimo valore per lo score
                 if b < 0: # se b è negativo, sostituiscilo con quello stimato supponendo sia costante nella finestra temporale
                     discreteOU = np.append(discreteOU, discreteOU[-1])
-                    parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU, mod='cmle', diagnostics=False)
+                    parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU)
                     a, b = parameters[0], parameters[1]
                 # devi aggiungere anche le bande di confidenza
-            # Registro tutti i residui per i test sulla normalità ed "indipendenza" da fare successivamente
-            dis_res_reg[i, stock_idx, :] = discrete_resid
 
             if b == 0.0:
                 print(f'B NULLO PER {stock}')
@@ -110,8 +110,9 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
                 score[i, stock_idx] = 0
             else:
                 m = a / (1 - b)
-                sgm = np.std(discrete_resid) * np.sqrt(2 * k / (1 - b * b))
-                sgm_eq = np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
+                # sgm = np.std(discrete_resid) * np.sqrt(2 * k / (1 - b * b))
+                if method == 'constant_speed': sgm_eq = np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
+                if method == 'gas_modelization': sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b * b))
                 # naive method. Keep in mind that s-score depends on the risk factors
                 s_score = -m / sgm_eq
                 score[i, stock_idx] = s_score
@@ -273,16 +274,20 @@ if __name__ == '__main__':
     # L_tilde -> Lenght of the slice of the DataFrame, n -> number of slices, L -> total lenght, k -> overlap (i.e. lookback_for_factors-1)
     # L_tilde = (L + k*(n-1))/n
     # with n=5 L_tilde=1510
-
-
     start = time.time()
+
     df_returns = pd.read_csv(go_up(1) +
                              "/saved_data/ReturnsData.csv")
     # df = [df_returns[768:1789], df_returns[1537:2558], df_returns[2306:3327], df_returns[3075:4096]]
     # df = [df_returns[:1020], df_returns[768:1789], df_returns[1537:2558], df_returns[2306:3327], df_returns[3075:4096], df_returns[3844:4865], df_returns[4613:5634], df_returns[5382:]]
     df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
 
-    processes = [mp.Process(target=generate_data, args=(i, args.n_components, 'constant_speed', 252, 60, args.save_outputs)) for i in df]
+    if args.gas == True:
+        method = 'gas_modelization'
+    else:
+        method = 'constant_speed'
+
+    processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, 252, 60, args.save_outputs)) for i in df]
     os.system('rm tmp/*')
     for p in processes:
         p.start()

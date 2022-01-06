@@ -32,10 +32,7 @@ def pca(df_returns, n_components):
     scaler = StandardScaler()
     df_returns_norm = pd.DataFrame(scaler.fit_transform(
         df_returns), columns=df_returns.columns)
-    if variable_number:
-        pca = PCA()
-    else:
-        pca = PCA(n_components=n_components)
+    pca = PCA(n_components=n_components)
     pca.fit(df_returns_norm.values)
     n_pca = pca.n_components_
     eigenvalues = pca.explained_variance_
