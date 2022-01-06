@@ -9,7 +9,7 @@ from makedir import go_up
 from tqdm import tqdm
 
 
-def pca(df_returns, n_components, variable_number=False, threshold=0.55):
+def pca(df_returns, n_components):
     '''
     Compute the PCA decomposition of a dataset.
     Parameters
@@ -41,17 +41,8 @@ def pca(df_returns, n_components, variable_number=False, threshold=0.55):
     eigenvalues = pca.explained_variance_
     eigenvectors = pca.components_
 
-    if variable_number:
-        explained_variance = 0
-        for i, eigenval in zip(range(len(eigenvalues)), pca.explained_variance_):
-            explained_variance += eigenval
-            if explained_variance >= threshold:
-                eigenvalues, eigenvectors = pca.explained_variance_[
-                    :i], pca.components_[:i]
-                break
-
-    logging.info(
-        f"Fraction of variance preserved with {len(eigenvectors)} components: {eigenvalues.sum()/df_returns.shape[1]:.2f}")
+    # logging.info(
+    #     f"Fraction of variance preserved with {len(eigenvectors)} components: {eigenvalues.sum()/df_returns.shape[1]:.2f}")
 
     return eigenvalues, -eigenvectors
 
