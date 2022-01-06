@@ -68,10 +68,8 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
         # ed i fattori di rischio sono quindi valutati.
         period = df_returns[i:lookback_for_factors + i] # [0,252[, [1,253[ ecc -> ogni period comprende un anno di trading (252 giorni)
         eigenvalues, eigenvectors = pca(period, n_components=n_factor)
-        # period_np = np.array(period)
-        # dev_t = period_np.std(axis=0, ddof=1)
-        factors = risk_factors(period, eigenvectors)# dev_t, period.shape[0], period.shape[1]) # ritorni dei fattori di rischio per ogni periodo
-        Q[i,:,:] = money_on_stock(period, eigenvectors)# dev_t, eigenvectors.shape) # trading_days x n_factors x n_stocks. Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori
+        factors = risk_factors(period, eigenvectors)# ritorni dei fattori di rischio per ogni periodo
+        Q[i,:,:] = money_on_stock(period, eigenvectors)# trading_days x n_factors x n_stocks. Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori
 
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
         for stock in df_returns.columns:
@@ -261,7 +259,6 @@ if __name__ == '__main__':
                         help=("Use a variable number of PCA components. Each time the explained variance is 0.55. The default is False"))
     parser.add_argument('-n', '--n_components', type=int, default=15,
                         help='Number of PCA components to keep. The default is 15.')
-    parser.add_argument('-os', '--only_scoring', action='store_true', help='Pass it if you want run only the generate_score function. The default is False.')
     parser.add_argument("-g", "--gas", action='store_true',
                         help=("Use gas estimation for the mean reverting speed. The default is False."))
     parser.add_argument('-s', '--save_outputs', action='store_false',
@@ -293,6 +290,9 @@ if __name__ == '__main__':
     for p in processes:
         p.join()
 
+    end = time.time()
+
+
     pidnums = [int(x) for x in os.listdir('tmp')]
     pidnums.sort()
     if args.gas:
@@ -302,9 +302,9 @@ if __name__ == '__main__':
     logging.info('Merging files...')
     file_merge(pidnums, file_list)
     remove_file(pidnums, file_list)
-    # os.system('rm tmp/*')
-    for x in os.listdir('tmp'):
-        os.remove(f'tmp/{x}')
+    os.system('rm tmp/*')
+    # for x in os.listdir('tmp'):
+    #     os.remove(f'tmp/{x}')
 
     # keep_going = str(input('Do you want to continue and compute the s-scores? [y/n]: '))
     #
@@ -340,6 +340,5 @@ if __name__ == '__main__':
     # # spy = pd.read_csv(go_up(1) + '/saved_data/spy.csv')
     # # beta_spy = SPY_beta(df_returns, spy, export=args.save_outputs)
 
-    end = time.time()
     time_elapsed = (end - start)
-    logging.info('Elapsed time: %.2f seconds' %time_elapsed)
+    logging.info('Time required for generate s-scores: %.2f seconds' %time_elapsed)
