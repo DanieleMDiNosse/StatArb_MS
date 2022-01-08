@@ -50,7 +50,7 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
     '''
 
     trading_days = df_returns.shape[0] - lookback_for_factors # 6294
-    trading_days = 3500
+    trading_days = 1300
     n_stocks = df_returns.shape[1]
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))

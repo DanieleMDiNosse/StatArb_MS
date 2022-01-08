@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, least_squares
 from makedir import go_up
 import matplotlib.pyplot as plt
 import time
@@ -18,11 +18,13 @@ def estimation(fun, X, method, update, verbose=False):
     init_params = np.random.uniform(0, 1, size=4)
     sigma = 1
     sq_sgm = sigma * sigma
+    # res = least_squares(fun, init_params, args=(X, sigma, update))
     res = minimize(fun, init_params, (X, sigma, update),
-                   method=method)
+                   method=method, options={'xatol': 0.001, 'fatol': 0.001})
     if verbose:
         print(f'Initial guess: \n {init_params}')
         print(res)
+        time.sleep(1.5)
     omega, a, alpha, beta = res.x[0], res.x[1], res.x[2], res.x[3]
 
     for i in range(1, T - 1):

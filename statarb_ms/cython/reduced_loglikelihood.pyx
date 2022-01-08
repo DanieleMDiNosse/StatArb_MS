@@ -24,17 +24,17 @@ cpdef float reduced_loglikelihood(cnp.ndarray params, cnp.ndarray X, float sigma
     cdef int i
     for i in range(1, T - 1):
         if update == 'gaussian':
-            loglikelihood[i] = (X[i] - a - b[i] * X[i - 1])**2
+            loglikelihood[i] = (X[i] - a - b[i] * X[i - 1]) * (X[i] - a - b[i] * X[i - 1])
             b[i + 1] = omega + alpha * xi[i] * X[i-1] / sq_sgm + beta * b[i]
         if update == 'logistic':
             try:
-                loglikelihood[i] = (X[i] - a - X[i - 1] / (1 + np.exp(-b[i])))**2
+                loglikelihood[i] = (X[i] - a - X[i - 1] / (1 + np.exp(-b[i]))) * (X[i] - a - X[i - 1] / (1 + np.exp(-b[i])))
                 b[i + 1] = omega + alpha * ((X[i] - X[i - 1] / (1 + np.exp(-b[i]))) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sq_sgm) + beta * b[i]
             except RuntimeWarning:
                 print(i, b[i])
                 time.sleep(2)
         if update == 'logarithm':
-            loglikelihood[i] = (X[i] - a - np.log(b[i]) * X[i - 1])**2
+            loglikelihood[i] = (X[i] - a - np.log(b[i]) * X[i - 1]) * (X[i] - a - np.log(b[i]) * X[i - 1])
             b[i + 1] = omega + alpha * X[i - 1] / (b[i] * sq_sgm) * (X[i] - a - np.log(b[i]) * X[i-1]) + beta * b[i]
 
     return 0.5 * (1 / sq_sgm) * loglikelihood.sum()
