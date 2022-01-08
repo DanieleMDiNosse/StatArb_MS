@@ -80,7 +80,7 @@ def money_on_stock(df_returns, eigenvectors):
     df_returns : pandas.core.frame.Dataframe
         Dataframe of 1 day returns for each stock.
     eigenvectors : numpy array
-        Eigenvectors obtained from PCA.
+        Eigenvectors obtained from PCA. Shape (number of PCA components x number of stocks).
 
     Returns
     -------
@@ -88,6 +88,7 @@ def money_on_stock(df_returns, eigenvectors):
         Numpy array of shape (n_factors, n_stocks). The i-j element indicates the amount of money invested in
         the company j in the factor i.
     '''
+
     dev_t = df_returns.std()
     q = np.zeros(shape=(eigenvectors.shape[0], df_returns.shape[1]))
     for i in range(eigenvectors.shape[0]):
@@ -130,7 +131,7 @@ def risk_factors(df_returns, eigenvectors, export=False):
         name = input('Name of the file that will be saved: ')
         np.save(go_up(1) + f'/saved_data/{name}', factors)
 
-    return np.array(factors)
+    return factors
 
 
 if __name__ == '__main__':

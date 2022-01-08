@@ -10,7 +10,7 @@ import math
 import reduced_loglikelihood
 
 
-def estimation(fun, X, method, update, verbose=False, visualization=False):
+def estimation(fun, X, method, update, verbose=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
     b = np.ones(shape=T)
@@ -30,8 +30,7 @@ def estimation(fun, X, method, update, verbose=False, visualization=False):
             b[i + 1] = omega + alpha * xi[i] * X[i-1] / sq_sgm + beta * b[i]
             xi[i + 1] = X[i + 1] - a - b[i + 1] * X[i]
         if update == 'logistic':
-            s = (X[i] - 1 / (1 + np.exp(-b[i])) * X[i - 1]) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sq_sgm
-            b[i + 1] = omega + alpha * s + beta * b[i]
+            b[i + 1] = 0.5 * (omega + alpha * ((X[i] - 1 / (1 + np.exp(-b[i])) * X[i - 1]) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sq_sgm) + beta * b[i])
             xi[i + 1] = X[i + 1] - a - 1 / (1 + np.exp(-b[i + 1])) * X[i]
         if update == 'logarithm':
             b[i + 1] = omega + alpha * X[i - 1] / (b[i] * sq_sgm) * (X[i] - a - np.log(b[i]) * X[i-1]) + beta * b[i]
@@ -40,15 +39,15 @@ def estimation(fun, X, method, update, verbose=False, visualization=False):
     if update == 'logistic': b = 1 / (1 + np.exp(-b))
     if update == 'logarithm': b = np.log(b)
 
-    if visualization:
-        X_est = np.zeros_like(X)
-        for i in range(X.shape[0] - 1):
-            X_est[i + 1] = a + b[i + 1]*X_est[i] + xi[i + 1]
-        plt.figure()
-        plt.plot(X, label='True')
-        plt.plot(X_est, label='Estimated')
-        plt.legend()
-        plt.show()
+    # if visualization:
+    #     X_est = np.zeros_like(X)
+    #     for i in range(X.shape[0] - 1):
+    #         X_est[i + 1] = a + b[i + 1]*X_est[i] + xi[i + 1]
+    #     plt.figure()
+    #     plt.plot(X, label='True')
+    #     plt.plot(X_est, label='Estimated')
+    #     plt.legend()
+    #     plt.show()
 
     return b, a, xi
 

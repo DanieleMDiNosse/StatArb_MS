@@ -11,27 +11,27 @@ from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.stats.diagnostic import acorr_ljungbox
 import os
 
-def plot_returns(name1, name2):
-    ret = np.load(go_up(1) + f'/saved_data/{name1}.npy')
-    spy_ret = np.load(go_up(1) + f'/saved_data/{name2}.npy')
-    percs = np.load(go_up(1) + '/saved_data/perc_positions.npy')
+def plot_returns(ret, ret_gas, spy_ret, percs=False):
     plt.figure()
     plt.plot(ret, 'k', linewidth=1, label='Strategy PnL', alpha=0.8)
+    plt.plot(ret_gas, 'green', linewidth=1, label='GAS Strategy PnL', alpha=0.8)
     plt.plot(spy_ret, 'crimson', linewidth=1, alpha=0.7, label='Buy and hold PnL')
     plt.xticks(x_label_position, x_label_day, fontsize=13,  rotation=60)
     plt.grid(True)
     plt.legend(fontsize=13)
     plt.show()
 
-    plt.rcParams.update(IPython_default)
-    plt.figure()
-    plt.fill_between(range(percs.shape[0]), 0, percs[:,2], color='gray', label='Closed')
-    plt.fill_between(range(percs.shape[0]), percs[:,2], percs[:,2] + percs[:,1], color='crimson', label='Short')
-    plt.fill_between(range(percs.shape[0]), percs[:,2] + percs[:,1], percs[:,2] + percs[:,1] + percs[:,0], color='green', label='Long')
-    plt.xticks(x_label_position, x_label_day, fontsize=13,  rotation=60)
-    plt.yticks(np.arange(0,1.2,0.2), ['0%', '20%', '40%', '60%', '80%', '100%'], fontsize=13)
-    plt.legend(fontsize=13)
-    plt.show()
+    if percs:
+        percs = np.load(go_up(1) + '/saved_data/perc_positions.npy')
+        plt.rcParams.update(IPython_default)
+        plt.figure()
+        plt.fill_between(range(percs.shape[0]), 0, percs[:,2], color='gray', label='Closed')
+        plt.fill_between(range(percs.shape[0]), percs[:,2], percs[:,2] + percs[:,1], color='crimson', label='Short')
+        plt.fill_between(range(percs.shape[0]), percs[:,2] + percs[:,1], percs[:,2] + percs[:,1] + percs[:,0], color='green', label='Long')
+        plt.xticks(x_label_position, x_label_day, fontsize=13,  rotation=60)
+        plt.yticks(np.arange(0,1.2,0.2), ['0%', '20%', '40%', '60%', '80%', '100%'], fontsize=13)
+        plt.legend(fontsize=13)
+        plt.show()
 
 def plot_bvalues(name):
     b_values = np.load(go_up(1) + f'/saved_data/{name}.npy')
@@ -169,11 +169,15 @@ if __name__ == '__main__':
     if args.plots:
         if args.ret:
             name1 = input('Name of the returns file: ')
-            name2 = input('Name of the SPY returns file: ')
+            name2 = input('Name of gas returns file: ')
+            name3 = input('Name of the SPY returns file: ')
+            ret = np.load(go_up(1) + f'/saved_data/{name1}.npy')[:1000]
+            ret_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')[:1000]
+            spy_ret = np.load(go_up(1) + f'/saved_data/{name3}.npy')[:1000]
             x_quantity = int(input('Step of the labels on x-axis: '))
             x_label_position = np.arange(252, len(trading_days), x_quantity)
             x_label_day = [trading_days[i] for i in x_label_position]
-            plot_returns(name1, name2)
+            plot_returns(ret, ret_gas, spy_ret)
         if args.bvalues:
             name = input('Name of the b values file: ')
             x_quantity = int(input('Step of the labels on x-axis: '))

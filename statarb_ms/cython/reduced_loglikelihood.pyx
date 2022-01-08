@@ -3,6 +3,7 @@ import numpy as np
 cimport cython
 import time
 from scipy.optimize import minimize
+import warnings
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -26,9 +27,12 @@ cpdef float reduced_loglikelihood(cnp.ndarray params, cnp.ndarray X, float sigma
             loglikelihood[i] = (X[i] - a - b[i] * X[i - 1])**2
             b[i + 1] = omega + alpha * xi[i] * X[i-1] / sq_sgm + beta * b[i]
         if update == 'logistic':
-            loglikelihood[i] = (X[i] - a - 1 / (1 + np.exp(-b[i])) * X[i - 1])**2
-            s = (X[i] - 1 / (1 + np.exp(-b[i])) * X[i - 1]) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sq_sgm
-            b[i + 1] = omega + alpha * s + beta * b[i]
+            try:
+                loglikelihood[i] = (X[i] - a - X[i - 1] / (1 + np.exp(-b[i])))**2
+                b[i + 1] = omega + alpha * ((X[i] - X[i - 1] / (1 + np.exp(-b[i]))) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sq_sgm) + beta * b[i]
+            except RuntimeWarning:
+                print(i, b[i])
+                time.sleep(2)
         if update == 'logarithm':
             loglikelihood[i] = (X[i] - a - np.log(b[i]) * X[i - 1])**2
             b[i + 1] = omega + alpha * X[i - 1] / (b[i] * sq_sgm) * (X[i] - a - np.log(b[i]) * X[i-1]) + beta * b[i]
