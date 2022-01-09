@@ -171,9 +171,9 @@ if __name__ == '__main__':
             name1 = input('Name of the returns file: ')
             name2 = input('Name of gas returns file: ')
             name3 = input('Name of the SPY returns file: ')
-            ret = np.load(go_up(1) + f'/saved_data/{name1}.npy')[:1000]
-            ret_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')[:1000]
-            spy_ret = np.load(go_up(1) + f'/saved_data/{name3}.npy')[:1000]
+            ret = np.load(go_up(1) + f'/saved_data/{name1}.npy')
+            ret_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')
+            spy_ret = np.load(go_up(1) + f'/saved_data/{name3}.npy')
             x_quantity = int(input('Step of the labels on x-axis: '))
             x_label_position = np.arange(252, len(trading_days), x_quantity)
             x_label_day = [trading_days[i] for i in x_label_position]

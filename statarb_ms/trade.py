@@ -45,7 +45,7 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
     day_counter_short = np.zeros(shape=df_score.shape[1], dtype=int)
     perc_positions = np.zeros(shape=(df_score.shape[0], 3))
 
-    for day in tqdm(range(1000 - 1)):
+    for day in tqdm(range(1300 - 1)):
         # logging.info(f'========= Day : {day} =========')
         returns = np.array([])
         counter_no_trades = 0
@@ -157,9 +157,9 @@ if __name__ == '__main__':
         Q = np.load(go_up(1) + '/saved_data/RusselQ.npy')
     else:
         df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
-        df_score = pd.read_csv(go_up(1) + '/saved_data/ScoreData_gas.csv')
-        beta_tensor = np.load(go_up(1) + '/saved_data/beta_tensor_gas.npy')
-        Q = np.load(go_up(1) + '/saved_data/Q_gas.npy')
+        df_score = pd.read_csv(go_up(1) + '/saved_data/ScoreData1300.csv')
+        beta_tensor = np.load(go_up(1) + '/saved_data/beta_tensor1300.npy')
+        Q = np.load(go_up(1) + '/saved_data/Q1300.npy')
 
     if args.spy:
         logging.info('Starting spy trading... ')
