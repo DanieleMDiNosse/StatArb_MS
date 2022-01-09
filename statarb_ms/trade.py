@@ -157,9 +157,9 @@ if __name__ == '__main__':
         Q = np.load(go_up(1) + '/saved_data/RusselQ.npy')
     else:
         df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
-        df_score = pd.read_csv(go_up(1) + '/saved_data/ScoreData_gas1.csv')
-        beta_tensor = np.load(go_up(1) + '/saved_data/beta_tensor_gas1.npy')
-        Q = np.load(go_up(1) + '/saved_data/Q_gas1.npy')
+        df_score = pd.read_csv(go_up(1) + '/saved_data/ScoreData1300.csv')
+        beta_tensor = np.load(go_up(1) + '/saved_data/beta_tensor1300.npy')
+        Q = np.load(go_up(1) + '/saved_data/Q1300.npy')
 
     if args.spy:
         logging.info('Starting spy trading... ')

@@ -15,7 +15,6 @@ import multiprocessing as mp
 import os
 import matplotlib.pyplot as plt
 from scipy.stats import normaltest
-from numba import njit
 
 
 def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookback_for_residual=60, export=True):
@@ -71,7 +70,6 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
         eigenvalues, eigenvectors = pca(period, n_components=n_factor)
         factors = risk_factors(period, eigenvectors)# ritorni dei fattori di rischio per ogni periodo
         Q[i,:,:] = money_on_stock(period, eigenvectors)# trading_days x n_factors x n_stocks. Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori
-
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
         for stock in df_returns.columns:
             stock_idx = df_returns.columns.get_loc(stock)
