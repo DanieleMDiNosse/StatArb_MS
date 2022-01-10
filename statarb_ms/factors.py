@@ -90,7 +90,7 @@ def money_on_stock(df_returns, eigenvectors):
         the company j in the factor i.
     '''
 
-    dev_t = 1 / df_returns.std()
+    dev_t = 1 / df_returns.std(axis=0)
     q = np.zeros(shape=(eigenvectors.shape[0], df_returns.shape[1]))
     for i in range(eigenvectors.shape[0]):
         q[i] = eigenvectors[i,:] * dev_t
@@ -127,9 +127,7 @@ def risk_factors(df_returns, Q, eigenvectors, export=False):
     #     for i in range(n_days):
     #         factors[i, j] = (returns[i] *
     #                          dev_t * eigenvectors[j]).sum()
-    # print(os.getpid(), 'FOR', factors[10])
 
-    factors = np.zeros((n_days, n_factors))
     for i in range(n_days):
         factors[i] = np.matmul(Q, df_returns.iloc[i])
 

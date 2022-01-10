@@ -44,58 +44,59 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
     day_counter_long = np.zeros(shape=df_score.shape[1], dtype=int)
     day_counter_short = np.zeros(shape=df_score.shape[1], dtype=int)
     perc_positions = np.zeros(shape=(df_score.shape[0], 3))
+    invest_amount = np.zeros(shape=(df_score.shape[0]+1, df_score.shape[1]))
 
     for day in tqdm(range(100 - 1)):
-        # logging.info(f'========= Day : {day} =========')
         returns = np.array([])
         counter_no_trades = 0
         for stock in df_score.columns:
             stock_idx = df_returns.columns.get_loc(stock)
-            # logging.info(
-                # f'-------- Day : {day} Stock : {stock} {stock_idx+1}/{df_score.shape[1]} State : {state[stock_idx]} s_score : {df_score[stock][day]} --------')
 
             if df_score[stock][day] == 0:
-                # print(f'Day skipped. Mean reverting speed for {stock} too slow')
                 counter_no_trades += 1
                 continue
 
             if df_score[stock][day] < -s_bo and (state[stock_idx] == 'c'):
                 state[stock_idx] = 'l'
-                k = PnL[day] * 0.01 / (1 + (beta_tensor[day, stock_idx, :] * Q[day,:,stock_idx]).sum())
-                # print(f'I have opened a long trade on {stock}')
-                daily_PnL[day, stock_idx] = k * df_returns[stock][day + lookback_for_factors] * (1 - (beta_tensor[day, stock_idx, :] * Q[day,:,stock_idx]).sum())
+                # k = PnL[day] * 0.01 / (1 + (beta_tensor[day, stock_idx, :] * Q[day,:,stock_idx]).sum())
+                k = PnL[day] * 0.01 / (1 + beta_tensor[day, stock_idx, :].sum())
+                daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
+                # daily_PnL[day, stock_idx] = k * df_returns[stock][day + lookback_for_factors] * (1 - (beta_tensor[day, stock_idx, :] * Q[day,:,stock_idx]).sum())
+                invest_amount[day+1, stock_idx] = -np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx])
                 continue
 
             if (day > 0) and (df_score[stock][day] < -s_sc) and (state[stock_idx] == 'l'):
                 day_counter_long[stock_idx] += 1
-                k = PnL[day - day_counter_long[stock_idx]] * 0.01 / (1 + (beta_tensor[day - day_counter_long[stock_idx], stock_idx, :] * Q[day - day_counter_long[stock_idx],:,stock_idx]).sum())
-                # print(f'Still long on {stock}. Long position is opened since {day_counter_long[stock_idx] + 1} days')
-                daily_PnL[day, stock_idx] = k * df_returns[stock][day + lookback_for_factors] * (1 - (beta_tensor[day - day_counter_long[stock_idx], stock_idx, :] * Q[day - day_counter_long,:,stock_idx]).sum())
+                # k = PnL[day - day_counter_long[stock_idx]] * 0.01 / (1 + (beta_tensor[day - day_counter_long[stock_idx], stock_idx, :] * Q[day - day_counter_long[stock_idx],:,stock_idx]).sum())
+                k = PnL[day - day_counter_long[stock_idx]] * 0.01 / (1 + beta_tensor[day - day_counter_long[stock_idx], stock_idx, :].sum())
+                daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(beta_tensor[day - day_counter_long[stock_idx], stock_idx, :], np.matmul(Q[day - day_counter_long[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
+                # daily_PnL[day, stock_idx] = k * df_returns[stock][day + lookback_for_factors] * (1 - (beta_tensor[day - day_counter_long[stock_idx], stock_idx, :] * Q[day - day_counter_long,:,stock_idx]).sum())
                 continue
 
             if df_score[stock][day] > s_so and (state[stock_idx] == 'c'):
                 state[stock_idx] = 's'
-                k = PnL[day] * 0.01 / (1 + (beta_tensor[day, stock_idx, :] * Q[day,:,stock_idx]).sum())
-                # print(f'I have opened a short trade on {stock}')
-                daily_PnL[day, stock_idx] = k * df_returns[stock][day + lookback_for_factors] * (-1 + (beta_tensor[day, stock_idx, :] * Q[day,:,stock_idx]).sum())
+                # k = PnL[day] * 0.01 / (1 + (beta_tensor[day, stock_idx, :] * Q[day,:,stock_idx]).sum())
+                k = PnL[day] * 0.01 / (1 + beta_tensor[day, stock_idx, :].sum())
+                daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
+                # daily_PnL[day, stock_idx] = k * df_returns[stock][day + lookback_for_factors] * (-1 + (beta_tensor[day, stock_idx, :] * Q[day,:,stock_idx]).sum())
+                invest_amount[day+1, stock_idx] = np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx])
                 continue
 
             if (day > 0) and (df_score[stock][day] > s_bc) and (state[stock_idx] == 's'):
                 day_counter_short[stock_idx] += 1
-                k = PnL[day - day_counter_short[stock_idx]] * 0.01 / (1 + (beta_tensor[day - day_counter_short[stock_idx], stock_idx, :] * Q[day - day_counter_short[stock_idx],:,stock_idx]).sum())
-                # print(f'Still short on {stock}. Short position is opened since {day_counter_short[stock_idx] + 1} days')
-                daily_PnL[day, stock_idx] = k * df_returns[stock][day + lookback_for_factors] * (-1 + (beta_tensor[day - day_counter_short[stock_idx], stock_idx, :] * Q[day - day_counter_short,:,stock_idx]).sum())
+                # k = PnL[day - day_counter_short[stock_idx]] * 0.01 / (1 + (beta_tensor[day - day_counter_short[stock_idx], stock_idx, :] * Q[day - day_counter_short[stock_idx],:,stock_idx]).sum())
+                k = PnL[day - day_counter_short[stock_idx]] * 0.01 / (1 + beta_tensor[day - day_counter_short[stock_idx], stock_idx, :].sum())
+                daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(beta_tensor[day - day_counter_short[stock_idx], stock_idx, :], np.matmul(Q[day - day_counter_short[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
+                # daily_PnL[day, stock_idx] = k * df_returns[stock][day + lookback_for_factors] * (-1 + (beta_tensor[day - day_counter_short[stock_idx], stock_idx, :] * Q[day - day_counter_short,:,stock_idx]).sum())
                 continue
 
             if (day > 0) and (df_score[stock][day] > -s_sc) and (state[stock_idx] == 'l'):
-                # print(f'I have closed the trade {state[stock_idx]} on {stock}')
                 day_counter_long[stock_idx] = 0
                 state[stock_idx] = 'c'
                 daily_PnL[day, stock_idx] = 0.0
                 continue
 
             if (day > 0) and (df_score[stock][day] < s_bc) and (state[stock_idx] == 's'):
-                # print(f'I have closed the trade {state[stock_idx]} on {stock}')
                 day_counter_short[stock_idx] = 0
                 state[stock_idx] = 'c'
                 daily_PnL[day, stock_idx] = 0.0
@@ -104,11 +105,12 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
             else:
                 counter_no_trades += 1
                 continue
+
         perc_positions[day,0] = np.count_nonzero(state == 'l')/df_score.shape[1]
         perc_positions[day,1] = np.count_nonzero(state == 's')/df_score.shape[1]
         perc_positions[day,2] = np.count_nonzero(state == 'c')/df_score.shape[1]
 
-        PnL[day + 1] = PnL[day] + daily_PnL[day,:].sum() - (np.abs(Q[day + 1].sum(axis=0) - Q[day].sum(axis=0))).sum() * epsilon
+        PnL[day + 1] = PnL[day] + daily_PnL[day,:].sum() - (np.abs((invest_amount[day+1] - invest_amount[day]))).sum()*epsilon#- (np.abs(Q[day + 1].sum(axis=0) - Q[day].sum(axis=0))).sum() * epsilon
 
     return PnL, perc_positions
 
