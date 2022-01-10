@@ -12,7 +12,7 @@ from statsmodels.tsa.ar_model import AutoReg
 
 def regression(X, Y, const=True):
     '''
-    Simple linear regression model that relies on sklearn LinearRegression
+    Simple linear regression model that relies on StatsModels OLS
 
     Parameters
     ----------
