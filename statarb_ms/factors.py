@@ -27,7 +27,8 @@ def pca(df_returns, n_components):
 
     Returns
     -------
-    eigenvalues, eigenvectors : list
+    eigenvectors : ndarray of shape (n_components, n_stocks)
+
     '''
 
     scaler = StandardScaler()
@@ -35,7 +36,6 @@ def pca(df_returns, n_components):
         df_returns), columns=df_returns.columns)
     pca = PCA(n_components=n_components)
     pca.fit(df_returns_norm.values)
-    n_pca = pca.n_components_
     eigenvalues = pca.explained_variance_
     eigenvectors = pca.components_
 
@@ -80,15 +80,16 @@ def money_on_stock(df_returns, eigenvectors):
     ----------
     df_returns : pandas.core.frame.Dataframe
         Dataframe of 1 day returns for each stock.
-    eigenvectors : numpy array
-        Eigenvectors obtained from PCA. Shape (number of PCA components x number of stocks).
+    eigenvectors : ndarray of shape (number of PCA components, number of stocks)
+        Eigenvectors obtained from PCA.
 
     Returns
     -------
-    q : numpy.ndarray
-        Numpy array of shape (n_factors, n_stocks). The i-j element indicates the amount of money invested in
+    q : numpy.ndarray of shape (n_factors, n_stocks)
+        The i-j element indicates the amount of money invested in
         the company j in the factor i.
     '''
+
 
     dev_t = 1 / df_returns.std(axis=0)
     q = np.zeros(shape=(eigenvectors.shape[0], df_returns.shape[1]))
@@ -96,6 +97,7 @@ def money_on_stock(df_returns, eigenvectors):
         q[i] = eigenvectors[i,:] * dev_t
 
     return q
+
 
 
 def risk_factors(df_returns, Q, eigenvectors, export=False):
@@ -120,8 +122,9 @@ def risk_factors(df_returns, Q, eigenvectors, export=False):
     n_stocks = df_returns.shape[1]
     n_factors = len(eigenvectors)
     factors = np.zeros((n_days, n_factors))
-    dev_t = 1 / df_returns.std() # deviazione standard per compagnia
+    dev_t = 1 / df_returns.std() # inverso della deviazione standard per compagnia
     returns = df_returns.values
+
 
     # for j in range(n_factors):
     #     for i in range(n_days):

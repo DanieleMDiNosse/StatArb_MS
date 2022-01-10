@@ -10,7 +10,7 @@ import math
 import reduced_loglikelihood
 
 
-def estimation(fun, X, method, update, verbose=False):
+def estimation(fun, X, method='Nelder-Mead', update='gaussian', verbose=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
     b = np.ones(shape=T)
@@ -20,7 +20,7 @@ def estimation(fun, X, method, update, verbose=False):
     sq_sgm = sigma * sigma
     # res = least_squares(fun, init_params, args=(X, sigma, update))
     res = minimize(fun, init_params, (X, sigma, update),
-                   method=method, options={'xatol': 0.001, 'fatol': 0.001})
+                   method=method, options={'xatol': 0.005, 'fatol': 0.001})
     if verbose:
         print(f'Initial guess: \n {init_params}')
         print(res)
@@ -59,19 +59,12 @@ if __name__ == '__main__':
         description='Generator of historical price data')
     parser.add_argument("-l", "--log", default="info",
                         help=("Provide logging level. Example --log debug', default='info"))
-    parser.add_argument("-m", "--method", type=int,
-                        help="0 for BFGS, 1 for Nelder-Mead.")
-    parser.add_argument("-u", "--update", type=int, help="Update scheme for gas estimation")
+    parser.add_argument("-u", "--update", type=int, default=0, help="Update scheme for gas estimation")
     parser.add_argument("-v", "--verbose", action='store_true')
 
     args = parser.parse_args()
     plt.style.use('seaborn')
     np.random.seed(666)
-
-    if args.method == 0:
-        method = 'BFGS'
-    if args.method == 1:
-        method = 'Nelder-Mead'
 
     if args.update == 0:
         update = 'gaussian'
@@ -89,7 +82,7 @@ if __name__ == '__main__':
         for stock in range(n_stocks):
             x = X[day, stock, :]
             b, a, xi = estimation(
-                reduced_loglikelihood.reduced_loglikelihood, x, update=update, method=method, verbose=args.verbose)
+                reduced_loglikelihood.reduced_loglikelihood, x, update=update, verbose=args.verbose)
             if (math.isnan(b[-1])) or (b[-1] < 0):
                 print(b[-1])
         end = time.time()

@@ -15,7 +15,6 @@ import multiprocessing as mp
 import os
 import matplotlib.pyplot as plt
 from scipy.stats import normaltest
-from numba import njit
 
 
 def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookback_for_residual=60, export=True):
