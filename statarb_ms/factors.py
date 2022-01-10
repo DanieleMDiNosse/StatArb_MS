@@ -7,6 +7,7 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from makedir import go_up
 from tqdm import tqdm
+import os
 
 
 def pca(df_returns, n_components):
@@ -89,7 +90,7 @@ def money_on_stock(df_returns, eigenvectors):
         the company j in the factor i.
     '''
 
-    dev_t = df_returns.std()
+    dev_t = 1 / df_returns.std()
     q = np.zeros(shape=(eigenvectors.shape[0], df_returns.shape[1]))
     for i in range(eigenvectors.shape[0]):
         q[i] = eigenvectors[i,:] * dev_t
@@ -97,7 +98,7 @@ def money_on_stock(df_returns, eigenvectors):
     return q
 
 
-def risk_factors(df_returns, eigenvectors, export=False):
+def risk_factors(df_returns, Q, eigenvectors, export=False):
     '''This function evaluates the returns of the eigenportfolios. In the PCA
     approach the returns of the eigenportolios are the factors
 
@@ -122,10 +123,15 @@ def risk_factors(df_returns, eigenvectors, export=False):
     dev_t = 1 / df_returns.std() # deviazione standard per compagnia
     returns = df_returns.values
 
-    for j in range(n_factors):
-        for i in range(n_days):
-            factors[i, j] = (returns[i] *
-                             dev_t * eigenvectors[j]).sum()
+    # for j in range(n_factors):
+    #     for i in range(n_days):
+    #         factors[i, j] = (returns[i] *
+    #                          dev_t * eigenvectors[j]).sum()
+    # print(os.getpid(), 'FOR', factors[10])
+
+    factors = np.zeros((n_days, n_factors))
+    for i in range(n_days):
+        factors[i] = np.matmul(Q, df_returns.iloc[i])
 
     if export:
         name = input('Name of the file that will be saved: ')
