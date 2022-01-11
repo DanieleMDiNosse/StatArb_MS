@@ -9,6 +9,7 @@ from tqdm import tqdm
 import matplotlib.patches as mpatches
 from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.stats.diagnostic import acorr_ljungbox
+from statsmodels.tsa.stattools import adfuller
 import os
 
 def plot_returns(ret, ret_gas, spy_ret, percs=False):
@@ -16,9 +17,9 @@ def plot_returns(ret, ret_gas, spy_ret, percs=False):
     plt.plot(ret, 'k', linewidth=1, label='Strategy PnL', alpha=0.8)
     plt.plot(ret_gas, 'green', linewidth=1, label='GAS Strategy PnL', alpha=0.8)
     plt.plot(spy_ret, 'crimson', linewidth=1, alpha=0.7, label='Buy and hold PnL')
-    plt.xticks(x_label_position, x_label_day, fontsize=13,  rotation=60)
+    plt.xticks(x_label_position, x_label_day, fontsize=8,  rotation=60)
     plt.grid(True)
-    plt.legend(fontsize=13)
+    plt.legend(fontsize=8)
     plt.show()
 
     if percs:
@@ -111,6 +112,27 @@ def ljung_box_test(name, order):
     plt.title(f'Accepted: {ones}, Rejected: {zeros}')
     plt.show()
 
+def stationarity_check(name_residuals_file):
+    residuals = np.load(go_up(1) + f'/saved_data/{name_residuals_file}.npy')
+    days = residuals.shape[0]
+    n_stocks = residuals.shape[1]
+    p_values = np.zeros(shape=(days, n_stocks))
+    bin_vec = np.vectorize(binary)
+    for day in tqdm(range(10)):
+        for stock in range(n_stocks):
+            res = adfuller(residuals[day, stock, :])
+            p_values[day, stock] = res[1]
+    p_values = bin_vec(p_values)
+    ones = p_values.flatten().sum()/p_values.flatten().shape[0]
+    zeros = 1 - ones
+    ax = sns.heatmap(p_values.T, cmap=['darkred', 'darkorange'])
+    plt.xticks(x_label_position, x_label_day, fontsize=13, rotation=60)
+    plt.yticks(y_label_position, y_label_day, fontsize=13)
+    colorbar = ax.collections[0].colorbar
+    colorbar.set_ticks(np.array([0,zeros,ones]))
+    colorbar.set_ticklabels(['Rejected','Accepted'])
+    plt.title(f'Accepted: {ones}, Rejected: {zeros}')
+    plt.show()
 
 def file_merge(pidnums, file_list):
 
@@ -137,21 +159,23 @@ if __name__ == '__main__':
     parser.add_argument("-l", "--log", default="info",
                         help=("Provide logging level. Example --log debug', default='info"))
     parser.add_argument("-p", "--plots", action='store_true',
-                        help=("Plot returns"))
+                        help=("Plot returns."))
     parser.add_argument('-m', '--merge', action='store_true',
-                        help='Merge files outputed by scoring.py')
+                        help='Merge files outputed by scoring.py.')
     parser.add_argument('-o', '--onefile', action='store_true',
-                            help='Merge just one file. To be used after merge parser set to true')
+                            help='Merge just one file. To be used after merge parser set to true.')
     parser.add_argument('-b', '--bvalues', action='store_true',
-                        help='After args.plot=True, choose to plot b_values')
+                        help='After args.plot=True, choose to plot b_values.')
     parser.add_argument('-r', '--ret', action='store_true',
                         help='After args.plot=True, choose to plot returns')
     parser.add_argument('-rsq', '--rsquared', action='store_true',
-                        help='After args.plot=True, choose to plot heatmap and histogram for the coefficient of determination for AR(1) model')
+                        help='After args.plot=True, choose to plot heatmap and histogram for the coefficient of determination for AR(1) model.')
     parser.add_argument('-nt', '--OU_res_normtest', action='store_true',
-                        help="Plot heatmap and histogram for the p-values from a Pearson and D'Agostino normality test on AR(1) residuals")
+                        help="Plot heatmap and histogram for the p-values from a Pearson and D'Agostino normality test on AR(1) residuals.")
     parser.add_argument('-lb', '--ljungbox_test', action='store_true',
-                        help='Plot heatmap and histogram for the p-values from Ljung-Box test on on AR(1) residuals ')
+                        help='Plot heatmap for the p-values from Ljung-Box test on on AR(1) residuals.')
+    parser.add_argument('-s', '--stationarity', action='store_true',
+                        help='Plot heatmap for p-values from Augumented Dickey Fuller test on residuals. ')
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -213,6 +237,16 @@ if __name__ == '__main__':
         y_label_position = np.arange(0, len(tickers), y_quantity)
         y_label_day = [tickers[i] for i in y_label_position]
         ljung_box_test(name, order)
+
+    if args.stationarity:
+        name = input('Name of the residuals file: ')
+        x_quantity = int(input('Step of the labels on x-axis: '))
+        y_quantity = int(input('Step of the labels on y-axis: '))
+        x_label_position = np.arange(252, len(trading_days), x_quantity)
+        x_label_day = [trading_days[i] for i in x_label_position]
+        y_label_position = np.arange(0, len(tickers), y_quantity)
+        y_label_day = [tickers[i] for i in y_label_position]
+        stationarity_check(name)
 
 
     if args.merge:
