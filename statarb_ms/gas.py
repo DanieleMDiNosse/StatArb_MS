@@ -18,9 +18,8 @@ def estimation(fun, X, method='Nelder-Mead', update='gaussian', verbose=False):
     init_params = np.random.uniform(0, 1, size=4)
     sigma = 1
     sq_sgm = sigma * sigma
-    # res = least_squares(fun, init_params, args=(X, sigma, update))
     res = minimize(fun, init_params, (X, sigma, update),
-                   method=method, options={'xatol': 0.005, 'fatol': 0.001})
+                   method=method, options={'xatol': 0.0001})
     if verbose:
         print(f'Initial guess: \n {init_params}')
         print(res)
