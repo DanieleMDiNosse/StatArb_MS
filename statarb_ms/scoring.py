@@ -49,7 +49,6 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
     '''
 
     trading_days = df_returns.shape[0] - lookback_for_factors # 6294
-    trading_days = 100
     n_stocks = df_returns.shape[1]
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
@@ -59,6 +58,7 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
     b_values = np.zeros(shape=(trading_days, n_stocks, 3))
     R_squared = np.zeros(shape=(trading_days, n_stocks))
     dis_res_reg = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
+    c = 0 # counter for track the number of negative b comes from GAS model
 
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
@@ -97,6 +97,7 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
                     discreteOU = np.append(discreteOU, discreteOU[-1])
                     parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU)
                     a, b = parameters[0], parameters[1]
+                    c += 1
                 # devi aggiungere anche le bande di confidenza
 
             if b == 0.0:
@@ -108,12 +109,11 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
                 score[i, stock_idx] = 0
             else:
                 m = a / (1 - b)
-                # sgm = np.std(discrete_resid) * np.sqrt(2 * k / (1 - b * b))
                 if method == 'constant_speed': sgm_eq = np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
                 if method == 'gas_modelization': sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b * b))
                 # naive method. Keep in mind that s-score depends on the risk factors
                 score[i, stock_idx] = -m / sgm_eq
-
+    print(c)
     df_score = pd.DataFrame(score, columns=df_returns.columns)
     if export:
         if method == 'gas_modelization':
@@ -123,6 +123,7 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
             np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
             np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
             np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
+
         if method == 'constant_speed':
             df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
             np.save(go_up(1) + f'/saved_data/dis_res_reg_{os.getpid()}', dis_res_reg)
