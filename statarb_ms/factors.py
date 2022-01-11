@@ -92,8 +92,10 @@ def money_on_stock(df_returns, eigenvectors):
 
 
     dev_t = 1 / df_returns.std(axis=0)
-    q = np.zeros(shape=(eigenvectors.shape[0], df_returns.shape[1]))
-    for i in range(eigenvectors.shape[0]):
+    n_fact = eigenvectors.shape[0]
+    n_stock = df_returns.shape[1]
+    q = np.zeros(shape=(n_fact, n_stock))
+    for i in range(n_fact):
         q[i] = eigenvectors[i,:] * dev_t
 
     return q
@@ -124,12 +126,6 @@ def risk_factors(df_returns, Q, eigenvectors, export=False):
     factors = np.zeros((n_days, n_factors))
     dev_t = 1 / df_returns.std() # inverso della deviazione standard per compagnia
     returns = df_returns.values
-
-
-    # for j in range(n_factors):
-    #     for i in range(n_days):
-    #         factors[i, j] = (returns[i] *
-    #                          dev_t * eigenvectors[j]).sum()
 
     for i in range(n_days):
         factors[i] = np.matmul(Q, df_returns.iloc[i])
