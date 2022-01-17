@@ -53,6 +53,7 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
     dis_res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
+    res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
 
     score = np.zeros(shape=(trading_days, n_stocks)) # Il primo score corrisponderà al 252° giorno (indice 251)
     b_values = np.zeros(shape=(trading_days, n_stocks, 3))
@@ -75,7 +76,7 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
             stock_idx = df_returns.columns.get_loc(stock)
             beta0, betas, conf_inter, residuals, pred, _ = regression(factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])
             beta_tensor[i, stock_idx, :] = betas
-
+            res[i, stock_idx, :] = residuals
             discreteOU = np.cumsum(residuals)
             dis_res[i, stock_idx, :] = discreteOU
 
@@ -123,6 +124,7 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
             np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
             np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
             np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
+            np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
 
         if method == 'constant_speed':
             df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)

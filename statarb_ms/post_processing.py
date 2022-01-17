@@ -12,31 +12,29 @@ from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
 import os
 
-def plot_returns(ret, ret_gas, spy_ret, percs=False):
-    plt.figure()
+def plot_returns(ret, ret_gas, spy_ret, percs):
+    plt.figure(figsize=(12,8))
     plt.plot(ret, 'k', linewidth=1, label='Strategy PnL', alpha=0.8)
     plt.plot(ret_gas, 'green', linewidth=1, label='GAS Strategy PnL', alpha=0.8)
     plt.plot(spy_ret, 'crimson', linewidth=1, alpha=0.7, label='Buy and hold PnL')
-    plt.xticks(x_label_position, x_label_day, fontsize=8,  rotation=60)
+    plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
     plt.grid(True)
-    plt.legend(fontsize=8)
+    plt.legend(fontsize=11, loc='lower right')
     plt.show()
 
-    if percs:
-        percs = np.load(go_up(1) + '/saved_data/perc_positions.npy')
-        plt.rcParams.update(IPython_default)
-        plt.figure()
-        plt.fill_between(range(percs.shape[0]), 0, percs[:,2], color='gray', label='Closed')
-        plt.fill_between(range(percs.shape[0]), percs[:,2], percs[:,2] + percs[:,1], color='crimson', label='Short')
-        plt.fill_between(range(percs.shape[0]), percs[:,2] + percs[:,1], percs[:,2] + percs[:,1] + percs[:,0], color='green', label='Long')
-        plt.xticks(x_label_position, x_label_day, fontsize=13,  rotation=60)
-        plt.yticks(np.arange(0,1.2,0.2), ['0%', '20%', '40%', '60%', '80%', '100%'], fontsize=13)
-        plt.legend(fontsize=13)
-        plt.show()
+    plt.rcParams.update(IPython_default)
+    plt.figure(figsize=(10,8))
+    plt.fill_between(range(percs.shape[0]), 0, percs[:,2], color='gray', label='Closed')
+    plt.fill_between(range(percs.shape[0]), percs[:,2], percs[:,2] + percs[:,1], color='crimson', label='Short')
+    plt.fill_between(range(percs.shape[0]), percs[:,2] + percs[:,1], percs[:,2] + percs[:,1] + percs[:,0], color='green', label='Long')
+    plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
+    plt.yticks(np.arange(0,1.2,0.2), ['0%', '20%', '40%', '60%', '80%', '100%'], fontsize=11)
+    plt.legend(fontsize=11, loc='lower right')
+    plt.show()
 
 def plot_bvalues(name):
     b_values = np.load(go_up(1) + f'/saved_data/{name}.npy')
-    plt.figure()
+    plt.figure(figsize=(12,8))
     # 9 is the index for APPLE
     b, = plt.plot(b_values[:, 9, 0], 'k')
     plt.plot(b_values[:, 9, 1], 'crimson', linewidth=0.2)
@@ -55,7 +53,7 @@ def rsquared_statistics(name):
     plt.yticks(y_label_position, y_label_day, fontsize=13)
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=(12,8))
     plt.hist(R_squared.flatten(), bins=20, color='k')
     plt.xlabel('Coefficient of determination')
     plt.yscale('log')
@@ -82,7 +80,7 @@ def normtest_discreteOU(name):
     plt.yticks(y_label_position, y_label_day, fontsize=13)
     plt.show()
 
-    plt.figure()
+    plt.figure(figsize=(12,8))
     plt.hist(normtest.flatten(), bins=20, color='k')
     plt.grid(True)
     plt.show()
@@ -113,21 +111,25 @@ def ljung_box_test(name, order):
     plt.show()
 
 def stationarity_check(name_residuals_file):
+    '''Augumented Dickey Fuller test in order to check the null hypothesis that there is a unit root in the time series. This function, so,test
+    the stationarity of the residuals of the regression of stocks on the risk factors. The function plot a heatmap illustrating the fraction of times that the null hypothesis is accepted (p-value > 0.05)
+    or rejected (p-values < 0.05).'''
+
     residuals = np.load(go_up(1) + f'/saved_data/{name_residuals_file}.npy')
     days = residuals.shape[0]
     n_stocks = residuals.shape[1]
     p_values = np.zeros(shape=(days, n_stocks))
     bin_vec = np.vectorize(binary)
-    for day in tqdm(range(10)):
-        for stock in range(n_stocks):
+    for day in tqdm(range(1)):
+        for stock in range(1):
             res = adfuller(residuals[day, stock, :])
             p_values[day, stock] = res[1]
     p_values = bin_vec(p_values)
     ones = p_values.flatten().sum()/p_values.flatten().shape[0]
     zeros = 1 - ones
     ax = sns.heatmap(p_values.T, cmap=['darkred', 'darkorange'])
-    plt.xticks(x_label_position, x_label_day, fontsize=13, rotation=60)
-    plt.yticks(y_label_position, y_label_day, fontsize=13)
+    plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+    plt.yticks(y_label_position, y_label_day, fontsize=12)
     colorbar = ax.collections[0].colorbar
     colorbar.set_ticks(np.array([0,zeros,ones]))
     colorbar.set_ticklabels(['Rejected','Accepted'])
@@ -195,13 +197,15 @@ if __name__ == '__main__':
             name1 = input('Name of the returns file: ')
             name2 = input('Name of gas returns file: ')
             name3 = input('Name of the SPY returns file: ')
+            name4 = input('Name of the positions percentage file: ')
             ret = np.load(go_up(1) + f'/saved_data/{name1}.npy')
             ret_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')
             spy_ret = np.load(go_up(1) + f'/saved_data/{name3}.npy')
+            percs = np.load(go_up(1) + '/saved_data/perc_positions.npy')
             x_quantity = int(input('Step of the labels on x-axis: '))
-            x_label_position = np.arange(252, len(trading_days), x_quantity)
-            x_label_day = [trading_days[i] for i in x_label_position]
-            plot_returns(ret, ret_gas, spy_ret)
+            x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
+            x_label_day = [trading_days[252 + i] for i in x_label_position]
+            plot_returns(ret, ret_gas, spy_ret, percs)
         if args.bvalues:
             name = input('Name of the b values file: ')
             x_quantity = int(input('Step of the labels on x-axis: '))
