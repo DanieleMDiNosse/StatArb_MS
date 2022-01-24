@@ -137,11 +137,14 @@ def get_returns(dataframe, export_returns_csv=True, m=1):
     except ValueError as ve:
         print(ve)
         sys.exit()
+    # Drop first column if it is the Date one
+    if isinstance(dataframe.iloc[0][0], str):
+        dataframe = dataframe.drop(columns=dataframe.columns[0])
 
     df = pd.DataFrame()
-    for col in dataframe.columns[1:]:  # Not pick Data column
+    for col in dataframe.columns:
         yesterday = dataframe[col]
-        today = today[m:]
+        today = yesterday[m:]
         df[col] = (np.array(today) / np.array(yesterday)[:-m]) - 1
 
     if export_returns_csv:
