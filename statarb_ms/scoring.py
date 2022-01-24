@@ -168,6 +168,8 @@ if __name__ == '__main__':
                         help='Number of PCA components to keep. The default is 15.')
     parser.add_argument("-g", "--gas", action='store_true',
                         help=("Use gas estimation for the mean reverting speed. The default is False."))
+    parser.add_argument('-r', '--range', action='store_true',
+                        help='Select a specific time range between 1995-01-03 to 2020-12-31')
     parser.add_argument('-s', '--save_outputs', action='store_false',
                         help='Choose whether or not to save the outputrs. The default is True')
     args = parser.parse_args()
@@ -184,36 +186,51 @@ if __name__ == '__main__':
 
     df_returns = pd.read_csv(go_up(1) +
                              "/saved_data/ReturnsData.csv")
-    # df = [df_returns[768:1789], df_returns[1537:2558], df_returns[2306:3327], df_returns[3075:4096]]
-    # df = [df_returns[:1020], df_returns[768:1789], df_returns[1537:2558], df_returns[2306:3327], df_returns[3075:4096], df_returns[3844:4865], df_returns[4613:5634], df_returns[5382:]]
-    df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
+
+    # df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
+    # test for checking that multiprocessing and sequantial outpur the same results
+    df = [df_returns[:252*3], df_returns[252*2:252*4 + 1]]
+    # then comment the upper lines and do sequantially
+
 
     if args.gas == True:
         method = 'gas_modelization'
     else:
         method = 'constant_speed'
 
-    processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, 252, 60, args.save_outputs)) for i in df]
-    os.system('rm tmp/*')
-    for p in processes:
-        p.start()
-        time.sleep(0.5)
-    for p in processes:
-        p.join()
+    if args.range:
+        start =str(input('Start date (YYY-MM-DD): '))
+        end = str(input('End date (YYY-MM-DD): '))
+        date = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv')
+        start = date.index[date.Date == start].tolist()[0]
+        end = date.index[date.Date == end].tolist()[0]
+        print(start, end)
+        df_returns = pd.read_csv(go_up(1) +
+                                 "/saved_data/ReturnsData.csv")[start: end + 1]
+        generate_data(df_returns, args.n_components, method)
+        end = time.time()
 
-    end = time.time()
-
-
-    pidnums = [int(x) for x in os.listdir('tmp')]
-    pidnums.sort()
-    if args.gas:
-        file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score_gas', 'dis_res_reg_gas', 'b_values_gas']
     else:
-        file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared']
-    logging.info('Merging files...')
-    file_merge(pidnums, file_list)
-    remove_file(pidnums, file_list)
-    os.system('rm tmp/*')
+        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, 252, 60, args.save_outputs)) for i in df]
+        os.system('rm tmp/*')
+        for p in processes:
+            p.start()
+            time.sleep(0.5)
+        for p in processes:
+            p.join()
+        end = time.time()
+
+
+        pidnums = [int(x) for x in os.listdir('tmp')]
+        pidnums.sort()
+        if args.gas:
+            file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score_gas', 'dis_res_reg_gas', 'b_values_gas']
+        else:
+            file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared']
+        logging.info('Merging files...')
+        file_merge(pidnums, file_list)
+        remove_file(pidnums, file_list)
+        os.system('rm tmp/*')
 
     time_elapsed = (end - start)
     logging.info('Time required for generate s-scores: %.2f seconds' %time_elapsed)
