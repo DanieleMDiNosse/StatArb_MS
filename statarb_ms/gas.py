@@ -49,8 +49,9 @@ def model_estimation(fun, s, sgm):
 def estimation(fun, X, method='Nelder-Mead', update='gaussian', verbose=False, visualization=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
-    b = np.zeros(shape=T)
+    b = np.ones(shape=T)
     xi = np.zeros(shape=T)
+    X_est = np.zeros_like(X)
     init_params = np.random.uniform(0, 1, size=4)
     sigma = 1
     sq_sgm = sigma * sigma
@@ -78,8 +79,10 @@ def estimation(fun, X, method='Nelder-Mead', update='gaussian', verbose=False, v
 
     if visualization:
         X_est = np.zeros_like(X)
-        for t in range (X_est.shape[0] - 1):
-            X_est[t + 1] = a + b[t + 1] * X_est[t] + xi[t + 1]
+        b_est = np.zeros_like(b)
+        for t in range (1, X_est.shape[0] - 1):
+            X_est[t + 1] = a + b_est[t + 1] * X_est[t] + xi[t + 1]
+            b_est[t + 1] = omega + alpha * xi[t] * X_est[t - 1] + beta * b_est[t]
         plt.figure(figsize=(12,8))
         plt.plot(X, label='Data')
         plt.plot(X_est, label='Filtered Data')

@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from makedir import go_up
+from data import get_returns
 import argparse
 import logging
 import seaborn as sns
@@ -154,6 +155,14 @@ def remove_file(pidnums, file_list):
             [os.remove(go_up(1) + f'/saved_data/{file}_{i}.csv') for i in pidnums]
         except:
             [os.remove(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
+
+def sharpe_ratio(pnl, benchmark_pnl):
+    pnl_ret = get_returns(pd.DataFrame(pnl), export_returns_csv=False)
+    benchmark_pnl_ret = get_returns(pd.DataFrame(benchmark_pnl), export_returns_csv=False)
+    diff = pnl_ret - benchmark_pnl_ret
+    sharpe_ratio = diff.mean()/diff.std() * 100
+    return sharpe_ratio
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

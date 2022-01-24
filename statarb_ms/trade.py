@@ -36,7 +36,8 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
     '''
 
     PnL = np.zeros(df_score.shape[0])
-    PnL[0] = 1.0
+    PnL[0] = 1.00
+    fraction = 0.01
     lookback_for_factors = 252
     daily_PnL = np.zeros(shape=df_score.shape)
     div = np.zeros(shape=df_score.shape)
@@ -58,27 +59,27 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
 
             if df_score[stock][day] < -s_bo and (state[stock_idx] == 'c'):
                 state[stock_idx] = 'l'
-                k = PnL[day] * 0.01 / (1 + (-np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx])))
+                k = PnL[day] * fraction / (1 + (-np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx])))
                 daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
                 invest_amount[day+1] = -np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx])
                 continue
 
             if (day > 0) and (df_score[stock][day] < -s_sc) and (state[stock_idx] == 'l'):
                 day_counter_long[stock_idx] += 1
-                k = PnL[day - day_counter_long[stock_idx]] * 0.01 / (1 + (-np.dot(beta_tensor[day - day_counter_long[stock_idx], stock_idx, :], Q[day - day_counter_long[stock_idx],:,stock_idx])))
+                k = PnL[day - day_counter_long[stock_idx]] * fraction / (1 + (-np.dot(beta_tensor[day - day_counter_long[stock_idx], stock_idx, :], Q[day - day_counter_long[stock_idx],:,stock_idx])))
                 daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(beta_tensor[day - day_counter_long[stock_idx], stock_idx, :], np.matmul(Q[day - day_counter_long[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
                 continue
 
             if df_score[stock][day] > s_so and (state[stock_idx] == 'c'):
                 state[stock_idx] = 's'
-                k = PnL[day] * 0.01 / (1 + np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx]))
+                k = PnL[day] * fraction / (1 + np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx]))
                 daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
                 invest_amount[day+1] = np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx])
                 continue
 
             if (day > 0) and (df_score[stock][day] > s_bc) and (state[stock_idx] == 's'):
                 day_counter_short[stock_idx] += 1
-                k = PnL[day - day_counter_short[stock_idx]] * 0.01 / (1 + np.dot(beta_tensor[day - day_counter_short[stock_idx], stock_idx, :], Q[day - day_counter_short[stock_idx],:,stock_idx]))
+                k = PnL[day - day_counter_short[stock_idx]] * fraction / (1 + np.dot(beta_tensor[day - day_counter_short[stock_idx], stock_idx, :], Q[day - day_counter_short[stock_idx],:,stock_idx]))
                 daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(beta_tensor[day - day_counter_short[stock_idx], stock_idx, :], np.matmul(Q[day - day_counter_short[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
                 continue
 
@@ -111,7 +112,7 @@ def spy_trading(df_returns, Q):
     trading_days = df_returns.shape[0]
     n_stocks = df_returns.shape[1]
     A = 1 / Q[0,0,:].sum()
-    Q = A*Q[0,0,:]
+    Q = A*Q[0,0,:] # normalized to one, that is the amount of money at time zero
     daily_PnL = np.ones(shape=trading_days)
     for i in range(trading_days - 1):
         daily_PnL[i+1] = daily_PnL[i] + (Q*df_returns[i+1]).sum()
@@ -138,11 +139,10 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     start = time.time()
+    # df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")[:1259+1].reset_index().drop(columns='index') # selezionare lo split corretto
     df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
-    name = input('Name of the s-score data file: ')
-    df_score = pd.read_csv(go_up(1) + f'/saved_data/{name}.csv')
-    beta_tensor = np.load(go_up(1) + '/saved_data/beta_tensor.npy')
-    Q = np.load(go_up(1) + '/saved_data/Q.npy')
+    name = input('Name of the Q file: ')
+    Q = np.load(go_up(1) + f'/saved_data/{name}.npy')
 
     if args.spy:
         logging.info('Starting spy trading... ')
@@ -152,6 +152,9 @@ if __name__ == '__main__':
         np.save(go_up(1) + f'/saved_data/{name}', returns)
 
     else:
+        name = input('Name of the s-score data file: ')
+        df_score = pd.read_csv(go_up(1) + f'/saved_data/{name}.csv')
+        beta_tensor = np.load(go_up(1) + '/saved_data/beta_tensor.npy')
         pnl, perc_positions = trading(df_returns, df_score, Q, beta_tensor)
         name = input('Name of the file that will be saved (strategy): ')
         np.save(go_up(1) + f'/saved_data/{name}', pnl)
