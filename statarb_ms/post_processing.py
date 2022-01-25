@@ -7,17 +7,18 @@ import argparse
 import logging
 import seaborn as sns
 from tqdm import tqdm
+from scipy.stats import skew
 import matplotlib.patches as mpatches
 from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
 import os
 
-def plot_returns(ret, ret_gas, spy_ret, percs):
+def plot_pnl(pnl, pnl_gas, spy_pnl, percs):
     plt.figure(figsize=(12,8))
-    plt.plot(ret, 'k', linewidth=1, label='Strategy PnL', alpha=0.8)
-    plt.plot(ret_gas, 'green', linewidth=1, label='GAS Strategy PnL', alpha=0.8)
-    plt.plot(spy_ret, 'crimson', linewidth=1, alpha=0.7, label='Buy and hold PnL')
+    plt.plot(pnl, 'k', linewidth=1, label='Strategy PnL', alpha=0.8)
+    plt.plot(pnl_gas, 'green', linewidth=1, label='GAS Strategy PnL', alpha=0.8)
+    plt.plot(spy_pnl, 'crimson', linewidth=1, alpha=0.7, label='Buy and Hold PnL')
     plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
     plt.grid(True)
     plt.legend(fontsize=11, loc='lower right')
@@ -31,6 +32,47 @@ def plot_returns(ret, ret_gas, spy_ret, percs):
     plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
     plt.yticks(np.arange(0,1.2,0.2), ['0%', '20%', '40%', '60%', '80%', '100%'], fontsize=11)
     plt.legend(fontsize=11, loc='lower right')
+    plt.show()
+
+def plot_returns(ret, ret_gas, spy_ret):
+    ret_today, ret_gas_today, spy_ret_today = ret[1:], ret_gas[1:], spy_ret[1:]
+    ret_yesterday, ret_gas_yesterday, spy_ret_yesterday = ret[:-1], ret_gas[:-1], spy_ret[:-1]
+    ret, ret_gas, spy_ret = (ret_today - ret_yesterday)/ret_yesterday, (ret_gas_today - ret_gas_yesterday)/ret_gas_yesterday, (spy_ret_today - spy_ret_yesterday)/spy_ret_yesterday
+    fig = plt.figure(figsize=(12,8))
+    ax3 = plt.subplot(313)
+    ax3.plot(spy_ret, 'crimson', linewidth=0.7, alpha=0.8)
+    ax3.set_title('Buy and Hold Returns')
+    plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
+    ax2 = plt.subplot(312, sharex=ax3)
+    ax2.plot(ret_gas, 'green', linewidth=0.7, alpha=0.8)
+    ax2.set_title('GAS Strategy Returns')
+    plt.tick_params(labelbottom=False)
+    ax1 = plt.subplot(311, sharex=ax3)
+    ax1.plot(ret, 'k', linewidth=0.7, alpha=0.8)
+    ax1.set_title('Strategy Returns')
+    plt.tick_params(labelbottom=False)
+
+    fig = plt.figure(figsize=(10,10))
+    ax3 = plt.subplot(313)
+    ax3.hist(spy_ret, bins=100, color='crimson', alpha=0.8)
+    ax3.set_title('Buy and Hold Returns')
+    ax3.text(0.038, 700, 'Mean: %.3f' %spy_ret.mean(), fontsize=11)
+    ax3.text(0.038, 620, 'Std: %.3f' %spy_ret.std(), fontsize=11)
+    ax3.text(0.038, 540, 'Skew: %.3f' %skew(spy_ret), fontsize=11)
+    ax2 = plt.subplot(312, sharex=ax3)
+    ax2.hist(ret_gas, color='green', bins=100, alpha=0.8)
+    ax2.set_title('GAS Strategy Returns')
+    plt.tick_params(labelbottom=False)
+    ax2.text(0.038, 400, 'Mean: %.3f' %ret_gas.mean(), fontsize=11)
+    ax2.text(0.038, 350, 'Std: %.3f' %ret_gas.std(), fontsize=11)
+    ax2.text(0.038, 300, 'Skew: %.3f' %skew(ret_gas), fontsize=11)
+    ax1 = plt.subplot(311, sharex=ax3)
+    ax1.hist(ret, color='k', bins=100, alpha=0.8)
+    ax1.set_title('Strategy Returns')
+    plt.tick_params(labelbottom=False)
+    ax1.text(0.038, 400, 'Mean: %.3f' %ret.mean(), fontsize=11)
+    ax1.text(0.038, 350, 'Std: %.3f' %ret.std(), fontsize=11)
+    ax1.text(0.038, 300, 'Skew: %.3f' %skew(ret), fontsize=11)
     plt.show()
 
 def plot_bvalues(name):
@@ -177,6 +219,8 @@ if __name__ == '__main__':
                             help='Merge just one file. To be used after merge parser set to true.')
     parser.add_argument('-b', '--bvalues', action='store_true',
                         help='After args.plot=True, choose to plot b_values.')
+    parser.add_argument('-pp', '--pnl', action='store_true',
+                        help='After args.plot=True, choose to plot pnl')
     parser.add_argument('-r', '--ret', action='store_true',
                         help='After args.plot=True, choose to plot returns')
     parser.add_argument('-rsq', '--rsquared', action='store_true',
@@ -202,19 +246,24 @@ if __name__ == '__main__':
     tickers = pd.read_csv(go_up(1) + '/saved_data/ReturnsData.csv').columns.to_list()
 
     if args.plots:
-        if args.ret:
-            name1 = input('Name of the returns file: ')
-            name2 = input('Name of gas returns file: ')
-            name3 = input('Name of the SPY returns file: ')
+        name1 = input('Name of the standard pnl file: ')
+        name2 = input('Name of gas pnl file: ')
+        name3 = input('Name of the SPY pnl file: ')
+        pnl = np.load(go_up(1) + f'/saved_data/{name1}.npy')
+        pnl_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')
+        spy_pnl = np.load(go_up(1) + f'/saved_data/{name3}.npy')
+        x_quantity = int(input('Step of the labels on x-axis: '))
+        x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
+        x_label_day = [trading_days[252 + i] for i in x_label_position]
+        if args.pnl:
             name4 = input('Name of the positions percentage file: ')
-            ret = np.load(go_up(1) + f'/saved_data/{name1}.npy')
-            ret_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')
-            spy_ret = np.load(go_up(1) + f'/saved_data/{name3}.npy')
+            pnl = np.load(go_up(1) + f'/saved_data/{name1}.npy')
+            pnl_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')
+            spy_pnl = np.load(go_up(1) + f'/saved_data/{name3}.npy')
             percs = np.load(go_up(1) + '/saved_data/perc_positions.npy')
-            x_quantity = int(input('Step of the labels on x-axis: '))
-            x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
-            x_label_day = [trading_days[252 + i] for i in x_label_position]
-            plot_returns(ret, ret_gas, spy_ret, percs)
+            plot_pnl(pnl, pnl_gas, spy_pnl, percs)
+        if args.ret:
+            plot_returns(pnl, pnl_gas, spy_pnl)
         if args.bvalues:
             name = input('Name of the b values file: ')
             x_quantity = int(input('Step of the labels on x-axis: '))
