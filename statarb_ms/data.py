@@ -118,12 +118,8 @@ def get_returns(dataframe, export_returns_csv=True, m=1):
         Input dataframe of prices.
     export_csv : bool
         Export dataframe in csv.
-    standardize : bool
-        Use sklearn StandardScaler to scale the returns.
     m : int (optional)
         Period over which returns are calculated. The default is 1.
-    no_missing : bool(optional)
-        drop companies with missing values. The default is True.
 
     Returns
     -------
