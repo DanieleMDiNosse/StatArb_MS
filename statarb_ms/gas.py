@@ -46,26 +46,31 @@ def model_estimation(fun, s, sgm):
     plt.show()
 
 
-def estimation(fun, X, method='Nelder-Mead', update='gaussian', verbose=False, visualization=False):
+def estimation(fun, X, n_params, method='Nelder-Mead', update='gaussian', verbose=False, visualization=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
     b = np.ones(shape=T)
     xi = np.zeros(shape=T)
     X_est = np.zeros_like(X)
-    init_params = np.random.uniform(0, 1, size=4)
     sigma = 1
-    sq_sgm = sigma * sigma
-    res = minimize(fun, init_params, (X, sigma, update),
-                   method=method, options={'xatol': 0.0001})
+    if n_params == 4:
+        init_params = np.random.uniform(0, 1, size=4)
+    if n_params == 5:
+        init_params = np.random.uniform(0,1, size=5)
+    res = minimize(fun, init_params, (X, n_params, update, sigma),
+                   method=method)
     if verbose:
         print(f'Initial guess: \n {init_params}')
         print(res)
         time.sleep(1.5)
-    omega, a, alpha, beta = res.x[0], res.x[1], res.x[2], res.x[3]
+    if n_params == 4:
+        omega, a, alpha, beta = res.x[0], res.x[1], res.x[2], res.x[3]
+    if n_params == 5:
+        omega, a, alpha, beta, sigma = res.x[0], res.x[1], res.x[2], res.x[3], res.x[4]
 
     for i in range(1, T - 1):
         if update == 'gaussian':
-            b[i + 1] = omega + alpha * xi[i] * X[i-1] / sq_sgm + beta * b[i]
+            b[i + 1] = omega + alpha * xi[i] * X[i-1] / sigma**2 + beta * b[i]
             xi[i + 1] = X[i + 1] - a - b[i + 1] * X[i] # prediction error decomposition
         if update == 'logistic':
             b[i + 1] = omega + alpha * ((X[i] - 1 / (1 + np.exp(-b[i])) * X[i - 1]) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sq_sgm) + beta * b[i]
@@ -99,6 +104,7 @@ if __name__ == '__main__':
     parser.add_argument("-l", "--log", default="info",
                         help=("Provide logging level. Example --log debug', default='info"))
     parser.add_argument("-u", "--update", type=int, default=0, help="Update scheme for gas estimation")
+    parser.add_argument("-n", "--n_params", type=int, default=4, help="Number of parameters to be estimates")
     parser.add_argument("-v", "--verbose", action='store_true')
     parser.add_argument("-vv", "--visualization", action='store_true')
     parser.add_argument("-m", "--model", action='store_true')
@@ -128,7 +134,7 @@ if __name__ == '__main__':
             for stock in range(n_stocks):
                 x = X[day, stock, :]
                 b, a, xi = estimation(
-                    reduced_loglikelihood.reduced_loglikelihood, x, update=update, verbose=args.verbose, visualization=args.visualization)
+                    reduced_loglikelihood.reduced_loglikelihood, x, n_params=args.n_params, update=update, verbose=args.verbose, visualization=args.visualization)
                 if (math.isnan(b[-1])) or (b[-1] < 0):
                     print(b[-1])
             end = time.time()
