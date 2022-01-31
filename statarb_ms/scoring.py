@@ -59,7 +59,7 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
     b_values = np.zeros(shape=(trading_days, n_stocks, 3))
     R_squared = np.zeros(shape=(trading_days, n_stocks))
     dis_res_reg = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
-    c = 0 # counter for track the number of negative b comes from GAS model
+    c = 0 # counter to track the number of negative bs comes from GAS model
 
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
@@ -76,6 +76,8 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
             stock_idx = df_returns.columns.get_loc(stock)
             beta0, betas, conf_inter, residuals, pred, _ = regression(factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])
             beta_tensor[i, stock_idx, :] = betas
+            plt.plot(factors[:,0]*betas[0])
+            plt.show()
             res[i, stock_idx, :] = residuals
             discreteOU = np.cumsum(residuals)
             dis_res[i, stock_idx, :] = discreteOU
@@ -179,18 +181,12 @@ if __name__ == '__main__':
               'info': logging.INFO,
               'debug': logging.DEBUG}
     logging.basicConfig(level=levels[args.log])
-    # L_tilde -> Lenght of the slice of the DataFrame, n -> number of slices, L -> total lenght, k -> overlap (i.e. lookback_for_factors-1)
-    # L_tilde = (L + k*(n-1))/n
-    # with n=5 L_tilde=1510
     start = time.time()
 
     df_returns = pd.read_csv(go_up(1) +
                              "/saved_data/ReturnsData.csv")
 
-    # df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
-    # test for checking that multiprocessing and sequantial outpur the same results
-    df = [df_returns[:252*3], df_returns[252*2:252*4 + 1]]
-    # then comment the upper lines and do sequantially
+    df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
 
 
     if args.gas == True:
@@ -234,3 +230,7 @@ if __name__ == '__main__':
 
     time_elapsed = (end - start)
     logging.info('Time required for generate s-scores: %.2f seconds' %time_elapsed)
+
+
+    #SIMULARE DEI DATI DI UN PARAMETRO CHE SEGUE LA DINAMICA GAS E STIMARE I PARAMATREI CON ML E VEDERE SE RIPRODUCE BENE.
+    # FARE LA STESSA COSA MA CON UNA DINAMICA MISPECIFICATA TIPO A*SIN(X). FAR VARIARE A E VEDERE SE ACCHIAPPA BENE ANCHE I RANGE DI NON STAZIONARIETA'.

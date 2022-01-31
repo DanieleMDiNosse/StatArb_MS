@@ -24,14 +24,14 @@ cpdef float reduced_loglikelihood(cnp.ndarray params, cnp.ndarray X, int n_param
     for i in range(1, T - 1):
         if update == 'gaussian':
             if n_params == 5:
-                loglikelihood[i] = -2 * np.log(sigma) + (X[i] - a - b[i] * X[i - 1]) * (X[i] - a - b[i] * X[i - 1]) / sigma**2
+                loglikelihood[i] = - np.log(sigma) - (X[i] - a - b[i] * X[i - 1]) * (X[i] - a - b[i] * X[i - 1]) / sigma**2
             if n_params == 4:
-                loglikelihood[i] = (X[i] - a - b[i] * X[i - 1]) * (X[i] - a - b[i] * X[i - 1])
+                loglikelihood[i] = - np.log(sigma) - (X[i] - a - b[i] * X[i - 1]) * (X[i] - a - b[i] * X[i - 1]) / sigma**2
             b[i + 1] = omega + alpha * (X[i] - a - b[i] * X[i - 1]) * X[i-1] / sigma**2 + beta * b[i]
         if update == 'logistic':
-            loglikelihood[i] = (X[i] - a - X[i - 1] / (1 + np.exp(-b[i]))) * (X[i] - a - X[i - 1] / (1 + np.exp(-b[i])))
+            loglikelihood[i] = - (X[i] - a - X[i - 1] / (1 + np.exp(-b[i]))) * (X[i] - a - X[i - 1] / (1 + np.exp(-b[i])))
             b[i + 1] = omega + alpha * ((X[i] - X[i - 1] / (1 + np.exp(-b[i]))) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sigma**2) + beta * b[i]
         if update == 'logarithm':
-            loglikelihood[i] = (X[i] - a - np.log(b[i]) * X[i - 1]) * (X[i] - a - np.log(b[i]) * X[i - 1])
+            loglikelihood[i] = - (X[i] - a - np.log(b[i]) * X[i - 1]) * (X[i] - a - np.log(b[i]) * X[i - 1])
             b[i + 1] = omega + alpha * X[i - 1] / (b[i] * sigma**2) * (X[i] - a - np.log(b[i]) * X[i-1]) + beta * b[i]
-    return loglikelihood.sum()
+    return -loglikelihood.sum()
