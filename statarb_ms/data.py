@@ -74,7 +74,6 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
         except Exception:
             logging.info(f"{tickers.index(tick) + 1}/{len(tickers)} There is no price data for {tick}")
 
-    # ATTENZIONE: in questo modo avrò dei giorni vuoti
     data = data.dropna(axis=1)
 
     if export_csv:
