@@ -50,7 +50,7 @@ def eigenportfolios(df_returns, eigenvectors):
     Ordering of the components of the eigenvectors of the correlation matrix (principal components).
     Example: the first principal component is v1 = (v11, v12, ... , v1N). Each component represent one company.
     The first dictionary is then constructed ordering the vij and associating to each of them the corresponding
-    company.
+    company tick.
 
     Parameters
     ----------
@@ -159,15 +159,16 @@ if __name__ == '__main__':
               'info': logging.INFO,
               'debug': logging.DEBUG}
     logging.basicConfig(level=levels[args.log])
+    plt.style.use('seaborn')
 
     df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
-    eigenvalues, eigenvectors = pca(df_returns[-252:], n_components=args.n_components,
-                                    variable_number=args.variable_number, threshold=args.threshold_variance)
-    print(eigenvalues.sum())
-    # # factors = risk_factors(df_returns, eigenvectors, export=args.export)
-    # eigenportfolio = eigenportfolios(df_returns, eigenvectors)
-    # q = money_on_stock(df_returns, eigenvectors)
-
+    eigenvalues, eigenvectors = pca(df_returns[-252:], n_components=args.n_components)
+    eigenportfolio = eigenportfolios(df_returns, eigenvectors)
+    first_components = list(eigenportfolio[0].values())
+    first_ticks = list(eigenportfolio[0].keys())
+    print(first_ticks)
+    plt.scatter(first_ticks, first_components, s=1.5)
+    plt.show()
     if args.plots:
         trading_days = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date
         x_label_position = np.arange(0, len(trading_days)-252, 252)
