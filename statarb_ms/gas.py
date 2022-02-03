@@ -9,27 +9,37 @@ from tqdm import tqdm
 import math
 import reduced_loglikelihood
 from tqdm import tqdm
+from scipy.stats import norm
 
 
-def synt_gas(a, omega, alpha, beta, sgm):
-    eps = np.random.normal(0, sgm, size=1000)
-    X = np.zeros(shape=1000)
-    b = np.zeros(shape=1000)
-    b[0] = 0
-    X[0] = eps[0]
+def synt_data(a, omega, alpha, beta, sgm, dynamics):
+    size = 1000
+    eps = np.random.normal(0, sgm, size=size)
+    X = np.zeros(shape=size)
+    b = np.zeros(shape=size)
+    X[1] = eps[1]
     for t in range(1, X.shape[0] - 1):
-        # b[t + 1] = omega + alpha * X[t - 1] * eps[t] / sgm**2 + beta * b[t]
-        if (t < 200):
-            b[t + 1] = 0.2
-        if (t > 199):
-            b[t + 1] = 0.6
+        if dynamics == 'gas':
+            b[t + 1] = omega + alpha * X[t - 1] * eps[t] / sgm**2 + beta * b[t]
+        if dynamics == 'sin':
+            b[t + 1] = 0.5 * np.sin(np.pi*(t+1)/50)
+        if dynamics == 'step':
+            b[:2] = 0.1
+            if (t < 300):
+                b[t + 1] = 0.1
+            if (t >= 300):
+                b[t + 1] = 0.9
+            if (t >= 600):
+                b[t + 1] = 0.1
+        if dynamics == 'exp':
+            b[t + 1] = np.exp(-(t+1)/500)
         X[t + 1] = a + b[t + 1] * X[t] + eps[t + 1]
     return X, b, eps
 
 
 def model_loglikelihood(params, X):
     T = X.shape[0]
-    a, omega, alpha, beta, sgm = params[0], params[1], params[2], params[3], params[4]
+    a, omega, alpha, beta, sgm =  params[0], params[1], params[2], params[3], params[4]
     b = np.zeros_like(X)
     for i in range(1, T - 1):
         b[i + 1] = omega + alpha * \
@@ -37,13 +47,14 @@ def model_loglikelihood(params, X):
 
     sum = 0
     for i in range(T - 1):
-        sum += - 0.5 * np.log(sgm**2) - 0.5 * \
-            (X[i + 1] - a - b[i + 1] * X[i])**2 / sgm**2
+        sum += (- 0.5 * np.log(sgm**2) - 0.5 * \
+            (X[i + 1] - a - b[i + 1] * X[i])**2 / sgm**2)
+    # print(sum)
+    # sum = np.sum(norm.logpdf((X[1:] - a - b[1:] * X[:-1]), loc=a, scale=sgm))/T
+    return - sum / T
 
-    return -sum / T
 
-
-def model_estimation(fun, X, init_params):
+def model_estimation(fun, X, init_params, eps):
     res = minimize(fun, init_params, X, method='BFGS',
                    options={'maxiter': 1000})
     std_err = np.sqrt([res.hess_inv[i, i] * (1 / X.shape[0])
@@ -55,6 +66,7 @@ def model_estimation(fun, X, init_params):
     X, b = np.zeros_like(X), np.zeros_like(X)
     X_up, b_up = np.zeros_like(X), np.zeros_like(X)
     X_down, b_down = np.zeros_like(X), np.zeros_like(X)
+    X[1], X_up[1], X_down[1] = eps[1], eps[1], eps[1]
 
     for t in range(1, X.shape[0] - 1):
         X[t + 1] = estimates[0] + b[t + 1] * X[t] + eps[t + 1]
@@ -150,18 +162,18 @@ if __name__ == '__main__':
     if args.model:
         omega = 0.05
         alpha = 0.08
-        beta = 0.05
+        beta = 0.06
         sgm = 0.1
-        a = 0.02
-        n = 560
-        init_params = np.random.uniform(0, 0.1, size=5)
-        X, b, eps = synt_gas(a, omega, alpha, beta, sgm)
-        fig, axs = plt.subplots(1, 2, tight_layout=True, figsize=(14, 5))
+        a = 0.1
+        n = 1000
+        init_params = np.random.uniform(0, 1, size=5)
+        X, b, eps = synt_data(a, omega, alpha, beta, sgm, dynamics='sin')
+        fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))
         axs[0].plot(X[:n], 'k', label='Real', linewidth=1)
         axs[1].plot(b[:n], 'b', label='Real', linewidth=1)
 
         XX, B, res, std_err = model_estimation(
-            model_loglikelihood, X, init_params)
+            model_loglikelihood, X, init_params, eps)
 
         print('True values: ', [a, omega, alpha, beta, sgm])
         print('Estimated values: ', res.x)
