@@ -109,7 +109,7 @@ def model_estimation(fun, X, init_params, eps, model, long_term_mean=False):
 
             for t in range(1, X.shape[0] - 1):
                 b[t + 1] = omega + alpha * X[t - 1] * \
-                    eps[t] / sgm**2 + beta * b[t]
+                    (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
                 X[t + 1] = a + b[t + 1] * X[t] + eps[t + 1]
         else:
             a, alpha, omega, sgm = res.x[0], res.x[1], res.x[2], res.x[3]
@@ -132,17 +132,13 @@ def model_estimation(fun, X, init_params, eps, model, long_term_mean=False):
 
             for t in range(1, X.shape[0] - 1):
                 b[t + 1] = omega + alpha * X[t - 1] * \
-                    eps[t] / sgm**2 + beta * b[t]
-                X[t + 1] = a + b[t + 1] * X[t] + eps[t + 1]
+                    (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
 
-                b_up[t + 1] = omega_up + alpha_up * X_up[t - 1] * \
-                    eps[t] / sgm_up**2 + beta_up * b_up[t]
-                X_up[t + 1] = a_up + b_up[t + 1] * X_up[t] + eps[t + 1]
+                b_up[t + 1] = omega_up + alpha_up * X[t - 1] * \
+                    (X[t] - a_up - b_up[t] * X[t - 1]) / sgm_up**2 + beta_up * b_up[t]
 
-                b_down[t + 1] = omega_down + alpha_down * X_down[t - 1] * \
-                    eps[t] / sgm_down**2 + beta_down * b_down[t]
-                X_down[t + 1] = a_down + \
-                    b_down[t + 1] * X_down[t] + eps[t + 1]
+                b_down[t + 1] = omega_down + alpha_down * X[t - 1] * \
+                    (X[t] - a_down - b_down[t] * X[t - 1]) / sgm_down**2 + beta_down * b_down[t]
 
         return [X, X_up, X_down, b, b_up, b_down], res, std_err
 
