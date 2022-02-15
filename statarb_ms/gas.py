@@ -22,7 +22,7 @@ def synt_data(a, omega, alpha, beta, sgm, dynamics):
         if dynamics == 'gas':
             b[t + 1] = omega + alpha * X[t - 1] * eps[t] / sgm**2 + beta * b[t]
         if dynamics == 'sin':
-            b[t + 1] = 0.5 * np.sin(np.pi*(t+1)/50)
+            b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / 150)
         if dynamics == 'step':
             b[:2] = 0.1
             if (t < 300):
@@ -32,23 +32,23 @@ def synt_data(a, omega, alpha, beta, sgm, dynamics):
             if (t >= 600):
                 b[t + 1] = 0.1
         if dynamics == 'exp':
-            b[t + 1] = np.exp(-(t+1)/500)
+            b[t + 1] = np.exp(-(t + 1) / 500)
         X[t + 1] = a + b[t + 1] * X[t] + eps[t + 1]
     return X, b, eps
 
 
 def model_loglikelihood(params, X):
     T = X.shape[0]
-    a, omega, alpha, beta, sgm =  params[0], params[1], params[2], params[3], params[4]
+    a, omega, alpha, beta, sgm = params[0], params[1], params[2], params[3], params[4]
     b = np.zeros_like(X)
     for i in range(1, T - 1):
-        b[i + 1] = omega + alpha * \
+        b[i + 1] = alpha * \
             (X[i] - a - b[i] * X[i - 1]) * X[i - 1] / sgm**2 + beta * b[i]
 
     sum = 0
     for i in range(T - 1):
-        sum += (- 0.5 * np.log(sgm**2) - 0.5 * \
-            (X[i + 1] - a - b[i + 1] * X[i])**2 / sgm**2)
+        sum += (- 0.5 * np.log(sgm**2) - 0.5 *
+                (X[i + 1] - a - b[i + 1] * X[i])**2 / sgm**2)
     # print(sum)
     # sum = np.sum(norm.logpdf((X[1:] - a - b[1:] * X[:-1]), loc=a, scale=sgm))/T
     return - sum / T
@@ -63,26 +63,23 @@ def model_estimation(fun, X, init_params, eps):
     estimates_up = res.x + std_err
     estimates_down = res.x - std_err
 
-    X, b = np.zeros_like(X), np.zeros_like(X)
-    X_up, b_up = np.zeros_like(X), np.zeros_like(X)
-    X_down, b_down = np.zeros_like(X), np.zeros_like(X)
-    X[1], X_up[1], X_down[1] = eps[1], eps[1], eps[1]
+    b = np.zeros_like(X)
+    b_up = np.zeros_like(X)
+    b_down = np.zeros_like(X)
 
     for t in range(1, X.shape[0] - 1):
-        X[t + 1] = estimates[0] + b[t + 1] * X[t] + eps[t + 1]
-        b[t + 1] = estimates[1] + estimates[2] * X[t - 1] * \
-            eps[t] / estimates[4]**2 + estimates[3] * b[t]
+        b[t + 1] = estimates[2] * X[t - 1] * \
+            (X[t] - estimates[0] - b[t] * X[t - 1]) / estimates[4]**2 + estimates[3] * b[t]
 
-        X_up[t + 1] = estimates_up[0] + b_up[t + 1] * X_up[t] + eps[t + 1]
-        b_up[t + 1] = estimates_up[1] + estimates_up[2] * X_up[t - 1] * \
-            eps[t] / estimates_up[4]**2 + estimates_up[3] * b_up[t]
+        b_up[t + 1] = estimates_up[2] * X[t - 1] * \
+            (X[t] - estimates_up[0] - b_up[t] * X[t - 1]) / \
+            estimates_up[4]**2 + estimates_up[3] * b_up[t]
 
-        X_down[t + 1] = estimates_down[0] + \
-            b_down[t + 1] * X_down[t] + eps[t + 1]
-        b_down[t + 1] = estimates_down[1] + estimates_down[2] * X_down[t -
-                                                                       1] * eps[t] / estimates_down[4]**2 + estimates_down[3] * b_down[t]
+        b_down[t + 1] = estimates_down[2] * X[t - 1] * \
+            (X[t] - estimates_down[0] - b_down[t] * X[t - 1]) / \
+            estimates_down[4]**2 + estimates_down[3] * b_down[t]
 
-    return [X, X_up, X_down], [b, b_up, b_down], res, std_err
+    return [b, b_up, b_down], res, std_err
 
 
 def estimation(fun, X, init_params, method='Nelder-Mead', update='gaussian', verbose=False, visualization=False):
@@ -152,7 +149,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     plt.style.use('seaborn')
-    np.random.seed(666)
+    # np.random.seed(666)
 
     if args.update == 0:
         update = 'gaussian'
@@ -162,7 +159,7 @@ if __name__ == '__main__':
     if args.model:
         omega = 0.05
         alpha = 0.08
-        beta = 0.06
+        beta = 0.46
         sgm = 0.1
         a = 0.1
         n = 1000
@@ -170,20 +167,25 @@ if __name__ == '__main__':
         X, b, eps = synt_data(a, omega, alpha, beta, sgm, dynamics='sin')
         fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))
         axs[0].plot(X[:n], 'k', label='Real', linewidth=1)
-        axs[1].plot(b[:n], 'b', label='Real', linewidth=1)
+        axs[1].plot(b[:n], 'k', label='Real', linewidth=1)
 
-        XX, B, res, std_err = model_estimation(
+        B, res, std_err = model_estimation(
             model_loglikelihood, X, init_params, eps)
+
+        # b_test = np.zeros_like(b)
+        # for t in range(1, b.shape[0] - 1):
+        #     b_test[t + 1] = b_test[t] + res.x[2]/res.x[4]**2 * X[t-1] * (X[t] - res.x[0] - b_test[t] * X[t-1])
 
         print('True values: ', [a, omega, alpha, beta, sgm])
         print('Estimated values: ', res.x)
         print('Standard errors: ', std_err)
 
-        axs[0].plot(XX[0][:n], 'green', label='Filtered', linewidth=1)
-        axs[0].fill_between(list(range(n)), XX[2][:n], XX[1]
-                            [:n], color='green', alpha=0.3)
+        # axs[0].plot(XX[:n], 'green', label='Filtered', linewidth=1)
+        # axs[0].fill_between(list(range(n)), XX[2][:n], XX[1]
+        #                     [:n], color='green', alpha=0.3)
 
         axs[1].plot(B[0][:n], 'crimson', label='Filtered', linewidth=1)
+        # axs[1].plot(b_test[:n], 'blue', label='Manual', linewidth=1)
         axs[1].fill_between(list(range(n)), B[2][:n], B[1]
                             [:n], color='crimson', alpha=0.3)
 
