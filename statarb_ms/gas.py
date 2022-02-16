@@ -10,7 +10,10 @@ from tqdm import tqdm
 import math
 import reduced_loglikelihood
 from tqdm import tqdm
+<<<<<<< HEAD
 from scipy.stats import norm
+=======
+>>>>>>> older
 
 
 def estimation(fun, X, init_params, method='Nelder-Mead', update='gaussian', verbose=False, visualization=False):
@@ -71,24 +74,28 @@ if __name__ == '__main__':
                         help=("Provide logging level. Example --log debug', default='info"))
     parser.add_argument("-u", "--update", type=int, default=0,
                         help="Update scheme for gas estimation")
-    parser.add_argument("-n", "--n_params", type=int, default=4,
-                        help="Number of parameters to be estimates")
     parser.add_argument("-v", "--verbose", action='store_true')
     parser.add_argument("-vv", "--visualization", action='store_true')
     parser.add_argument("-c", "--convergence", action='store_true')
+<<<<<<< HEAD
     parser.add_argument("-m", "--model", action='store_true')
     parser.add_argument("-t", "--target_est", action='store_true')
+=======
+>>>>>>> older
 
     args = parser.parse_args()
     plt.style.use('seaborn')
-    np.random.seed(666)
+    # np.random.seed(666)
 
     if args.update == 0:
         update = 'gaussian'
     if args.update == 1:
         update = 'logistic'
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> older
     if args.convergence:
         X = np.load(go_up(1) + '/saved_data/dis_res.npy')
         days = X.shape[0]
