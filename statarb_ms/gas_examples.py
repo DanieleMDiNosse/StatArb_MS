@@ -25,7 +25,7 @@ def synt_data(model, *args, dynamics, size):
                 if (t < 300):
                     b[t + 1] = 0.1
                 if (t >= 300):
-                    b[t + 1] = 0.9
+                    b[t + 1] = 0.5
                 if (t >= 600):
                     b[t + 1] = 0.1
             if dynamics == 'exp':
@@ -98,7 +98,7 @@ def model_estimation(fun, X, init_params, model):
         for t in range(1, T - 1):
             b[t + 1] = estimates[1] + estimates[2] * X[t - 1] * \
                 (X[t] - estimates[0] - b[t] * X[t - 1]) / \
-                estimates[4]**2 + estimates[3] * b[t]
+                estimates[4]**2 +  estimates[3] * b[t]
 
             b_up[t + 1] = estimates_up[1] + estimates_up[2] * X[t - 1] * \
                 (X[t] - estimates_up[0] - b_up[t] * X[t - 1]) / \
@@ -134,7 +134,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     plt.style.use('seaborn')
-    # np.random.seed(666)
+    np.random.seed(666)
 
     if args.model == 0: model = 'autoregressive'
     if args.model == 1: model = 'poisson'
@@ -148,7 +148,7 @@ if __name__ == '__main__':
         num_par = 5
         omega = 0.05
         alpha = 0.08
-        beta = 0.46
+        beta = 0.06
         sgm = 0.1
         a = 0.1
         X, b = synt_data(model, a, omega, alpha,
@@ -160,10 +160,12 @@ if __name__ == '__main__':
         omega = 0.183
         X, b = synt_data(model, alpha, beta, omega, dynamics=dynamics, size=n)
 
-    init_params = np.random.uniform(0, 0.1, size=num_par)
+    init_params = np.random.uniform(0, 0.5, size=num_par)
     fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))
     axs[0].plot(X[:n], 'k', label='Real', linewidth=1)
     axs[1].plot(b[:n], 'k', label='Real', linewidth=1)
+    axs[0].set_ylabel('X')
+    axs[1].set_ylabel('b')
 
     B, res, std_err = model_estimation(
         model_loglikelihood, X, init_params, model)
@@ -189,8 +191,9 @@ if __name__ == '__main__':
     plt.show()
 
     if args.convergence:
-        N = 4
+        N = 5
         est_par = np.empty(shape=(N, num_par))
+        stderr_par = np.empty(shape=(N, num_par))
         par = np.random.uniform(0, 1, size=(N, num_par))
         fun_val = []
         b_val = []
@@ -199,44 +202,55 @@ if __name__ == '__main__':
                 model_loglikelihood, X, init_params, model)
             fun_val.append(res.fun)
             est_par[i] = res.x
+            stderr_par[i] = std_err
             b_val.append(B[0][-1])
-        plt.figure(figsize=(12, 8), tight_layout=True)
+        plt.figure(figsize=(12, 8))
         ax0 = plt.subplot(2, 3, 4)
-        ax0.plot(b_val, 'k', linewidth=1)
+        ax0.plot(b_val, 'crimson', linewidth=1)
         ax0.title.set_text('b(60) values')
         ax1 = plt.subplot(2, 3, 1)
-        ax1.plot(fun_val, 'k', linewidth=1)
+        ax1.plot(fun_val, 'crimson', linewidth=1)
         ax1.title.set_text('Likelihood Evaluations')
         ax2 = plt.subplot(num_par, 3, 2)
-        ax2.plot(par[:, 0], linewidth=1)
+        ax2.plot(par[:, 0], 'slateblue', linewidth=1)
         ax2.title.set_text('Initial Omega')
         ax3 = plt.subplot(num_par, 3, 5)
-        ax3.plot(par[:, 1], linewidth=1)
+        ax3.plot(par[:, 1], 'slateblue', linewidth=1)
         ax3.title.set_text('Initial a')
         ax4 = plt.subplot(num_par, 3, 8)
-        ax4.plot(par[:, 2], linewidth=1)
+        ax4.plot(par[:, 2], 'slateblue', linewidth=1)
         ax4.title.set_text('Initial alpha')
         ax5 = plt.subplot(num_par, 3, 11)
-        ax5.plot(par[:, 3], linewidth=1)
+        ax5.plot(par[:, 3], 'slateblue', linewidth=1)
         ax5.title.set_text('Initial beta')
         ax11 = plt.subplot(num_par, 3, 14)
-        ax11.plot(par[:, 4], linewidth=1)
+        ax11.plot(par[:, 4], 'slateblue', linewidth=1)
         ax11.title.set_text('Initial sigma')
 
         ax6 = plt.subplot(num_par, 3, 3)
-        ax6.plot(est_par[:, 0], 'k', linewidth=1)
+        ax6.plot(est_par[:, 0], 'g', linewidth=1)
+        ax6.errorbar(np.arange(0,N), est_par[:, 0], yerr=stderr_par[:,0], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
+        ax6.hlines(omega, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax6.title.set_text('Estimated Omega')
         ax7 = plt.subplot(num_par, 3, 6)
-        ax7.plot(est_par[:, 1], 'k', linewidth=1)
+        ax7.plot(est_par[:, 1], 'green', linewidth=1)
+        ax7.errorbar(np.arange(0,N), est_par[:, 1], yerr=stderr_par[:,1], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
+        ax7.hlines(a, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax7.title.set_text('Estimated a')
         ax8 = plt.subplot(num_par, 3, 9)
-        ax8.plot(est_par[:, 2], 'k', linewidth=1)
+        ax8.plot(est_par[:, 2], 'green', linewidth=1)
+        ax8.errorbar(np.arange(0,N), est_par[:, 2], yerr=stderr_par[:,2], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
+        ax8.hlines(alpha, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax8.title.set_text('Estimated alpha')
         ax9 = plt.subplot(num_par, 3, 12)
-        ax9.plot(est_par[:, 3], 'k', linewidth=1)
+        ax9.plot(est_par[:, 3], 'green', linewidth=1)
+        ax9.errorbar(np.arange(0,N), est_par[:, 3], yerr=stderr_par[:,3], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
+        ax9.hlines(beta, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax9.title.set_text('Estimated beta')
         ax10 = plt.subplot(num_par, 3, 15)
-        ax10.plot(est_par[:, 4], 'k', linewidth=1)
+        ax10.plot(est_par[:, 4], 'green', linewidth=1)
+        ax10.errorbar(np.arange(0,N), est_par[:, 4], yerr=stderr_par[:,4], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
+        ax10.hlines(sgm, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax10.title.set_text('Estimated sigma')
         plt.grid(True)
         plt.show()
