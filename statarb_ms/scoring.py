@@ -5,7 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 from makedir import go_up
 from post_processing import file_merge, remove_file
-from reduced_loglikelihood import reduced_loglikelihood
+from reduced_loglikelihood import complete_loglikelihood, loglikelihood, targeting_loglikelihood
 from gas import estimation
 from factors import pca, risk_factors, money_on_stock
 from regression_parameters import regression, auto_regression
@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import normaltest
 
 
-def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookback_for_residual=60, export=True):
+def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_for_factors=252, lookback_for_residual=60, export=True):
     '''This function uses an amount of days equal to lookback_for_factors to evaluate the PCA components and an amount equal to lookback_for_residual
     to evaluate the parameters of the Ornstein-Uhlenbeck process for the residuals. The output is composed by the dataframe of s_score for each stock
     and the beta factors.
@@ -76,8 +76,6 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
             stock_idx = df_returns.columns.get_loc(stock)
             beta0, betas, conf_inter, residuals, pred, _ = regression(factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])
             beta_tensor[i, stock_idx, :] = betas
-            plt.plot(factors[:,0]*betas[0])
-            plt.show()
             res[i, stock_idx, :] = residuals
             discreteOU = np.cumsum(residuals)
             dis_res[i, stock_idx, :] = discreteOU
@@ -94,14 +92,14 @@ def generate_data(df_returns, n_factor, method, lookback_for_factors=252, lookba
                 dis_res_reg[i, stock_idx, :] = discrete_resid
 
             if method == 'gas_modelization':
-                b, a, xi = estimation(reduced_loglikelihood, discreteOU, method='Nelder-Mead', update='gaussian', verbose=False)
+                init_params = np.random.uniform(0, 1, size=4)
+                b, a, xi = estimation(complete_loglikelihood, discreteOU, init_params, method='BFGS', targeting_estimation=False)
                 b = b[-1] # Mi serve solo l'ultimo valore per lo score
                 if b < 0: # se b è negativo, sostituiscilo con quello stimato supponendo sia costante nella finestra temporale
                     discreteOU = np.append(discreteOU, discreteOU[-1])
                     parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU)
                     a, b = parameters[0], parameters[1]
                     c += 1
-                # devi aggiungere anche le bande di confidenza
 
             if b == 0.0:
                 print(f'B NULLO PER {stock}')
@@ -174,6 +172,7 @@ if __name__ == '__main__':
                         help='Select a specific time range between 1995-01-03 to 2020-12-31')
     parser.add_argument('-s', '--save_outputs', action='store_false',
                         help='Choose whether or not to save the outputrs. The default is True')
+    parser.add_argument("-t", "--targ_est", action='store_true')
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
               'error': logging.ERROR,
@@ -189,10 +188,8 @@ if __name__ == '__main__':
     df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
 
 
-    if args.gas == True:
-        method = 'gas_modelization'
-    else:
-        method = 'constant_speed'
+    if args.gas == True: method = 'gas_modelization'
+    else: method = 'constant_speed'
 
     if args.range:
         start =str(input('Start date (YYY-MM-DD): '))
@@ -207,7 +204,7 @@ if __name__ == '__main__':
         end = time.time()
 
     else:
-        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, 252, 60, args.save_outputs)) for i in df]
+        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
         os.system('rm tmp/*')
         for p in processes:
             p.start()

@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import poisson, norm
+from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 import time
 
@@ -39,7 +40,7 @@ def synt_data(model, *args, dynamics, size):
                 b[t + 1] = omega + alpha * \
                     (X[t] - np.exp(b[t])) * (np.exp(b[t])) + beta * b[t]
             if dynamics == 'sin':
-                b[t + 1] = 0.5 * np.sin(np.pi * (t+1) / 150)
+                b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / 150)
             if dynamics == 'step':
                 if t < 300:
                     b[t + 1] = 0.1
@@ -58,6 +59,9 @@ def model_loglikelihood(params, X, model):
     b = np.zeros_like(X)
     if model == 'autoregressive':
         a, omega, alpha, beta, sgm = params[0], params[1], params[2], params[3], params[4]
+        # omega = 0.180 * (1 - beta) # sin
+        # omega = 0.16339 * (1 - beta) #gas
+        # omega = 0.3192 * (1 - beta) #step
         for i in range(1, T - 1):
             b[i + 1] = omega + alpha * \
                 (X[i] - a - b[i] * X[i - 1]) * X[i - 1] / sgm**2 + beta * b[i]
@@ -95,10 +99,13 @@ def model_estimation(fun, X, init_params, model):
     b_down = np.zeros_like(X)
 
     if model == 'autoregressive':
+        # estimates[1] = 0.180 * (1 - estimates[3]) #sin
+        # estimates[1] = 0.16339 * (1 - estimates[3]) #gas
+        # estimates[1] = 0.3192 * (1 - estimates[3]) # step
         for t in range(1, T - 1):
             b[t + 1] = estimates[1] + estimates[2] * X[t - 1] * \
                 (X[t] - estimates[0] - b[t] * X[t - 1]) / \
-                estimates[4]**2 +  estimates[3] * b[t]
+                estimates[4]**2 + estimates[3] * b[t]
 
             b_up[t + 1] = estimates_up[1] + estimates_up[2] * X[t - 1] * \
                 (X[t] - estimates_up[0] - b_up[t] * X[t - 1]) / \
@@ -107,7 +114,6 @@ def model_estimation(fun, X, init_params, model):
             b_down[t + 1] = estimates_down[1] + estimates_down[2] * X[t - 1] * \
                 (X[t] - estimates_down[0] - b_down[t] * X[t - 1]) / \
                 estimates_down[4]**2 + estimates_down[3] * b_down[t]
-
     if model == 'poisson':
         for t in range(T - 1):
             b[t + 1] = estimates[2] + estimates[0] * \
@@ -169,10 +175,11 @@ if __name__ == '__main__':
 
     B, res, std_err = model_estimation(
         model_loglikelihood, X, init_params, model)
-
-    # b_test = np.zeros_like(b)
-    # for t in range(1, b.shape[0] - 1):
-    #     b_test[t + 1] = b_test[t] + res.x[2]/res.x[4]**2 * X[t-1] * (X[t] - res.x[0] - b_test[t] * X[t-1])
+    MSE = mean_squared_error(b,B[0])
+    print(f'MSE: {MSE}')
+    ### Targeting estimation ###
+    # b_bar = w / (1 - beta) -> (1 - beta) * b_bar = w
+    print(B[0][-1])
 
     if model == 'autoregressive':
         print('True values: ', [a, omega, alpha, beta, sgm])

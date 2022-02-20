@@ -10,61 +10,65 @@ from tqdm import tqdm
 import math
 import reduced_loglikelihood
 from tqdm import tqdm
-<<<<<<< HEAD
-from scipy.stats import norm
-=======
->>>>>>> older
 
+# def targeting_estimation(fun, X, init_params, method='BFGS'):
+#     '''Estimation of GAS parameters'''
+#     T = X.shape[0]
+#     b = np.zeros(shape=T)
+#     res = minimize(fun, init_params, X, method=method)
+#     omega, a, sigma = res.x[0], res.x[1], res.x[2]
+#
+#     for i in range(1, T - 1):
+#         b[i + 1] = omega
+#
+#     return b[-1]
 
-def estimation(fun, X, init_params, method='Nelder-Mead', update='gaussian', verbose=False, visualization=False):
+def estimation(fun, X, init_params, method='Nelder-Mead', targeting_estimation=False, verbose=False, visualization=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
-    b = np.ones(shape=T)
+    b = np.zeros(shape=T)
     xi = np.zeros(shape=T)
-    X_est = np.zeros_like(X)
-    sigma = 1
-    n_params = init_params.shape[0]
-    res = minimize(fun, init_params, (X, n_params, update, sigma),
-                   method=method)
+
+    if targeting_estimation:
+        init_params0 = np.random.uniform(0, 1, size=3)
+        res = minimize(reduced_loglikelihood.targeting_loglikelihood, init_params0, X, method=method)
+        omega, a, sigma = res.x[0], res.x[1], res.x[2]
+        b_bar = omega
+        b[:2] = b_bar
+        res = minimize(fun, init_params, (X, b_bar), method=method)
+        a, alpha, beta, sigma = res.x[0], res.x[1], res.x[2], res.x[3]
+        omega = beta * (1 - b_bar)
+
+    else:
+        res = minimize(fun, init_params, X, method=method)
+        omega, a, alpha, beta = res.x[0], res.x[1], res.x[2], res.x[3]
+        sigma = 1
+
     if verbose:
         print(f'Initial guess: \n {init_params}')
         print(res)
         time.sleep(1.5)
-    if n_params == 4:
-        omega, a, alpha, beta = res.x[0], res.x[1], res.x[2], res.x[3]
-    if n_params == 5:
-        omega, a, alpha, beta, sigma = res.x[0], res.x[1], res.x[2], res.x[3], res.x[4]
 
     for i in range(1, T - 1):
-        if update == 'gaussian':
-            b[i + 1] = omega + alpha * xi[i] * \
-                X[i - 1] / sigma**2 + beta * b[i]
-            xi[i + 1] = X[i + 1] - a - b[i + 1] * \
-                X[i]  # prediction error decomposition
-        if update == 'logistic':
-            b[i + 1] = omega + alpha * ((X[i] - 1 / (1 + np.exp(-b[i])) * X[i - 1]) *
-                                        np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sq_sgm) + beta * b[i]
-            # prediction error decomposition
-            xi[i + 1] = X[i + 1] - a - 1 / (1 + np.exp(-b[i + 1])) * X[i]
-
-    if update == 'logistic':
-        b = 1 / (1 + np.exp(-b))
+        b[i + 1] = omega + alpha * xi[i] * X[i - 1] / sigma**2 + beta * b[i]
+        xi[i + 1] = (X[i + 1] - a - b[i + 1] * X[i])
 
     if visualization:
-        X_est = np.zeros_like(X)
-        b_est = np.zeros_like(b)
-        for t in range(1, X_est.shape[0] - 1):
-            X_est[t + 1] = a + b_est[t + 1] * X_est[t] + xi[t + 1]
-            b_est[t + 1] = omega + alpha * xi[t] * \
-                X_est[t - 1] + beta * b_est[t]
-        plt.figure(figsize=(12, 8))
-        plt.plot(X, label='Data')
-        plt.plot(X_est, label='Filtered Data')
+        # plt.plot(b)
+        # plt.show()
+        # X_est = np.zeros_like(X)
+        # b_est = np.zeros_like(b)
+        # for t in range(1, T - 1):
+        #     b_est[t + 1] = omega + alpha * (X_est[i + 1] - a - b_est[i + 1] * X_est[i]) * X_est[t - 1] + beta * b_est[t]
+        #     X_est[t + 1] = a + b_est[t + 1] * X_est[t] + np.random.normal(0,sigma)
+        # plt.figure(figsize=(12, 8))
+        # plt.plot(X, label='Data')
+        plt.plot(b, label='Filtered Data')
         plt.legend()
         plt.grid(True)
         plt.show()
 
-    return b, a, xi, res
+    return b, a, xi
 
 
 if __name__ == '__main__':
@@ -77,25 +81,15 @@ if __name__ == '__main__':
     parser.add_argument("-v", "--verbose", action='store_true')
     parser.add_argument("-vv", "--visualization", action='store_true')
     parser.add_argument("-c", "--convergence", action='store_true')
-<<<<<<< HEAD
-    parser.add_argument("-m", "--model", action='store_true')
-    parser.add_argument("-t", "--target_est", action='store_true')
-=======
->>>>>>> older
+    parser.add_argument("-t", "--targ_est", action='store_true')
 
     args = parser.parse_args()
     plt.style.use('seaborn')
     # np.random.seed(666)
 
-    if args.update == 0:
-        update = 'gaussian'
-    if args.update == 1:
-        update = 'logistic'
+    if args.update == 0: update = 'gaussian'
+    if args.update == 1: update = 'logistic'
 
-<<<<<<< HEAD
-
-=======
->>>>>>> older
     if args.convergence:
         X = np.load(go_up(1) + '/saved_data/dis_res.npy')
         days = X.shape[0]
@@ -107,11 +101,11 @@ if __name__ == '__main__':
                 x = X[day, stock, :]
                 fun_val = []
                 b_val = []
-                est_par = np.empty(shape=(100, args.n_params))
-                par = np.random.uniform(0, 1, size=(100, args.n_params))
+                est_par = np.empty(shape=(100, 4))
+                par = np.random.uniform(0, 1, size=(100, 4))
                 for i in range(len(par)):
                     b, a, xi, res = estimation(
-                        reduced_loglikelihood.reduced_loglikelihood, x, par[i], update=update, verbose=args.verbose, visualization=args.visualization)
+                        reduced_loglikelihood.loglikelihood, x, par[i], verbose=args.verbose, visualization=args.visualization)
                     fun_val.append(res.fun)
                     est_par[i] = res.x
                     b_val.append(b[-1])
@@ -164,15 +158,10 @@ if __name__ == '__main__':
             start = time.time()
             for stock in range(n_stocks):
                 x = X[day, stock, :]
-                init_params = np.random.uniform(0, 1, size=args.n_params)
-                b, a, xi, fun = estimation(
-                    reduced_loglikelihood.reduced_loglikelihood, x, n_params=args.n_params, update=update, verbose=args.verbose, visualization=args.visualization)
+                init_params = np.random.uniform(0, 1, size=4)
+                b, a, xi = estimation(
+                    reduced_loglikelihood.complete_loglikelihood, x, init_params, targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
                 if (math.isnan(b[-1])) or (b[-1] < 0):
                     print(b[-1])
             end = time.time()
             print(f'time day {day}: ', end - start)
-
-#     fig = plt.figure()
-#     ax = plt.gca(projection='3d')
-#     ax.plot_surface(x, y, plot_loglikelihood)
-#     plt.show()
