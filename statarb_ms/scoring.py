@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import normaltest
 
 
-def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_for_factors=252, lookback_for_residual=60, export=True):
+def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_for_factors=252, lookback_for_residual=120, export=True):
     '''This function uses an amount of days equal to lookback_for_factors to evaluate the PCA components and an amount equal to lookback_for_residual
     to evaluate the parameters of the Ornstein-Uhlenbeck process for the residuals. The output is composed by the dataframe of s_score for each stock
     and the beta factors.
@@ -50,13 +50,13 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
 
     trading_days = df_returns.shape[0] - lookback_for_factors # 6294
     n_stocks = df_returns.shape[1]
-    beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
+    # beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
     dis_res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
-    res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
+    # res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
 
     score = np.zeros(shape=(trading_days, n_stocks)) # Il primo score corrisponderà al 252° giorno (indice 251)
-    b_values = np.zeros(shape=(trading_days, n_stocks, 3))
+    # b_values = np.zeros(shape=(trading_days, n_stocks, 3))
     R_squared = np.zeros(shape=(trading_days, n_stocks))
     dis_res_reg = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
     c = 0 # counter to track the number of negative bs comes from GAS model
@@ -75,56 +75,54 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
         for stock in df_returns.columns:
             stock_idx = df_returns.columns.get_loc(stock)
             beta0, betas, conf_inter, residuals, pred, _ = regression(factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])
-            beta_tensor[i, stock_idx, :] = betas
-            res[i, stock_idx, :] = residuals
+            # beta_tensor[i, stock_idx, :] = betas
+            # res[i, stock_idx, :] = residuals
             discreteOU = np.cumsum(residuals)
             dis_res[i, stock_idx, :] = discreteOU
 
-            if method == 'constant_speed':
-                discreteOU = np.append(discreteOU, discreteOU[-1])
-                parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU)
-                a, b = parameters[0], parameters[1]
-                # Registro la dinamica di b nel tempo, memorizzando media e intervallo di confidenza. L'idea successiva è quella di modellizzare b
-                # tramite un GAS model.
-                b_values[i, stock_idx, 0], b_values[i, stock_idx, 1:] = b, discrete_conf_int[1,:]
-                R_squared[i, stock_idx] = r2_score(discreteOU[:-1], np.array(discrete_pred))
-                # Registro tutti i residui per i test sulla normalità ed "indipendenza" da fare successivamente
-                dis_res_reg[i, stock_idx, :] = discrete_resid
-
-            if method == 'gas_modelization':
-                init_params = np.random.uniform(0, 1, size=4)
-                b, a, xi = estimation(complete_loglikelihood, discreteOU, init_params, method='BFGS', targeting_estimation=False)
-                b = b[-1] # Mi serve solo l'ultimo valore per lo score
-                if b < 0: # se b è negativo, sostituiscilo con quello stimato supponendo sia costante nella finestra temporale
-                    discreteOU = np.append(discreteOU, discreteOU[-1])
-                    parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU)
-                    a, b = parameters[0], parameters[1]
-                    c += 1
-
-            if b == 0.0:
-                print(f'B NULLO PER {stock}')
-                break
-
-            k = -np.log(b) * lookback_for_factors
-            if k < lookback_for_factors / (0.5 * lookback_for_residual):
-                score[i, stock_idx] = 0
-            else:
-                m = a / (1 - b)
-                if method == 'constant_speed': sgm_eq = np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
-                if method == 'gas_modelization': sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b * b))
-                # naive method. Keep in mind that s-score depends on the risk factors
-                score[i, stock_idx] = -m / sgm_eq
-    print(c)
-    df_score = pd.DataFrame(score, columns=df_returns.columns)
+    #         if method == 'constant_speed':
+    #             discreteOU = np.append(discreteOU, discreteOU[-1])
+    #             parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU)
+    #             a, b = parameters[0], parameters[1]
+    #             # Registro la dinamica di b nel tempo, memorizzando media e intervallo di confidenza. L'idea successiva è quella di modellizzare b
+    #             # tramite un GAS model.
+    #             # b_values[i, stock_idx, 0], b_values[i, stock_idx, 1:] = b, discrete_conf_int[1,:]
+    #             R_squared[i, stock_idx] = r2_score(discreteOU[:-1], np.array(discrete_pred))
+    #             # Registro tutti i residui per i test sulla normalità ed "indipendenza" da fare successivamente
+    #             dis_res_reg[i, stock_idx, :] = discrete_resid
+    #
+    #         if method == 'gas_modelization':
+    #             init_params = np.random.uniform(0, 1, size=4)
+    #             b, a, xi, _ = estimation(complete_loglikelihood, discreteOU, init_params, method='Nelder-Mead', targeting_estimation=False)
+    #             b = b[-1] # Mi serve solo l'ultimo valore per lo score
+    #             if b < 0: # se b è negativo, sostituiscilo con quello stimato supponendo sia costante nella finestra temporale
+    #                 discreteOU = np.append(discreteOU, discreteOU[-1])
+    #                 parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU)
+    #                 a, b = parameters[0], parameters[1]
+    #                 c += 1
+    #
+    #         if b == 0.0:
+    #             print(f'B NULLO PER {stock}')
+    #             break
+    #
+    #         k = -np.log(b) * lookback_for_factors
+    #         if k < lookback_for_factors / (0.5 * lookback_for_residual):
+    #             score[i, stock_idx] = 0
+    #         else:
+    #             m = a / (1 - b)
+    #             if method == 'constant_speed': sgm_eq = np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
+    #             if method == 'gas_modelization': sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b * b))
+    #             # naive method. Keep in mind that s-score depends on the risk factors
+    #             score[i, stock_idx] = -m / sgm_eq
+    # print(c)
+    # df_score = pd.DataFrame(score, columns=df_returns.columns)
     if export:
         if method == 'gas_modelization':
-            df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
-            np.save(go_up(1) + f'/saved_data/dis_res_reg_gas_{os.getpid()}', dis_res_reg)
-            np.save(go_up(1) + f'/saved_data/b_values_gas_{os.getpid()}', b_values)
-            np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
-            np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
+            # df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
+            # np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
+            # np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
             np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
-            np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
+            # np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
 
         if method == 'constant_speed':
             df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
@@ -204,7 +202,7 @@ if __name__ == '__main__':
         end = time.time()
 
     else:
-        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
+        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est,252,120, args.save_outputs)) for i in df]
         os.system('rm tmp/*')
         for p in processes:
             p.start()
@@ -217,7 +215,8 @@ if __name__ == '__main__':
         pidnums = [int(x) for x in os.listdir('tmp')]
         pidnums.sort()
         if args.gas:
-            file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score_gas', 'dis_res_reg_gas', 'b_values_gas']
+            file_list = ['dis_res']
+            # file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score_gas', 'dis_res_reg_gas', 'b_values_gas']
         else:
             file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared']
         logging.info('Merging files...')
