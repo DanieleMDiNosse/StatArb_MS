@@ -13,11 +13,14 @@ from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
 import os
+import time
+from regression_parameters import auto_regression
 
-def plot_pnl(pnl, pnl_gas, spy_pnl, percs):
-    plt.figure(figsize=(12,8))
+def plot_pnl(pnl, pnl_gas, pnl_gas1, spy_pnl, percs):
+    plt.figure(figsize=(12,8), tight_layout=True)
     plt.plot(pnl, 'k', linewidth=1, label='Strategy PnL', alpha=0.8)
-    plt.plot(pnl_gas, 'green', linewidth=1, label='GAS Strategy PnL', alpha=0.8)
+    plt.plot(pnl_gas, 'green', linewidth=1, label='GAS Strategy PnL (60 days)', alpha=0.8)
+    plt.plot(pnl_gas1, 'purple', linewidth=1, label='GAS Strategy PnL (120 days)', alpha=0.8)
     plt.plot(spy_pnl, 'crimson', linewidth=1, alpha=0.7, label='Buy and Hold PnL')
     plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
     plt.grid(True)
@@ -75,18 +78,33 @@ def plot_returns(ret, ret_gas, spy_ret):
     ax1.text(0.038, 300, 'Skew: %.3f' %skew(ret), fontsize=11)
     plt.show()
 
-def plot_bvalues(name):
+def plot_bvalues(name, synthetic_check=False):
+    if synthetic_check:
+        X = np.zeros(shape=5000)
+        b_list, pred_list, resid_list, plus_list, minus_list = [], [], [], [], []
+        a, b = 0.1, 0.5
+        for t in range(0, X.shape[0] - 1):
+            X[t + 1] = a + b * X[t] + np.random.normal()
+        est_window = int(input('Length of the estimation window: '))
+        for t in tqdm(range(0, X.shape[0] - est_window), desc='MLE on synthetic AR(1) data'):
+            par, pred, resid, conf_int = auto_regression(X[t:t+est_window])
+            b_list.append(par[1])
+            pred_list.append(pred)
+            resid_list.append(resid)
+            plus_list.append(conf_int[1][1])
+            minus_list.append(conf_int[1][0])
+        plt.figure(figsize=(12,8), tight_layout=True)
+        plt.plot(b_list, 'k', linewidth=1)
+        plt.fill_between(list(range(len(b_list))), plus_list, minus_list, color='crimson', alpha=0.2)
+
     b_values = np.load(go_up(1) + f'/saved_data/{name}.npy')
     plt.figure(figsize=(12,8))
     # 9 is the index for APPLE
-    b, = plt.plot(b_values[:, 9, 0], 'k')
-    plt.plot(b_values[:, 9, 1], 'crimson', linewidth=0.2)
-    plt.plot(b_values[:, 9, 2], 'crimson', linewidth=0.2)
+    b, = plt.plot(b_values[:, 9, 0], 'k', linewidth=1)
     plt.fill_between(range(b_values.shape[0]), b_values[:, 9, 1], b_values[:, 9, 2], color='crimson', alpha=0.2)
     plt.xticks(x_label_position, x_label_day, fontsize=13, rotation=60)
     red_patch = mpatches.Patch(color='red')
     plt.legend(handles=[b, red_patch], labels=['Estimated b values', '95% confidence interval'], fontsize=13)
-    plt.grid(True)
     plt.show()
 
 def rsquared_statistics(name):
@@ -219,7 +237,7 @@ if __name__ == '__main__':
                             help='Merge just one file. To be used after merge parser set to true.')
     parser.add_argument('-b', '--bvalues', action='store_true',
                         help='After args.plot=True, choose to plot b_values.')
-    parser.add_argument('-pp', '--pnl', action='store_true',
+    parser.add_argument('-pl', '--pnl', action='store_true',
                         help='After args.plot=True, choose to plot pnl')
     parser.add_argument('-r', '--ret', action='store_true',
                         help='After args.plot=True, choose to plot returns')
@@ -242,34 +260,43 @@ if __name__ == '__main__':
 
     IPython_default = plt.rcParams.copy()
     plt.style.use('seaborn')
+    np.random.seed(666)
     trading_days = np.array(pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date)
     tickers = pd.read_csv(go_up(1) + '/saved_data/ReturnsData.csv').columns.to_list()
 
     if args.plots:
-        name1 = input('Name of the standard pnl file: ')
-        name2 = input('Name of gas pnl file: ')
-        name3 = input('Name of the SPY pnl file: ')
-        pnl = np.load(go_up(1) + f'/saved_data/{name1}.npy')
-        pnl_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')
-        spy_pnl = np.load(go_up(1) + f'/saved_data/{name3}.npy')
-        x_quantity = int(input('Step of the labels on x-axis: '))
-        x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
-        x_label_day = [trading_days[252 + i] for i in x_label_position]
         if args.pnl:
-            name4 = input('Name of the positions percentage file: ')
+            name1 = input('Name of the standard pnl file: ')
+            name2 = input('Name of gas pnl file: ')
+            name4 = input('Name of gas pnl file (1): ')
+            name3 = input('Name of the SPY pnl file: ')
+            pnl = np.load(go_up(1) + f'/saved_data/{name1}.npy')
+            pnl_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')
+            pnl_gas1 = np.load(go_up(1) + f'/saved_data/{name4}.npy')
+            spy_pnl = np.load(go_up(1) + f'/saved_data/{name3}.npy')
+            x_quantity = int(input('Step of the labels on x-axis: '))
+            x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
+            x_label_day = [trading_days[252 + i] for i in x_label_position]
+            name5 = input('Name of the positions percentage file: ')
+            percs = np.load(go_up(1) + f'/saved_data/{name5}.npy')
+            plot_pnl(pnl, pnl_gas, pnl_gas1, spy_pnl, percs)
+        if args.ret:
+            plot_returns(pnl, pnl_gas, spy_pnl)
+            name1 = input('Name of the standard pnl file: ')
+            name2 = input('Name of gas pnl file: ')
+            name3 = input('Name of the SPY pnl file: ')
             pnl = np.load(go_up(1) + f'/saved_data/{name1}.npy')
             pnl_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')
             spy_pnl = np.load(go_up(1) + f'/saved_data/{name3}.npy')
-            percs = np.load(go_up(1) + '/saved_data/perc_positions.npy')
-            plot_pnl(pnl, pnl_gas, spy_pnl, percs)
-        if args.ret:
-            plot_returns(pnl, pnl_gas, spy_pnl)
+            x_quantity = int(input('Step of the labels on x-axis: '))
+            x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
+            x_label_day = [trading_days[252 + i] for i in x_label_position]
         if args.bvalues:
             name = input('Name of the b values file: ')
             x_quantity = int(input('Step of the labels on x-axis: '))
             x_label_position = np.arange(252, len(trading_days), x_quantity)
             x_label_day = [trading_days[i] for i in x_label_position]
-            plot_bvalues(name)
+            plot_bvalues(name, synthetic_check=True)
         if args.rsquared:
             name = input('Name of the R squared file: ')
             x_quantity = int(input('Step of the labels on x-axis: '))
