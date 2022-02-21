@@ -149,7 +149,7 @@ if __name__ == '__main__':
     if args.dynamics == 2: dynamics = 'step'
     if args.dynamics == 3: dynamics = 'exp'
 
-    n = 1000
+    n = 140
     if model == 'autoregressive':
         num_par = 5
         omega = 0.05
@@ -198,7 +198,7 @@ if __name__ == '__main__':
     plt.show()
 
     if args.convergence:
-        N = 5
+        N = 100
         est_par = np.empty(shape=(N, num_par))
         stderr_par = np.empty(shape=(N, num_par))
         par = np.random.uniform(0, 1, size=(N, num_par))
@@ -221,15 +221,19 @@ if __name__ == '__main__':
         ax2 = plt.subplot(num_par, 3, 2)
         ax2.plot(par[:, 0], 'slateblue', linewidth=1)
         ax2.title.set_text('Initial Omega')
+        ax2.tick_params(labelbottom=False)
         ax3 = plt.subplot(num_par, 3, 5)
         ax3.plot(par[:, 1], 'slateblue', linewidth=1)
         ax3.title.set_text('Initial a')
+        ax3.tick_params(labelbottom=False)
         ax4 = plt.subplot(num_par, 3, 8)
         ax4.plot(par[:, 2], 'slateblue', linewidth=1)
         ax4.title.set_text('Initial alpha')
+        ax4.tick_params(labelbottom=False)
         ax5 = plt.subplot(num_par, 3, 11)
         ax5.plot(par[:, 3], 'slateblue', linewidth=1)
         ax5.title.set_text('Initial beta')
+        ax5.tick_params(labelbottom=False)
         ax11 = plt.subplot(num_par, 3, 14)
         ax11.plot(par[:, 4], 'slateblue', linewidth=1)
         ax11.title.set_text('Initial sigma')
@@ -239,21 +243,25 @@ if __name__ == '__main__':
         ax6.errorbar(np.arange(0,N), est_par[:, 0], yerr=stderr_par[:,0], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
         ax6.hlines(omega, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax6.title.set_text('Estimated Omega')
+        ax6.tick_params(labelbottom=False)
         ax7 = plt.subplot(num_par, 3, 6)
         ax7.plot(est_par[:, 1], 'green', linewidth=1)
         ax7.errorbar(np.arange(0,N), est_par[:, 1], yerr=stderr_par[:,1], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
         ax7.hlines(a, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax7.title.set_text('Estimated a')
+        ax7.tick_params(labelbottom=False)
         ax8 = plt.subplot(num_par, 3, 9)
         ax8.plot(est_par[:, 2], 'green', linewidth=1)
         ax8.errorbar(np.arange(0,N), est_par[:, 2], yerr=stderr_par[:,2], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
         ax8.hlines(alpha, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax8.title.set_text('Estimated alpha')
+        ax8.tick_params(labelbottom=False)
         ax9 = plt.subplot(num_par, 3, 12)
         ax9.plot(est_par[:, 3], 'green', linewidth=1)
         ax9.errorbar(np.arange(0,N), est_par[:, 3], yerr=stderr_par[:,3], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
         ax9.hlines(beta, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax9.title.set_text('Estimated beta')
+        ax9.tick_params(labelbottom=False)
         ax10 = plt.subplot(num_par, 3, 15)
         ax10.plot(est_par[:, 4], 'green', linewidth=1)
         ax10.errorbar(np.arange(0,N), est_par[:, 4], yerr=stderr_par[:,4], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))

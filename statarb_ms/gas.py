@@ -47,7 +47,7 @@ def estimation(fun, X, init_params, method='Nelder-Mead', targeting_estimation=F
     if verbose:
         print(f'Initial guess: \n {init_params}')
         print(res)
-        time.sleep(1.5)
+        time.sleep(2.5)
 
     for i in range(1, T - 1):
         b[i + 1] = omega + alpha * xi[i] * X[i - 1] / sigma**2 + beta * b[i]
@@ -68,7 +68,7 @@ def estimation(fun, X, init_params, method='Nelder-Mead', targeting_estimation=F
         plt.grid(True)
         plt.show()
 
-    return b, a, xi
+    return b, a, xi, res
 
 
 if __name__ == '__main__':
@@ -85,69 +85,71 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     plt.style.use('seaborn')
-    # np.random.seed(666)
+    np.random.seed(666)
 
     if args.update == 0: update = 'gaussian'
     if args.update == 1: update = 'logistic'
 
     if args.convergence:
+        n_params = 4
+        N = 100
         X = np.load(go_up(1) + '/saved_data/dis_res.npy')
         days = X.shape[0]
         n_stocks = X.shape[1]
-        time_list = []
-        for day in range(100):
-            start = time.time()
-            for stock in range(n_stocks):
-                x = X[day, stock, :]
-                fun_val = []
-                b_val = []
-                est_par = np.empty(shape=(100, 4))
-                par = np.random.uniform(0, 1, size=(100, 4))
-                for i in range(len(par)):
-                    b, a, xi, res = estimation(
-                        reduced_loglikelihood.loglikelihood, x, par[i], verbose=args.verbose, visualization=args.visualization)
-                    fun_val.append(res.fun)
-                    est_par[i] = res.x
-                    b_val.append(b[-1])
-                    # add the difference between the initial guess and the estimated parameters
-                plt.figure(figsize=(12, 8), tight_layout=True)
-                ax0 = plt.subplot(2, 3, 4)
-                ax0.plot(b_val, 'k')
-                ax0.title.set_text('b(60) values')
-                ax1 = plt.subplot(2, 3, 1)
-                ax1.plot(fun_val, 'k')
-                ax1.title.set_text('Likelihood Evaluations')
-                ax2 = plt.subplot(args.n_params, 3, 2)
-                ax2.plot(par[:, 0])
-                ax2.title.set_text('Initial Omega')
-                ax3 = plt.subplot(args.n_params, 3, 5)
-                ax3.plot(par[:, 1])
-                ax3.title.set_text('Initial a')
-                ax4 = plt.subplot(args.n_params, 3, 8)
-                ax4.plot(par[:, 2])
-                ax4.title.set_text('Initial alpha')
-                ax5 = plt.subplot(args.n_params, 3, 11)
-                ax5.plot(par[:, 3])
-                ax5.title.set_text('Initial beta')
+        r = np.random.randint(0,days)
+        rr = np.random.randint(0, n_stocks)
+        print(r, rr)
+        x = X[1000, 9, :]
+        fun_val = []
+        b_val = []
+        est_par = np.empty(shape=(N, 4))
+        par = np.random.uniform(0, 1, size=(N, 4))
+        for i in tqdm(range(len(par)), desc='Convergence plots'):
+            b, a, xi, res = estimation(
+                reduced_loglikelihood.complete_loglikelihood, x, par[i], verbose=args.verbose, visualization=args.visualization)
+            fun_val.append(res.fun)
+            est_par[i] = res.x
+            b_val.append(b[-1])
+        plt.figure(figsize=(12, 8), tight_layout=True)
+        ax0 = plt.subplot(2, 3, 4)
+        ax0.plot(b_val, 'crimson', linewidth=1)
+        ax0.title.set_text('b(60) values')
+        ax1 = plt.subplot(2, 3, 1)
+        ax1.plot(fun_val, 'crimson', linewidth=1)
+        ax1.title.set_text('Likelihood Evaluations')
+        ax2 = plt.subplot(n_params, 3, 2)
+        ax2.plot(par[:, 0], 'slateblue', linewidth=1)
+        ax2.title.set_text('Initial Omega')
+        ax2.tick_params(labelbottom=False)
+        ax3 = plt.subplot(n_params, 3, 5)
+        ax3.plot(par[:, 1], 'slateblue', linewidth=1)
+        ax3.title.set_text('Initial a')
+        ax3.tick_params(labelbottom=False)
+        ax4 = plt.subplot(n_params, 3, 8)
+        ax4.plot(par[:, 2], 'slateblue', linewidth=1)
+        ax4.title.set_text('Initial alpha')
+        ax4.tick_params(labelbottom=False)
+        ax5 = plt.subplot(n_params, 3, 11)
+        ax5.plot(par[:, 3], 'slateblue', linewidth=1)
+        ax5.title.set_text('Initial beta')
 
-                ax6 = plt.subplot(args.n_params, 3, 3)
-                ax6.plot(est_par[:, 0])
-                ax6.title.set_text('Estimated Omega')
-                ax7 = plt.subplot(args.n_params, 3, 6)
-                ax7.plot(est_par[:, 1])
-                ax7.title.set_text('Estimated a')
-                ax8 = plt.subplot(args.n_params, 3, 9)
-                ax8.plot(est_par[:, 2])
-                ax8.title.set_text('Estimated alpha')
-                ax9 = plt.subplot(args.n_params, 3, 12)
-                ax9.plot(est_par[:, 3])
-                ax9.title.set_text('Estimated beta')
-                plt.grid(True)
-                plt.show()
-                if (math.isnan(b[-1])) or (b[-1] < 0):
-                    print(b[-1])
-            end = time.time()
-            print(f'time day {day}: ', end - start)
+        ax6 = plt.subplot(n_params, 3, 3)
+        ax6.plot(est_par[:, 0], 'g', linewidth=1)
+        ax6.title.set_text('Estimated Omega')
+        ax6.tick_params(labelbottom=False)
+        ax7 = plt.subplot(n_params, 3, 6)
+        ax7.plot(est_par[:, 1], 'g', linewidth=1)
+        ax7.title.set_text('Estimated a')
+        ax7.tick_params(labelbottom=False)
+        ax8 = plt.subplot(n_params, 3, 9)
+        ax8.plot(est_par[:, 2], 'g', linewidth=1)
+        ax8.title.set_text('Estimated alpha')
+        ax8.tick_params(labelbottom=False)
+        ax9 = plt.subplot(n_params, 3, 12)
+        ax9.plot(est_par[:, 3], 'g', linewidth=1)
+        ax9.title.set_text('Estimated beta')
+        plt.grid(True)
+        plt.show()
 
     else:
         X = np.load(go_up(1) + '/saved_data/dis_res.npy')
