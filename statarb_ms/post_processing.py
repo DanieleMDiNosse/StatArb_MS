@@ -8,6 +8,7 @@ import logging
 import seaborn as sns
 from tqdm import tqdm
 from scipy.stats import skew
+from scipy.stats import ttest_1samp
 import matplotlib.patches as mpatches
 from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.stats.diagnostic import acorr_ljungbox
@@ -20,7 +21,7 @@ def plot_pnl(pnl, pnl_gas, pnl_gas1, spy_pnl, percs):
     plt.figure(figsize=(12,8), tight_layout=True)
     plt.plot(pnl, 'k', linewidth=1, label='Strategy PnL', alpha=0.8)
     plt.plot(pnl_gas, 'green', linewidth=1, label='GAS Strategy PnL (60 days)', alpha=0.8)
-    plt.plot(pnl_gas1, 'purple', linewidth=1, label='GAS Strategy PnL (120 days)', alpha=0.8)
+    plt.plot(pnl_gas1, 'purple', linewidth=1, label='GAS Strategy PnL (100 days)', alpha=0.8)
     plt.plot(spy_pnl, 'crimson', linewidth=1, alpha=0.7, label='Buy and Hold PnL')
     plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
     plt.grid(True)
@@ -163,8 +164,28 @@ def ljung_box_test(name, order):
     ones = lb_test.flatten().sum()/lb_test.flatten().shape[0]
     zeros = 1 - ones
     ax = sns.heatmap(lb_test.T, cmap=['darkred', 'darkorange'])
-    plt.xticks(x_label_position, x_label_day, fontsize=13, rotation=60)
+    plt.xticks(x_label_position, x_label_day, fontsize=13, rotation=90)
     plt.yticks(y_label_position, y_label_day, fontsize=13)
+    colorbar = ax.collections[0].colorbar
+    colorbar.set_ticks(np.array([0,zeros,ones]))
+    colorbar.set_ticklabels(['Rejected','Accepted'])
+    plt.title(f'Accepted: {ones}, Rejected: {zeros}')
+    plt.show()
+
+def onesample_ttest(name):
+    dis_res = np.load(go_up(1) + f'/saved_data/{name}.npy')
+    t_test = np.zeros(shape=(dis_res.shape[0], dis_res.shape[1]))
+    bin_vec = np.vectorize(binary)
+    for day in tqdm(range(dis_res.shape[0])):
+        for stock in range(dis_res.shape[1]):
+            t_test[day, stock] = ttest_1samp(dis_res[day, stock], popmean=0)[1] # p-values for lag=2
+
+    t_test = bin_vec(t_test)
+    ones = t_test.flatten().sum()/t_test.flatten().shape[0]
+    zeros = 1 - ones
+    ax = sns.heatmap(t_test.T, cmap=['darkred', 'darkorange'])
+    plt.xticks(x_label_position, x_label_day, fontsize=11, rotation=90)
+    plt.yticks(y_label_position, y_label_day, fontsize=11)
     colorbar = ax.collections[0].colorbar
     colorbar.set_ticks(np.array([0,zeros,ones]))
     colorbar.set_ticklabels(['Rejected','Accepted'])
@@ -249,6 +270,8 @@ if __name__ == '__main__':
                         help='Plot heatmap for the p-values from Ljung-Box test on on AR(1) residuals.')
     parser.add_argument('-s', '--stationarity', action='store_true',
                         help='Plot heatmap for p-values from Augumented Dickey Fuller test on residuals. ')
+    parser.add_argument('-t', '--ttest', action='store_true',
+                        help='Plot heatmap for p-values from one sample t-test on the mean of the residuals. ')
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -326,6 +349,16 @@ if __name__ == '__main__':
         y_label_position = np.arange(0, len(tickers), y_quantity)
         y_label_day = [tickers[i] for i in y_label_position]
         ljung_box_test(name, order)
+
+    if args.ttest:
+        name = input('Name of the residuals file: ')
+        x_quantity = int(input('Step of the labels on x-axis: '))
+        y_quantity = int(input('Step of the labels on y-axis: '))
+        x_label_position = np.arange(252, len(trading_days), x_quantity)
+        x_label_day = [trading_days[i] for i in x_label_position]
+        y_label_position = np.arange(0, len(tickers), y_quantity)
+        y_label_day = [tickers[i] for i in y_label_position]
+        onesample_ttest(name)
 
     if args.stationarity:
         name = input('Name of the residuals file: ')

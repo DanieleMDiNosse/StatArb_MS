@@ -6,6 +6,7 @@ from scipy.stats import poisson, norm
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 import time
+from regression_parameters import regression
 
 
 def synt_data(model, *args, dynamics, size):
@@ -129,6 +130,24 @@ def model_estimation(fun, X, init_params, model):
 
     return [b, b_up, b_down], res, std_err
 
+
+def LM_test_statistic(Xr, params):
+    omega, a, sigma = params[0], params[1], params[2]
+    T = Xr.shape[0]
+    Y = np.zeros_like(Xr)
+    X = np.zeros_like(Xr)
+    for t in range(1, T):
+        Y[t] = 1 / (Xr[t - 1] / sigma**2 * (Xr[t] - omega * Xr[t - 1] - a))
+    for t in range(2, T):
+        X[t] = Xr[t - 1] / sigma**2 * (Xr[t] - omega * Xr[t - 1] - a)
+    c_w, c_a, conf_intervals, residuals, predictions, rsquared = regression(X, Y)
+    print(c_w, c_a)
+
+    Y_est = c_w + c_a * X[t]
+    ESS = ((Y_est - Y.mean())**2).sum()
+
+    return ESS
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Generator of historical price data')
@@ -137,6 +156,7 @@ if __name__ == '__main__':
     parser.add_argument("-c", "--convergence", action='store_true')
     parser.add_argument("-m", "--model", type=int, help='0 for AR(1), 1 for Poisson')
     parser.add_argument("-d", "--dynamics", type=int, help='Dynamics for b: 0 for GAS, 1 for sinusodial, 2 for step function, 3 for exponential decay')
+    parser.add_argument("-lm", "--lmtest", action='store_true', help='Lm test')
 
     args = parser.parse_args()
     plt.style.use('seaborn')
@@ -149,7 +169,7 @@ if __name__ == '__main__':
     if args.dynamics == 2: dynamics = 'step'
     if args.dynamics == 3: dynamics = 'exp'
 
-    n = 140
+    n = 1000
     if model == 'autoregressive':
         num_par = 5
         omega = 0.05
@@ -165,6 +185,12 @@ if __name__ == '__main__':
         beta = -0.395
         omega = 0.183
         X, b = synt_data(model, alpha, beta, omega, dynamics=dynamics, size=n)
+
+    if args.lmtest:
+        params = [omega, a , sgm]
+        ESS = LM_test_statistic(X, params)
+        print(ESS)
+        time.sleep(10)
 
     init_params = np.random.uniform(0, 0.5, size=num_par)
     fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))

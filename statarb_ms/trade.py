@@ -139,11 +139,11 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     start = time.time()
-    # df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")[:1259+1].reset_index().drop(columns='index') # selezionare lo split corretto
     df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
     name = input('Name of the Q file: ')
     Q = np.load(go_up(1) + f'/saved_data/{name}.npy')
-
+    name = input('Name of the beta_tensor file: ')
+    beta_tensor = np.load(go_up(1) + f'/saved_data/{name}.npy')
     if args.spy:
         logging.info('Starting spy trading... ')
         time.sleep(1)
@@ -154,7 +154,6 @@ if __name__ == '__main__':
     else:
         name = input('Name of the s-score data file: ')
         df_score = pd.read_csv(go_up(1) + f'/saved_data/{name}.csv')
-        beta_tensor = np.load(go_up(1) + '/saved_data/beta_tensor.npy')
         pnl, perc_positions = trading(df_returns, df_score, Q, beta_tensor)
         name = input('Name of the file that will be saved (strategy): ')
         np.save(go_up(1) + f'/saved_data/{name}', pnl)
