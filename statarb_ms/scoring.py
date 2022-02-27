@@ -191,18 +191,17 @@ if __name__ == '__main__':
               'debug': logging.DEBUG}
     logging.basicConfig(level=levels[args.log])
     start = time.time()
+    np.random.seed(666)
 
     df_returns = pd.read_csv(go_up(1) +
                              "/saved_data/ReturnsData.csv")[:-300]
-    # df_returns = pd.DataFrame(df_returns[:-300].values, columns=df_returns.columns.to_list())
 
     if args.spy:
-        spy = pd.read_csv(go_up(1) + "/saved_data/spy.csv")[2770:6042]
+        spy = pd.read_csv(go_up(1) + "/saved_data/spy.csv")
         SPY_beta(df_returns, spy)
 
     # df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
     df = [df_returns[:1000], df_returns[748:1749], df_returns[1497:2498], df_returns[2246:3247], df_returns[2995:3996], df_returns[3744:4745], df_returns[4493:5494],df_returns[5242:]]
-    # df = [df_returns[:800], df_returns[548:1349], df_returns[1097:1898], df_returns[1646:2447], df_returns[2195:2996], df_returns[2774:]]
 
 
     if args.gas == True: method = 'gas_modelization'

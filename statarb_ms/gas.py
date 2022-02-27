@@ -50,7 +50,8 @@ def estimation(fun, X, init_params, method='Nelder-Mead', targeting_estimation=F
         time.sleep(2.5)
 
     for i in range(1, T - 1):
-        b[i + 1] = omega + alpha * (X[i] - a - b[i] * X[i - 1]) * X[i - 1] / sigma**2 + beta * b[i]
+        b[i + 1] = omega + alpha * xi[i] * X[i - 1] / sigma**2 + beta * b[i]
+        xi[i + 1] = (X[i + 1] - a - b[i + 1] * X[i])
 
     if visualization:
         # plt.plot(b)
