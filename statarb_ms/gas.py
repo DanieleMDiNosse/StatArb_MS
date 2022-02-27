@@ -11,18 +11,6 @@ import math
 import reduced_loglikelihood
 from tqdm import tqdm
 
-# def targeting_estimation(fun, X, init_params, method='BFGS'):
-#     '''Estimation of GAS parameters'''
-#     T = X.shape[0]
-#     b = np.zeros(shape=T)
-#     res = minimize(fun, init_params, X, method=method)
-#     omega, a, sigma = res.x[0], res.x[1], res.x[2]
-#
-#     for i in range(1, T - 1):
-#         b[i + 1] = omega
-#
-#     return b[-1]
-
 def estimation(fun, X, init_params, method='Nelder-Mead', targeting_estimation=False, verbose=False, visualization=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
@@ -54,15 +42,6 @@ def estimation(fun, X, init_params, method='Nelder-Mead', targeting_estimation=F
         xi[i + 1] = (X[i + 1] - a - b[i + 1] * X[i])
 
     if visualization:
-        # plt.plot(b)
-        # plt.show()
-        # X_est = np.zeros_like(X)
-        # b_est = np.zeros_like(b)
-        # for t in range(1, T - 1):
-        #     b_est[t + 1] = omega + alpha * (X_est[i + 1] - a - b_est[i + 1] * X_est[i]) * X_est[t - 1] + beta * b_est[t]
-        #     X_est[t + 1] = a + b_est[t + 1] * X_est[t] + np.random.normal(0,sigma)
-        # plt.figure(figsize=(12, 8))
-        # plt.plot(X, label='Data')
         plt.plot(b, label='Filtered Data')
         plt.legend()
         plt.grid(True)
