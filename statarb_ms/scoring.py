@@ -53,7 +53,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
     dis_res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
-    # res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
+    res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
 
     score = np.zeros(shape=(trading_days, n_stocks)) # Il primo score corrisponderà al 252° giorno (indice 251)
     b_values = np.zeros(shape=(trading_days, n_stocks, 3))
@@ -77,8 +77,9 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
         for stock in df_returns.columns:
             stock_idx = df_returns.columns.get_loc(stock)
             beta0, betas, conf_inter, residuals, pred, _ = regression(factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])
+            alpha = beta0
             beta_tensor[i, stock_idx, :] = betas
-            # res[i, stock_idx, :] = residuals
+            res[i, stock_idx, :] = residuals
             discreteOU = np.cumsum(residuals)
             dis_res[i, stock_idx, :] = discreteOU
 
@@ -94,7 +95,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
                 dis_res_reg[i, stock_idx, :] = discrete_resid
 
             if method == 'gas_modelization':
-                init_params = np.random.uniform(0, 1, size=4)
+                init_params = np.random.uniform(0, 0.5, size=4)
                 b, a, xi, _ = estimation(complete_loglikelihood, discreteOU, init_params, method='Nelder-Mead', targeting_estimation=False)
                 b_values_gas[i, stock_idx, :] = b
                 a_values_gas[i, stock_idx, :] = a
@@ -117,9 +118,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
                 if method == 'constant_speed': sgm_eq = np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
                 if method == 'gas_modelization': sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b * b))
                 # naive method. Keep in mind that s-score depends on the risk factors
-                score[i, stock_idx] = -m / sgm_eq
-                print(i, stock, score[i, stock_idx])
-                time.sleep(2)
+                score[i, stock_idx] = -m / sgm_eq - alpha / (k * sgm_eq)
 
     with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
         file.write(f'Number of b values for process {os.getpid()}: {c}')
@@ -133,7 +132,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
             np.save(go_up(1) + f'/saved_data/a_gas_{os.getpid()}', a_values_gas)
             np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
             np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
-            # np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
+            np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
 
         if method == 'constant_speed':
             df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
@@ -194,14 +193,15 @@ if __name__ == '__main__':
     np.random.seed(666)
 
     df_returns = pd.read_csv(go_up(1) +
-                             "/saved_data/ReturnsData.csv")[:-300]
+                             "/saved_data/ReturnsData.csv")[:4030]
 
     if args.spy:
         spy = pd.read_csv(go_up(1) + "/saved_data/spy.csv")
         SPY_beta(df_returns, spy)
 
     # df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
-    df = [df_returns[:1000], df_returns[748:1749], df_returns[1497:2498], df_returns[2246:3247], df_returns[2995:3996], df_returns[3744:4745], df_returns[4493:5494],df_returns[5242:]]
+    # df = [df_returns[:1000], df_returns[748:1749], df_returns[1497:2498], df_returns[2246:3247], df_returns[2995:3996], df_returns[3744:4745], df_returns[4493:5494],df_returns[5242:]]
+    df = [df_returns[:750], df_returns[498:1249], df_returns[997:1748], df_returns[1496:2247], df_returns[1995:2746], df_returns[2494:3245], df_returns[2993:3744], df_returns[3492:]]
 
 
     if args.gas == True: method = 'gas_modelization'
@@ -234,7 +234,7 @@ if __name__ == '__main__':
         pidnums.sort()
         if args.gas:
             # file_list = ['dis_res']
-            file_list = ['df_score_gas', 'beta_tensor', 'b_gas', 'Q', 'a_gas', 'dis_res']
+            file_list = ['df_score_gas', 'beta_tensor', 'b_gas', 'Q', 'a_gas', 'dis_res', 'res']
         else:
             # file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared']
             file_list = ['beta_tensor', 'Q', 'df_score', 'b_values']

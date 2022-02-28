@@ -14,9 +14,11 @@ cpdef float loglikelihood(cnp.ndarray params, cnp.ndarray X, float b_bar):
     cdef cnp.ndarray b
     b = np.zeros(shape=T)
     b[:2] = b_bar
-    a, alpha, beta, sigma = params[0], params[1], params[2], params[3]
+    a, alpha, beta = params[0], params[1], params[2]
     cdef float omega
     omega = beta * (1 - b_bar)
+    cdef float sigma
+    sigma = 1
 
     cdef int i
     for i in range(1, T - 1):
@@ -37,7 +39,8 @@ cpdef float targeting_loglikelihood(cnp.ndarray params, cnp.ndarray X):
     T = X.shape[0]
     cdef cnp.ndarray b
     b = np.zeros(shape=T)
-    omega, a, sigma = params[0], params[1], params[2]
+    omega, a = params[0], params[1]
+    sigma = 1
 
     b[:] = omega
 
