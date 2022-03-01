@@ -99,13 +99,25 @@ def plot_bvalues(name, synthetic_check=False):
         plt.fill_between(list(range(len(b_list))), plus_list, minus_list, color='crimson', alpha=0.2)
 
     b_values = np.load(go_up(1) + f'/saved_data/{name}.npy')
-    plt.figure(figsize=(12,8))
+    plt.figure(figsize=(12,8), tight_layout=True)
     # 9 is the index for APPLE
     b, = plt.plot(b_values[:, 9, 0], 'k', linewidth=1)
     plt.fill_between(range(b_values.shape[0]), b_values[:, 9, 1], b_values[:, 9, 2], color='crimson', alpha=0.2)
-    plt.xticks(x_label_position, x_label_day, fontsize=13, rotation=60)
+    plt.xticks(x_label_position, x_label_day, fontsize=11, rotation=90)
     red_patch = mpatches.Patch(color='red')
     plt.legend(handles=[b, red_patch], labels=['Estimated b values', '95% confidence interval'], fontsize=13)
+    plt.show()
+
+def plot_alphas(name1, name2):
+    alpha_values = np.load(go_up(1) + f'/saved_data/{name1}.npy')
+    sgm_eq = np.load(go_up(1) + f'/saved_data/{name2}.npy')
+    stock = np.random.randint(0, 364)
+    plt.figure(figsize=(12,8), tight_layout=True)
+    plt.plot(alpha_values[:, stock], 'k', linewidth=1, label='alphas')
+    plt.plot(sgm_eq[:, stock], 'b', linewidth=1, label='std_eq')
+    plt.xticks(x_label_position, x_label_day, fontsize=11, rotation=90)
+    plt.legend()
+    plt.grid(True)
     plt.show()
 
 def rsquared_statistics(name):
@@ -262,6 +274,8 @@ if __name__ == '__main__':
                         help='After args.plot=True, choose to plot pnl')
     parser.add_argument('-r', '--ret', action='store_true',
                         help='After args.plot=True, choose to plot returns')
+    parser.add_argument('-a', '--alphas', action='store_true',
+                        help='After args.plot=True, choose to plot alphas vs std_eq')
     parser.add_argument('-rsq', '--rsquared', action='store_true',
                         help='After args.plot=True, choose to plot heatmap and histogram for the coefficient of determination for AR(1) model.')
     parser.add_argument('-nt', '--OU_res_normtest', action='store_true',
@@ -329,6 +343,14 @@ if __name__ == '__main__':
             y_label_position = np.arange(0, len(tickers), y_quantity)
             y_label_day = [tickers[i] for i in y_label_position]
             normtest_discreteOU(name)
+        if args.alphas:
+            name1 = input('Name of the alpha values file: ')
+            name2 = input('Name of the std_eq file: ')
+            x_quantity = int(input('Step of the labels on x-axis: '))
+            x_label_position = np.arange(252, len(trading_days), x_quantity)
+            x_label_day = [trading_days[i] for i in x_label_position]
+            plot_alphas(name1, name2)
+
     if args.OU_res_normtest:
         name = input('Name of the p-values file: ')
         x_quantity = int(input('Step of the labels on x-axis: '))
