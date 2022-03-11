@@ -2,4 +2,4 @@ from distutils.core import setup
 from Cython.Build import cythonize
 import numpy as np
 
-setup(ext_modules=cythonize('reduced_loglikelihood.pyx'), include_dirs=[np.get_include()])
+setup(ext_modules=cythonize('loglikelihood.pyx'), include_dirs=[np.get_include()])

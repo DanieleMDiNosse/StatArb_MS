@@ -8,28 +8,97 @@ import argparse
 from numba import njit, prange
 from tqdm import tqdm
 import math
-import reduced_loglikelihood
+import loglikelihood
 from tqdm import tqdm
 from sklearn.preprocessing import MinMaxScaler
 
-def estimation(fun, X, init_params, method='Nelder-Mead', targeting_estimation=False, verbose=False, visualization=False):
+def likelihood_jac(estimates, X, b):
+    num_par = estimates.shape[0]
+    if num_par == 4:
+        omega, a, alpha, beta = estimates[0], estimates[1], estimates[2], estimates[3]
+    if num_par == 5:
+        omega, a, alpha, beta, sgm = estimates[0], estimates[1], estimates[2], estimates[3], estimates[4]
+
+    stuff = (X[2:] - a - omega*X[1:-1] - alpha*(X[1:-1]**2*X[:-2] - a - X[:-2]*X[1:-1] - b[1:-1]*X[:-2]**2*X[1:-1]) - beta*b[1:-1]*X[1:-1])/sgm**2
+
+    dda = - (stuff * (alpha/sgm**2*X[:-2]*X[1:-1] - 1)).sum()
+    ddw = (X[1:-1] * stuff).sum()
+    ddal = -(stuff * (X[1:-1]*X[:-2]/sgm**2 * (b[1:-1]*X[:-2] + a - X[1:-1]))).sum()
+    ddb = (stuff*b[1:-1]*X[1:-1]).sum()
+    if num_par == 5:
+        dds = (-1/sgm**2 + 1/sgm**3*stuff - 2*alpha/sgm**5*stuff*(X[1:-1]**2*X[:-2] - a*X[1:-1]*X[:-2] - b[1:-1]*X[1:-1]*X[:-2]**2)).sum()
+        jac = [dda, ddw, ddal, ddb, dds]
+    else:
+        jac = [dda, ddw, ddal, ddb]
+
+    return np.array(jac)
+
+def likelihood_hess(estimates, X, b):
+    num_par = estimates.shape[0]
+    if num_par == 4:
+        omega, a, alpha, beta = estimates[0], estimates[1], estimates[2], estimates[3]
+    if num_par == 5:
+        omega, a, alpha, beta, sgm = estimates[0], estimates[1], estimates[2], estimates[3], estimates[4]
+
+    stuff = (X[2:] - a - omega*X[1:-1] - alpha*(X[1:-1]**2*X[:-2] - a - X[:-2]*X[1:-1] - b[1:-1]*X[:-2]**2*X[1:-1]) - beta*b[1:-1]*X[1:-1])/sgm**2
+    stuff1 = (X[1:-1]**2*X[:-2] - a*X[:-2]*X[1:-1] - b[1:-1]*X[:-2]**2*X[1:-1])
+
+    d2da2 = - ((alpha * X[1:] * X[:-1] - 1)**2).sum()
+    d2dw2 = - (X**2).sum()
+    d2dal2 = - ((X[:-1] * X[1:] * (b[1:] * X[:-1] + a - X[1:]))**2).sum()
+    d2db2 = - ((b * X)**2).sum()
+
+    ddadw = (X[1:] * (alpha * X[1:] * X[:-1] - 1)).sum()
+    ddadal = - (X[:-2] * X[1:-1] * (X[2:] - a - omega * X[1:-1] - alpha * (X[1:-1]**2 * X[:-2] - a * X[:-2] * X[1:-1] - b[1:-1] * X[:-2]**2 * X[1:-1]) - beta * b[1:-1] * X[1:-1]) + (alpha * X[:-2]* X[1:-1] - 1) * (X[:-2] * X[1:-1] * (b[1:-1] * X[:-2] + a - X[1:-1]))).sum()
+    ddadb = ((alpha * X[1:] * X[:-1] - 1) * b[1:] * X[1:]).sum()
+
+    ddwdal = (X[:-1] * X[1:]**2 * (b[1:] * X[:-1] + a - X[1:])).sum()
+    ddwdb = - (b * X**2).sum()
+    ddaldb = (X[1:]**2 * X[:-1] * b[1:] * (b[1:] * X[:-1] + a - X[1:])).sum()
+
+    if num_par == 5:
+        d2ds2 = (1/sgm**2 * (1 + 1/sgm**2*(3*stuff**2 + 2/sgm**2*(2*alpha*stuff*stuff1 + 5*stuff*stuff1 - 2*alpha**2*stuff1/sgm**4)))).sum()
+        ddsdw = (- 2*stuff*X[1:-1]/sgm**3 + 2*alpha*X[1:-1]*stuff1/sgm**5).sum()
+        ddsdal = (2*stuff1/sgm**5*(alpha*stuff1/sgm**2 - 2*stuff)).sum()
+        ddsdb = (- 2*stuff*b[1:-1]*X[1:-1]/sgm**3 + 2*alpha*stuff1*b[1:-1]*X[1:-1]/sgm**5).sum()
+        ddsda = (2*stuff/sgm**3 * (alpha/sgm**2*X[:-2]*X[1:-1] - 1) - 2*alpha/sgm**5*(alpha/sgm**2*X[:-2]*X[1:-1] - 1)*stuff1 + 2*alpha*stuff/sgm**5*X[:-2]*X[1:-1]).sum()
+        hess = - np.array([[d2da2, ddadw, ddadal, ddadb, ddsda], [ddadw, d2dw2, ddwdal, ddwdb, ddsdw], [ddadal, ddwdal, d2dal2, ddaldb, ddsdal], [ddadb, ddwdb, ddaldb, d2db2, ddsdb], [ddsda, ddsdw, ddsdal, ddsdb, d2ds2]])
+    else:
+        hess = - np.array([[d2da2, ddadw, ddadal, ddadb], [ddadw, d2dw2, ddwdal, ddwdb], [ddadal, ddwdal, d2dal2, ddaldb], [ddadb, ddwdb, ddaldb, d2db2]])
+    return np.array(hess)
+
+def ML_errors(estimates, X, b):
+    jac = likelihood_jac(estimates, X, b)
+    hess = likelihood_hess(estimates, X, b)
+
+    J = np.outer(jac,jac)
+    hess_inv = np.linalg.inv(hess)
+
+    var = np.dot(hess_inv, np.dot(J, hess_inv))
+    std_err = np.sqrt([var[i,i]/X.shape[0] for i in range(estimates.shape[0])]) # ATTENTION: T is used here since you deleted it from likelihood
+
+    return std_err
+
+def estimation(fun, X, init_params, method='L-BFGS-B', targeting_estimation=False, verbose=False, visualization=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
     b = np.zeros(shape=T)
     xi = np.zeros(shape=T)
 
     if targeting_estimation:
-        init_params0 = np.random.uniform(0, 1, size=3)
-        res = minimize(reduced_loglikelihood.targeting_loglikelihood, init_params0, X, method=method)
-        omega, a, sigma = res.x[0], res.x[1], res.x[2]
+        init_params0 = np.random.uniform(0, 1, size=2)
+        sigma = 1
+        res = minimize(loglikelihood.targeting_loglikelihood, init_params0, X, method=method)
+        omega, a = res.x[0], res.x[1]
         b_bar = omega
         b[:2] = b_bar
-        res = minimize(fun, init_params, (X, b_bar), method=method)
-        a, alpha, beta, sigma = res.x[0], res.x[1], res.x[2], res.x[3]
+        res = minimize(fun, init_params, (X, b_bar), method=method, options={'eps': 1e-3})
+        a, alpha, beta = res.x[0], res.x[1], res.x[2]
         omega = beta * (1 - b_bar)
+        res = [omega, a, alpha, beta]
 
     else:
-        res = minimize(fun, init_params, X, method=method)
+        res = minimize(fun, init_params, X, method=method, options={'eps': 1e-3})
         omega, a, alpha, beta = res.x[0], res.x[1], res.x[2], res.x[3]
         sigma = 1
 
@@ -43,9 +112,11 @@ def estimation(fun, X, init_params, method='Nelder-Mead', targeting_estimation=F
         xi[i + 1] = (X[i + 1] - a - b[i + 1] * X[i])
 
     if visualization:
-        plt.plot(b, label='Filtered Data')
+        plt.figure(tight_layout=True)
+        plt.plot(b, linewidth=1, label='Filtered Data')
         plt.legend()
         plt.grid(True)
+        plt.title(f'[omega, a , alpha, beta]: {res.x}')
         plt.show()
 
     return b, a, xi, res
@@ -74,7 +145,7 @@ if __name__ == '__main__':
         n_params = 4
         N = 100
         NN = 1000
-        X = np.load(go_up(1) + '/saved_data/dis_res_gas60.npy')
+        X = np.load(go_up(1) + '/saved_data/dis_res70.npy')
         days = X.shape[0]
         n_stocks = X.shape[1]
         s_sgm, a_sgm, omega_sgm, beta_sgm, alpha_sgm = [], [], [], [], []
@@ -87,7 +158,7 @@ if __name__ == '__main__':
             par = np.random.uniform(0, 0.5, size=(N, 4))
             for i in range(N):
                 b, a, xi, res = estimation(
-                    reduced_loglikelihood.complete_loglikelihood, x, par[i], method='Nelder-Mead', targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
+                    reduced_loglikelihood.loglikelihood, x, par[i], method='Nelder-Mead', targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
                 omega_val[i] = res.x[0]
                 a_val[i] = res.x[1]
                 alpha_val[i] = res.x[2]
@@ -168,18 +239,20 @@ if __name__ == '__main__':
         plt.show()
 
     else:
-        X = np.load(go_up(1) + '/saved_data/dis_res.npy')
+        X = np.load('/run/media/danielemdn/0A9A624E5CE1F5FA/saved_data/GAS100/dis_res100.npy')
         days = X.shape[0]
         n_stocks = X.shape[1]
         time_list = []
-        for day in range(100):
-            start = time.time()
-            for stock in range(n_stocks):
-                x = X[day, stock, :]
-                init_params = np.random.uniform(0, 1, size=4)
-                b, a, xi = estimation(
-                    reduced_loglikelihood.complete_loglikelihood, x, init_params, targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
-                if (math.isnan(b[-1])) or (b[-1] < 0):
-                    print(b[-1])
-            end = time.time()
-            print(f'time day {day}: ', end - start)
+        day = np.random.randint(days)
+        stock = np.random.randint(n_stocks)
+        print(day, stock)
+        x = X[day, stock, :]
+        if args.targ_est:
+            init_params = np.random.uniform(0, 0.5, size=3)
+            b, a, xi, res = estimation(loglikelihood.loglikelihood_after_targ, x, init_params, targeting_estimation=args.targ_est, visualization=True)
+        else:
+            init_params = np.random.uniform(0, 0.5, size=4)
+            b, a, xi, res = estimation(loglikelihood.loglikelihood, x, init_params, targeting_estimation=args.targ_est,verbose=args.verbose, visualization=True)
+            print(ML_errors(res.x, x, b))
+        if (math.isnan(b[-1])) or (b[-1] < 0):
+            print(b[-1])

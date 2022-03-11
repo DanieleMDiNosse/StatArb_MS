@@ -7,6 +7,7 @@ from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 import time
 from regression_parameters import regression
+from gas import ML_errors, likelihood_jac, likelihood_hess
 
 
 def synt_data(model, *args, dynamics, size):
@@ -18,8 +19,7 @@ def synt_data(model, *args, dynamics, size):
         X[1] = eps[1]
         for t in range(1, X.shape[0] - 1):
             if dynamics == 'gas':
-                b[t + 1] = omega + alpha * X[t - 1] * \
-                    eps[t] / sgm**2 + beta * b[t]
+                b[t + 1] = omega + alpha * X[t - 1] * (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
             if dynamics == 'sin':
                 b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / 150)
             if dynamics == 'step':
@@ -30,8 +30,9 @@ def synt_data(model, *args, dynamics, size):
                     b[t + 1] = 0.5
                 if (t >= 600):
                     b[t + 1] = 0.1
-            if dynamics == 'exp':
-                b[t + 1] = np.exp(-(t + 1) / 500)
+            if dynamics == 'ar1':
+                w, k = 0.1, 0.5
+                b[t + 1] = w + k * b[t] + np.random.normal(0,0.1)
             X[t + 1] = a + b[t + 1] * X[t] + eps[t + 1]
 
     if model == 'poisson':
@@ -49,8 +50,6 @@ def synt_data(model, *args, dynamics, size):
                     b[t + 1] = 1
                 if t >= 600:
                     b[t + 1] = 0.1
-            if dynamics == 'exp':
-                b[t + 1] = np.exp(-(t + 1) / 100)
             X[t + 1] = np.random.poisson(np.exp(b[t + 1]))
     return X, b
 
@@ -82,54 +81,63 @@ def model_loglikelihood(params, X, model):
         for t in range(T):
             sum = sum + poisson.logpmf(X[t], mu=np.exp(b[t]))
 
-    return - sum / T
+    return - sum
 
 
-def model_estimation(fun, X, init_params, model):
+def model_estimation(fun, X, b, init_params, model):
     res = minimize(fun, init_params, (X, model), method='BFGS',
                    options={'maxiter': 1000})
-    std_err = np.sqrt([res.hess_inv[i, i] * (1 / X.shape[0])
-                      for i in range(init_params.shape[0])])
+    # std_err = np.sqrt([res.hess_inv[i, i] for i in range(init_params.shape[0])])
+    std_err = ML_errors(res.x, X, b)
+    print('hess_inv by scipy \n', res.hess_inv)
     estimates = res.x
     estimates_up = res.x + std_err
     estimates_down = res.x - std_err
 
     T = X.shape[0]
     b = np.zeros_like(X)
-    b_up = np.zeros_like(X)
-    b_down = np.zeros_like(X)
+    dbda, dbdw, dbdal, dbdb, dbds = np.zeros_like(X), np.zeros_like(X), np.zeros_like(X), np.zeros_like(X), np.zeros_like(X)
 
     if model == 'autoregressive':
+        a, omega, alpha, beta, sgm = estimates[0], estimates[1], estimates[2], estimates[3], estimates[4]
         # estimates[1] = 0.180 * (1 - estimates[3]) #sin
         # estimates[1] = 0.16339 * (1 - estimates[3]) #gas
         # estimates[1] = 0.3192 * (1 - estimates[3]) # step
         for t in range(1, T - 1):
-            b[t + 1] = estimates[1] + estimates[2] * X[t - 1] * \
-                (X[t] - estimates[0] - b[t] * X[t - 1]) / \
-                estimates[4]**2 + estimates[3] * b[t]
+            b[t + 1] = omega + alpha * X[t - 1] * (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
 
-            b_up[t + 1] = estimates_up[1] + estimates_up[2] * X[t - 1] * \
-                (X[t] - estimates_up[0] - b_up[t] * X[t - 1]) / \
-                estimates_up[4]**2 + estimates_up[3] * b_up[t]
+            dbda[t + 1] = - alpha*X[t - 1]/sgm**2 * (1 + X[t - 1]*dbda[t])
+            dbdw[t + 1] = 1 - alpha/sgm**2 * X[t - 1]**2*dbdw[t]
+            dbdal[t + 1] = X[t - 1]/sgm**2 * (X[t] - a - b[t]*X[t - 1] - alpha*X[t - 1]*dbdal[t])
+            dbdb[t + 1] = X[t] - alpha/sgm**2 * X[t - 1]**2*dbdb[t]
+            dbds[t + 1] = alpha*X[t - 1]/sgm**2 * (2/(sgm) * (b[t]*X[t - 1] - X[t] + a) - X[t - 1]*dbds[t])
 
-            b_down[t + 1] = estimates_down[1] + estimates_down[2] * X[t - 1] * \
-                (X[t] - estimates_down[0] - b_down[t] * X[t - 1]) / \
-                estimates_down[4]**2 + estimates_down[3] * b_down[t]
+        delta_a = beta * dbda[-1] - alpha/sgm**2 * X[-2]
+        delta_w = beta * dbdw[-1] + 1
+        delta_al = beta * dbdal[-1] + 1/sgm**2 * (X[-1] - a - b[-1]*X[-2]) * X[-2]
+        delta_b = beta*dbdb[-1] + b[-1]
+        delta_s = beta * dbds[-1] - 2*alpha/(sgm**3) * (X[-1] - a - b[-1]*X[-2])*X[-2]
+
+        deltas = np.array([delta_a, delta_w, delta_al, delta_b, delta_s])
     if model == 'poisson':
         for t in range(T - 1):
-            b[t + 1] = estimates[2] + estimates[0] * \
-                (X[t] - np.exp(b[t])) * \
-                (np.exp(b[t])) + estimates[1] * b[t]
+            b[t + 1] = estimates[2] + estimates[0] * (X[t] - np.exp(b[t])) * (np.exp(b[t])) + estimates[1] * b[t]
 
-            b_up[t + 1] = estimates_up[2] + estimates_up[0] * \
-                (X[t] - np.exp(b_up[t])) * \
-                (np.exp(b_up[t])) + estimates_up[1] * b_up[t]
+    return b, res, std_err, deltas
 
-            b_down[t + 1] = estimates_down[2] + estimates_down[0] * (X[t] - np.exp(
-                b_down[t])) * (np.exp(b_down[t])) + estimates_down[1] * b_down[t]
-
-    return [b, b_up, b_down], res, std_err
-
+def b_error(hess, deltas, X):
+    T = X.shape[0]
+    Q = deltas.shape[0]
+    hess_inv = np.linalg.inv(hess)
+    s = 0
+    for i in range(Q-1):
+        for j in range(i+1,Q):
+            s += deltas[i]*hess_inv[i,j]*deltas[j]
+    print('My hess_inv \n', np.linalg.inv(hess))
+    print('HERE \n', hess_inv, np.array(deltas)**2)
+    var = 1/T * sum([hess_inv[i,i] * deltas[i]**2 for i in range(Q)]) + 2/T * s
+    std = np.sqrt(var)
+    return std
 
 def LM_test_statistic(Xr, params):
     omega, a, sigma = params[0], params[1], params[2]
@@ -157,6 +165,7 @@ if __name__ == '__main__':
     parser.add_argument("-m", "--model", type=int, help='0 for AR(1), 1 for Poisson')
     parser.add_argument("-d", "--dynamics", type=int, help='Dynamics for b: 0 for GAS, 1 for sinusodial, 2 for step function, 3 for exponential decay')
     parser.add_argument("-lm", "--lmtest", action='store_true', help='Lm test')
+    parser.add_argument("-mr", "--meanreversion", action='store_true', help='Mean reversion analysis')
 
     args = parser.parse_args()
     plt.style.use('seaborn')
@@ -167,7 +176,7 @@ if __name__ == '__main__':
     if args.dynamics == 0: dynamics = 'gas'
     if args.dynamics == 1: dynamics = 'sin'
     if args.dynamics == 2: dynamics = 'step'
-    if args.dynamics == 3: dynamics = 'exp'
+    if args.dynamics == 3: dynamics = 'ar1'
 
     n = 1000
     if model == 'autoregressive':
@@ -192,39 +201,53 @@ if __name__ == '__main__':
         print(ESS)
         time.sleep(10)
 
-    init_params = np.random.uniform(0, 0.5, size=num_par)
-    fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))
-    axs[0].plot(X[:n], 'k', label='Real', linewidth=1)
-    axs[1].plot(b[:n], 'k', label='Real', linewidth=1)
-    axs[0].set_ylabel('X')
-    axs[1].set_ylabel('b')
+    if args.meanreversion:
+        plt.figure(figsize=(12,5), tight_layout=True)
+        ax0 = plt.subplot(2, 1, 1)
+        ax0.plot(X, linewidth=1)
+        ax1 = plt.subplot(2, 1, 2)
+        ax1.plot(b, linewidth=1)
+        ax0.grid(True)
+        ax1.grid(True)
+        plt.show()
 
-    B, res, std_err = model_estimation(
-        model_loglikelihood, X, init_params, model)
-    MSE = mean_squared_error(b,B[0])
-    print(f'MSE: {MSE}')
-    ### Targeting estimation ###
-    # b_bar = w / (1 - beta) -> (1 - beta) * b_bar = w
-    print(B[0][-1])
+    else:
+        init_params = np.random.uniform(0, 0.5, size=num_par)
+        fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))
+        axs[0].plot(X[:n], 'k', label='Real', linewidth=1)
+        axs[1].plot(b[:n], 'k', label='Real', linewidth=1)
+        axs[0].set_ylabel('X')
+        axs[1].set_ylabel('b')
 
-    if model == 'autoregressive':
-        print('True values: ', [a, omega, alpha, beta, sgm])
-    if model == 'poisson':
-        print('True values: ', [omega, alpha, beta])
-    print('Estimated values: ', res.x)
-    print('Standard errors: ', std_err)
+        B, res, std_err, deltas = model_estimation(
+            model_loglikelihood, X, b, init_params, model)
+        hess = likelihood_hess(res.x, X, B)
+        std = b_error(hess, deltas, X)
 
-    axs[1].plot(B[0][:n], 'crimson', label='Filtered', linewidth=1)
-    # axs[1].plot(b_test[:n], 'blue', label='Manual', linewidth=1)
-    axs[1].fill_between(list(range(n)), B[2][:n], B[1]
-                        [:n], color='crimson', alpha=0.3)
+        MSE = mean_squared_error(b, B)
+        # print(f'MSE: {MSE}')
+        ### Targeting estimation ###
+        # b_bar = w / (1 - beta) -> (1 - beta) * b_bar = w
 
-    axs[0].legend()
-    axs[1].legend()
-    plt.show()
+        if model == 'autoregressive':
+            print('True values: ', [a, omega, alpha, beta, sgm])
+        if model == 'poisson':
+            print('True values: ', [omega, alpha, beta])
+        print('Initial values: ', init_params)
+        print('Estimated values: ', res.x)
+        print('Standard errors: ', std_err)
+        print('Error on b: ', std)
+
+        axs[1].plot(B[:n], 'crimson', label='Filtered', linewidth=1)
+        # axs[1].plot(b_test[:n], 'blue', label='Manual', linewidth=1)
+        axs[1].fill_between(list(range(n)), B[:n]+3*std, B[:n]-3*std, color='crimson', alpha=0.3)
+
+        axs[0].legend()
+        axs[1].legend()
+        plt.show()
 
     if args.convergence:
-        N = 100
+        N = 10
         est_par = np.empty(shape=(N, num_par))
         stderr_par = np.empty(shape=(N, num_par))
         par = np.random.uniform(0, 1, size=(N, num_par))
@@ -232,7 +255,7 @@ if __name__ == '__main__':
         b_val = []
         for i in tqdm(range(len(par))):
             B, res, std_err = model_estimation(
-                model_loglikelihood, X, init_params, model)
+                model_loglikelihood, X, par[i], model)
             fun_val.append(res.fun)
             est_par[i] = res.x
             stderr_par[i] = std_err
@@ -266,31 +289,31 @@ if __name__ == '__main__':
 
         ax6 = plt.subplot(num_par, 3, 3)
         ax6.plot(est_par[:, 0], 'g', linewidth=1)
-        ax6.errorbar(np.arange(0,N), est_par[:, 0], yerr=stderr_par[:,0], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
+        ax6.errorbar(np.arange(0,N), est_par[:, 0], yerr=stderr_par[:,0], elinewidth=0.6, capsize=3, capthick=1)
         ax6.hlines(omega, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax6.title.set_text('Estimated Omega')
         ax6.tick_params(labelbottom=False)
         ax7 = plt.subplot(num_par, 3, 6)
         ax7.plot(est_par[:, 1], 'green', linewidth=1)
-        ax7.errorbar(np.arange(0,N), est_par[:, 1], yerr=stderr_par[:,1], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
+        ax7.errorbar(np.arange(0,N), est_par[:, 1], yerr=stderr_par[:,1], elinewidth=0.6, capsize=3, capthick=1)
         ax7.hlines(a, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax7.title.set_text('Estimated a')
         ax7.tick_params(labelbottom=False)
         ax8 = plt.subplot(num_par, 3, 9)
         ax8.plot(est_par[:, 2], 'green', linewidth=1)
-        ax8.errorbar(np.arange(0,N), est_par[:, 2], yerr=stderr_par[:,2], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
+        ax8.errorbar(np.arange(0,N), est_par[:, 2], yerr=stderr_par[:,2], elinewidth=0.6, capsize=3, capthick=1)
         ax8.hlines(alpha, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax8.title.set_text('Estimated alpha')
         ax8.tick_params(labelbottom=False)
         ax9 = plt.subplot(num_par, 3, 12)
         ax9.plot(est_par[:, 3], 'green', linewidth=1)
-        ax9.errorbar(np.arange(0,N), est_par[:, 3], yerr=stderr_par[:,3], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
+        ax9.errorbar(np.arange(0,N), est_par[:, 3], yerr=stderr_par[:,3], elinewidth=0.6, capsize=3, capthick=1)
         ax9.hlines(beta, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax9.title.set_text('Estimated beta')
         ax9.tick_params(labelbottom=False)
         ax10 = plt.subplot(num_par, 3, 15)
         ax10.plot(est_par[:, 4], 'green', linewidth=1)
-        ax10.errorbar(np.arange(0,N), est_par[:, 4], yerr=stderr_par[:,4], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
+        ax10.errorbar(np.arange(0,N), est_par[:, 4], yerr=stderr_par[:,4], elinewidth=0.6, capsize=3, capthick=1)
         ax10.hlines(sgm, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax10.title.set_text('Estimated sigma')
         plt.grid(True)

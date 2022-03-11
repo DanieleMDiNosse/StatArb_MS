@@ -7,14 +7,14 @@ import warnings
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef float loglikelihood(cnp.ndarray params, cnp.ndarray X, float b_bar):
+cpdef float loglikelihood_after_targ(cnp.ndarray params, cnp.ndarray X, float b_bar):
     '''Compute the total log-likelihood that will be use for ML estimation'''
     cdef int T
     T = X.shape[0]
     cdef cnp.ndarray b
     b = np.zeros(shape=T)
     b[:2] = b_bar
-    a, alpha, beta = params[0], params[1], params[2]
+    a, alpha, beta, = params[0], params[1], params[2]
     cdef float omega
     omega = beta * (1 - b_bar)
     cdef float sigma
@@ -29,7 +29,7 @@ cpdef float loglikelihood(cnp.ndarray params, cnp.ndarray X, float b_bar):
     for i in range(T - 1):
         sum += (- 0.5 * np.log(sigma**2) - 0.5 *
                       (X[i + 1] - a - b[i + 1] * X[i])**2 / sigma**2)
-    return - sum / T
+    return - sum
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -40,6 +40,7 @@ cpdef float targeting_loglikelihood(cnp.ndarray params, cnp.ndarray X):
     cdef cnp.ndarray b
     b = np.zeros(shape=T)
     omega, a = params[0], params[1]
+    cdef float sigma
     sigma = 1
 
     b[:] = omega
@@ -49,11 +50,11 @@ cpdef float targeting_loglikelihood(cnp.ndarray params, cnp.ndarray X):
     for i in range(T - 1):
         sum += (- 0.5 * np.log(sigma**2) - 0.5 *
                       (X[i + 1] - a - b[i + 1] * X[i])**2 / sigma**2)
-    return - sum / T
+    return - sum
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef float complete_loglikelihood(cnp.ndarray params, cnp.ndarray X):
+cpdef float loglikelihood(cnp.ndarray params, cnp.ndarray X):
     '''Compute the total log-likelihood that will be use for ML estimation'''
     cdef int T
     T = X.shape[0]
@@ -75,5 +76,5 @@ cpdef float complete_loglikelihood(cnp.ndarray params, cnp.ndarray X):
     cdef float sum
     sum = 0
     for i in range(T - 1):
-        sum += - (X[i + 1] - a - b[i + 1] * X[i]) * (X[i + 1] - a - b[i + 1] * X[i])
-    return - sum / T
+        sum += - 0.5 * (X[i + 1] - a - b[i + 1] * X[i]) * (X[i + 1] - a - b[i + 1] * X[i])
+    return - sum

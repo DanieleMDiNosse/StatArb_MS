@@ -5,7 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 from makedir import go_up
 from post_processing import file_merge, remove_file
-from reduced_loglikelihood import complete_loglikelihood, loglikelihood, targeting_loglikelihood
+from loglikelihood import loglikelihood, loglikelihood_after_targ, targeting_loglikelihood
 from gas import estimation
 from factors import pca, risk_factors, money_on_stock
 from regression_parameters import regression, auto_regression
@@ -40,7 +40,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
 
     Returns
     -------
-    discreteOU : numpy ndarray
+    X : numpy ndarray
         Discrete version of the Ornstein Uhlenbeck process. This array will be used to estimate s-scores.
     beta_tensor : numpy ndarray
         Weights of each of the pca components for each day and each stock. Dimensions are (trading days x n_stocks x n_factors).
@@ -64,11 +64,12 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
     R_squared = np.zeros(shape=(trading_days, n_stocks))
     dis_res_reg = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
     c = 0 # counter to track the number of negative bs comes from GAS model
+    cc = 0 # counter to track the number of k < lookback_for_factors / (0.5 * lookback_for_residual):
 
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
-    for i in tqdm(range(trading_days)):
+    for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
         # Una finestra temporale di 252 giorni è traslata di 1 giorno. Ogni volta viene eseguita una PCA su tale periodo
         # ed i fattori di rischio sono quindi valutati.
         period = df_returns[i:lookback_for_factors + i] # [0,252[, [1,253[ ecc -> ogni period comprende un anno di trading (252 giorni)
@@ -82,29 +83,35 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
             alpha_values[i, stock_idx] = beta0 * lookback_for_factors
             beta_tensor[i, stock_idx, :] = betas
             res[i, stock_idx, :] = residuals
-            discreteOU = np.cumsum(residuals)
-            dis_res[i, stock_idx, :] = discreteOU
+            X = np.cumsum(residuals)
+            dis_res[i, stock_idx, :] = X
 
             if method == 'constant_speed':
-                discreteOU = np.append(discreteOU, discreteOU[-1])
-                parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU)
+                X = np.append(X, X[-1])
+                parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
                 a, b = parameters[0], parameters[1]
                 # Registro la dinamica di b nel tempo, memorizzando media e intervallo di confidenza. L'idea successiva è quella di modellizzare b
                 # tramite un GAS model.
                 b_values[i, stock_idx, 0], b_values[i, stock_idx, 1:] = b, discrete_conf_int[1,:]
-                R_squared[i, stock_idx] = r2_score(discreteOU[:-1], np.array(discrete_pred))
+                R_squared[i, stock_idx] = r2_score(X[:-1], np.array(discrete_pred))
                 # Registro tutti i residui per i test sulla normalità ed "indipendenza" da fare successivamente
                 dis_res_reg[i, stock_idx, :] = discrete_resid
 
             if method == 'gas_modelization':
-                init_params = np.random.uniform(0, 0.5, size=4)
-                b, a, xi, _ = estimation(complete_loglikelihood, discreteOU, init_params, method='Nelder-Mead', targeting_estimation=False)
+                if targeting_estimation:
+                    init_params = np.random.uniform(0, 0.5, size=3)
+                    b, a, xi, est = estimation(loglikelihood_after_targ, X, init_params, targeting_estimation=targeting_estimation)
+                else:
+                    # est -> omega, a, alpha, beta
+                    init_params = np.random.uniform(0, 0.5, size=4)
+                    b, a, xi, est = estimation(loglikelihood, X, init_params)
+
                 b_values_gas[i, stock_idx, :] = b
                 a_values_gas[i, stock_idx, :] = a
                 b = b[-1] # Mi serve solo l'ultimo valore per lo score
                 if b < 0: # se b è negativo, sostituiscilo con quello stimato supponendo sia costante nella finestra temporale
-                    discreteOU = np.append(discreteOU, discreteOU[-1])
-                    parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(discreteOU)
+                    X = np.append(X, X[-1])
+                    parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
                     a, b = parameters[0], parameters[1]
                     c += 1
 
@@ -115,6 +122,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
             k = -np.log(b) * lookback_for_factors
             if k < lookback_for_factors / (0.5 * lookback_for_residual):
                 score[i, stock_idx] = 0
+                cc += 1
             else:
                 m = a / (1 - b)
                 if method == 'constant_speed': sgm_eq[i, stock_idx] =  np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
@@ -123,7 +131,8 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
                 score[i, stock_idx] = -m / sgm_eq[i, stock_idx] - beta0 / (k * sgm_eq[i, stock_idx])
 
     with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
-        file.write(f'Number of b values for process {os.getpid()}: {c}')
+        file.write(f'Number of b values for process {os.getpid()}: {c} \n')
+        file.write(f'Number of stock w mean reversion refused {os.getpid()}: {cc}')
 
     df_score = pd.DataFrame(score, columns=df_returns.columns)
     if export:
@@ -226,7 +235,7 @@ if __name__ == '__main__':
         end = time.time()
 
     else:
-        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 100, args.save_outputs)) for i in df]
+        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
         os.system('rm tmp/*')
         for p in processes:
             p.start()
@@ -241,7 +250,8 @@ if __name__ == '__main__':
         if args.gas:
             file_list = ['df_score_gas', 'beta_tensor', 'alpha_values', 'Q', 'b_gas', 'a_gas', 'dis_res', 'res', 'sgm_eq_gas']
         else:
-            file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
+            # file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
+            file_list = ['beta_tensor']
         logging.info('Merging files...')
         file_merge(pidnums, file_list)
         remove_file(pidnums, file_list)

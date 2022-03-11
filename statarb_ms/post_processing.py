@@ -17,25 +17,58 @@ import os
 import time
 from regression_parameters import auto_regression
 
-def plot_pnl(pnl, pnl_gas, pnl_gas1, spy_pnl, percs):
-    plt.figure(figsize=(12,8), tight_layout=True)
-    plt.plot(pnl, 'k', linewidth=1, label='Strategy PnL', alpha=0.8)
-    plt.plot(pnl_gas, 'green', linewidth=1, label='GAS Strategy PnL (60 days)', alpha=0.8)
+def plot_pnl(pnl, pnl_1, pnl_gas, pnl_gas1, pnl_gas2, pnl_gas3, pnl_gas4, pnl_gas5, pnl_gas6, pnl_gas7, pnl_gas8, spy_pnl):
+    # pnl_names = [str.split('.')[0] for str in os.listdir('../saved_data/PnL')]
+    # pnls = [np.load(go_up(1) + f'/saved_data/PnL/{name}.npy') for name in pnl_names]
+    # plt.figure(figsize=(12,8), tight_layout=True)
+    # for pnl, pnl_name in zip(pnls, pnl_names):
+    #     plt.plot(pnl, linewidth=1, label=f'{pnl_name}')
+    # trading_days = np.array(pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date)
+    # x_quantity = 126
+    # x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
+    # x_label_day = [trading_days[252 + i] for i in x_label_position]
+    # plt.grid(True)
+    # plt.legend(fontsize=11, loc='upper left')
+    # plt.show()
+    plt.plot(pnl, 'k', linewidth=1, label='Avellaneda & Lee PnL (60 days)', alpha=0.8)
+    plt.plot(pnl_gas, 'green', linewidth=1, label='GAS Strategy PnL (60 days run 1)', alpha=0.8)
+    plt.plot(pnl_gas2, 'blue', linewidth=1, label='GAS Strategy PnL (60 days run 2)', alpha=0.8)
+    plt.plot(pnl_gas4, 'gold', linewidth=1, label='GAS Strategy PnL (60 days run 3)', alpha=0.8)
+    plt.plot(pnl_gas5, 'dodgerblue', linewidth=1, label='GAS Strategy PnL (60 days w targ)', alpha=0.8)
+    plt.plot(pnl_gas6, linewidth=1, label='GAS Strategy PnL (60 days w bfgs)', alpha=0.8)
+    plt.plot(pnl_gas3, 'orange', linewidth=1, label='GAS Strategy PnL (70 days)', alpha=0.8)
+    plt.plot(pnl_gas7, linewidth=1, label='GAS Strategy PnL (80 days w bfgs)', alpha=0.8)
+    plt.plot(pnl_gas8, linewidth=1, label='GAS Strategy PnL (80 days w bfgs(1))', alpha=0.8)
+    plt.plot(pnl_1, linewidth=1, label='Avellaneda & Lee PnL (100 days)', alpha=0.8)
     plt.plot(pnl_gas1, 'purple', linewidth=1, label='GAS Strategy PnL (100 days)', alpha=0.8)
     plt.plot(spy_pnl, 'crimson', linewidth=1, alpha=0.7, label='Buy and Hold PnL')
     plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
     plt.grid(True)
-    plt.legend(fontsize=11, loc='lower right')
+    plt.legend(fontsize=11, loc='upper left')
     plt.show()
 
-    plt.rcParams.update(IPython_default)
-    plt.figure(figsize=(10,8))
-    plt.fill_between(range(percs.shape[0]), 0, percs[:,2], color='gray', label='Closed')
-    plt.fill_between(range(percs.shape[0]), percs[:,2], percs[:,2] + percs[:,1], color='crimson', label='Short')
-    plt.fill_between(range(percs.shape[0]), percs[:,2] + percs[:,1], percs[:,2] + percs[:,1] + percs[:,0], color='green', label='Long')
-    plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
-    plt.yticks(np.arange(0,1.2,0.2), ['0%', '20%', '40%', '60%', '80%', '100%'], fontsize=11)
-    plt.legend(fontsize=11, loc='lower right')
+    # plt.rcParams.update(IPython_default)
+    # plt.figure(figsize=(10,8))
+    # plt.fill_between(range(percs.shape[0]), 0, percs[:,2], color='gray', label='Closed')
+    # plt.fill_between(range(percs.shape[0]), percs[:,2], percs[:,2] + percs[:,1], color='crimson', label='Short')
+    # plt.fill_between(range(percs.shape[0]), percs[:,2] + percs[:,1], percs[:,2] + percs[:,1] + percs[:,0], color='green', label='Long')
+    # plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
+    # plt.yticks(np.arange(0,1.2,0.2), ['0%', '20%', '40%', '60%', '80%', '100%'], fontsize=11)
+    # plt.legend(fontsize=11, loc='lower right')
+    # plt.show()
+
+def rejected_stocks(score_dataframe_list):
+    counts = np.zeros(shape=len(score_dataframe_list))
+    for df,i in zip(score_dataframe_list, range(len(score_dataframe_list))):
+        count = 0
+        for col in df.columns:
+            count += df[col].value_counts()[0]
+        counts[i] = count/(df.shape[0]*df.shape[1]) * 100
+    plt.figure(figsize=(12,8), tight_layout=True)
+    x = np.arange(0, len(score_dataframe_list))
+    plt.bar(x, counts, color='darkblue', tick_label=['A&L', '60', '60(1)', '70', '100', '60 w targ'], alpha=0.7)
+    plt.grid(True)
+    plt.ylabel('Percentage')
     plt.show()
 
 def plot_returns(ret, ret_gas, spy_ret):
@@ -286,6 +319,8 @@ if __name__ == '__main__':
                         help='Plot heatmap for p-values from Augumented Dickey Fuller test on residuals. ')
     parser.add_argument('-t', '--ttest', action='store_true',
                         help='Plot heatmap for p-values from one sample t-test on the mean of the residuals. ')
+    parser.add_argument('-rj', '--rej_stocks', action='store_true',
+                        help='Bar plot for the percentage of stocks with mean reversion speed less than half period of estimation')
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -303,20 +338,36 @@ if __name__ == '__main__':
 
     if args.plots:
         if args.pnl:
-            name1 = input('Name of the standard pnl file: ')
-            name2 = input('Name of gas pnl file: ')
-            name4 = input('Name of gas pnl file (1): ')
+            name1 = input('Name of the standard pnl file (Avellaneda & Lee (60 days)): ')
+            name11 = input('Name of the standard pnl file (Avellaneda & Lee (100 days)): ')
+            name2 = input('Name of gas pnl file (GAS Strategy PnL (60 days run 1)): ')
+            name4 = input('Name of gas pnl file (GAS Strategy PnL (60 days run 2)): ')
+            name6 = input('Name of gas pnl file (GAS Strategy PnL (60 days run 3)): ')
+            name8 = input('Name of gas pnl file (GAS Strategy PnL (60 days w targ)): ')
+            name7 = input('Name of gas pnl file (GAS Strategy PnL (70 days)): ')
+            name5 = input('Name of gas pnl file (GAS Strategy PnL (100 days)): ')
+            name9 = input('Name of gas pnl file (GAS Strategy PnL (60 days bfgs)): ')
+            name10 = input('Name of gas pnl file (GAS Strategy PnL (80 days bfgs)): ')
+            name12 = input('Name of gas pnl file (GAS Strategy PnL (80 days bfgs(1))): ')
             name3 = input('Name of the SPY pnl file: ')
-            pnl = np.load(go_up(1) + f'/saved_data/{name1}.npy')
-            pnl_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')
-            pnl_gas1 = np.load(go_up(1) + f'/saved_data/{name4}.npy')
-            spy_pnl = np.load(go_up(1) + f'/saved_data/{name3}.npy')
+            pnl_gas1 = np.load(go_up(1) + f'/saved_data/PnL/{name5}.npy')
+            pnl = np.load(go_up(1) + f'/saved_data/PnL/{name1}.npy')[:pnl_gas1.shape[0]]
+            pnl_1 = np.load(go_up(1) + f'/saved_data/PnL/{name11}.npy')
+            pnl_gas = np.load(go_up(1) + f'/saved_data/PnL/{name2}.npy')[:pnl_gas1.shape[0]]
+            pnl_gas2 = np.load(go_up(1) + f'/saved_data/PnL/{name6}.npy')
+            pnl_gas3 = np.load(go_up(1) + f'/saved_data/PnL/{name7}.npy')
+            pnl_gas4 = np.load(go_up(1) + f'/saved_data/PnL/{name4}.npy')
+            pnl_gas5 = np.load(go_up(1) + f'/saved_data/PnL/{name8}.npy')
+            pnl_gas6 = np.load(go_up(1) + f'/saved_data/PnL/{name9}.npy')
+            pnl_gas7 = np.load(go_up(1) + f'/saved_data/PnL/{name10}.npy')
+            pnl_gas8 = np.load(go_up(1) + f'/saved_data/PnL/{name12}.npy')
+            spy_pnl = np.load(go_up(1) + f'/saved_data/PnL/{name3}.npy')[:pnl_gas1.shape[0]]
             x_quantity = int(input('Step of the labels on x-axis: '))
             x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
             x_label_day = [trading_days[252 + i] for i in x_label_position]
-            name5 = input('Name of the positions percentage file: ')
-            percs = np.load(go_up(1) + f'/saved_data/{name5}.npy')
-            plot_pnl(pnl, pnl_gas, pnl_gas1, spy_pnl, percs)
+            # name5 = input('Name of the positions percentage file: ')
+            # percs = np.load(go_up(1) + f'/saved_data/{name5}.npy')
+            plot_pnl(pnl, pnl_1, pnl_gas, pnl_gas1, pnl_gas2, pnl_gas3, pnl_gas4, pnl_gas5, pnl_gas6, pnl_gas7, pnl_gas8, spy_pnl)
         if args.ret:
             plot_returns(pnl, pnl_gas, spy_pnl)
             name1 = input('Name of the standard pnl file: ')
@@ -324,6 +375,7 @@ if __name__ == '__main__':
             name3 = input('Name of the SPY pnl file: ')
             pnl = np.load(go_up(1) + f'/saved_data/{name1}.npy')
             pnl_gas = np.load(go_up(1) + f'/saved_data/{name2}.npy')
+            pnl = np.load(go_up(1) + f'/saved_data/{name1}.npy')
             spy_pnl = np.load(go_up(1) + f'/saved_data/{name3}.npy')
             x_quantity = int(input('Step of the labels on x-axis: '))
             x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
@@ -350,6 +402,17 @@ if __name__ == '__main__':
             x_label_position = np.arange(252, len(trading_days), x_quantity)
             x_label_day = [trading_days[i] for i in x_label_position]
             plot_alphas(name1, name2)
+
+    if args.rej_stocks:
+        name1 = input('Score dataframe (Avellaneda & Lee): ')
+        name2 = input('Score dataframe (60 days): ')
+        name3 = input('Score dataframe (60 days 1): ')
+        name4 = input('Score dataframe (70 days): ')
+        name5 = input('Score dataframe (100 days): ')
+        name6 = input('Score dataframe (60 days w targ): ')
+        names = [name1, name2, name3, name4, name5, name6]
+        score_dataframe_list = [pd.read_csv(go_up(1) + f'/saved_data/{name}.csv') for name in names]
+        rejected_stocks(score_dataframe_list)
 
     if args.OU_res_normtest:
         name = input('Name of the p-values file: ')

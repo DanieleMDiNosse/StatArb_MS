@@ -156,9 +156,9 @@ if __name__ == '__main__':
         df_score = pd.read_csv(go_up(1) + f'/saved_data/{name}.csv')
         pnl, perc_positions = trading(df_returns, df_score, Q, beta_tensor)
         name = input('Name of the file that will be saved (strategy): ')
-        np.save(go_up(1) + f'/saved_data/{name}', pnl)
-        name = input('Name of the file that will be saved (positions percentage): ')
-        np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
+        np.save(go_up(1) + f'/saved_data/PnL/{name}', pnl)
+        # name = input('Name of the file that will be saved (positions percentage): ')
+        # np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
 
     end = time.time()
     time_elapsed = (end - start)/60
