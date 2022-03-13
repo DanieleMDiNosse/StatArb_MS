@@ -92,7 +92,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
                 a, b = parameters[0], parameters[1]
                 # Registro la dinamica di b nel tempo, memorizzando media e intervallo di confidenza. L'idea successiva è quella di modellizzare b
                 # tramite un GAS model.
-                b_values[i, stock_idx, 0], b_values[i, stock_idx, 1:] = b, discrete_conf_int[1,:]
+                b_values[i, stock_idx, 0], b_values[i, stock_idx, 1:] = b, discrete_conf_int[1,:] # discrete_conf_int contains both the conf_int for a (0) and for b (1)
                 R_squared[i, stock_idx] = r2_score(X[:-1], np.array(discrete_pred))
                 # Registro tutti i residui per i test sulla normalità ed "indipendenza" da fare successivamente
                 dis_res_reg[i, stock_idx, :] = discrete_resid
@@ -100,11 +100,11 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
             if method == 'gas_modelization':
                 if targeting_estimation:
                     init_params = np.random.uniform(0, 0.5, size=3)
-                    b, a, xi, est = estimation(loglikelihood_after_targ, X, init_params, targeting_estimation=targeting_estimation)
+                    b, a, xi, est, std = estimation(loglikelihood_after_targ, X, init_params, targeting_estimation=targeting_estimation)
                 else:
                     # est -> omega, a, alpha, beta
                     init_params = np.random.uniform(0, 0.5, size=4)
-                    b, a, xi, est = estimation(loglikelihood, X, init_params)
+                    b, a, xi, est, std = estimation(loglikelihood, X, init_params)
 
                 b_values_gas[i, stock_idx, :] = b
                 a_values_gas[i, stock_idx, :] = a
@@ -129,6 +129,8 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
                 if method == 'gas_modelization': sgm_eq[i, stock_idx] = np.std(xi) * np.sqrt(1 / (1 - b * b))
                 # naive method. Keep in mind that s-score depends on the risk factors
                 score[i, stock_idx] = -m / sgm_eq[i, stock_idx] - beta0 / (k * sgm_eq[i, stock_idx])
+                print(score[i, stock_idx], discrete_conf_int[1,:])
+                time.sleep(1)
 
     with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
         file.write(f'Number of b values for process {os.getpid()}: {c} \n')
@@ -235,7 +237,7 @@ if __name__ == '__main__':
         end = time.time()
 
     else:
-        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
+        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 70, args.save_outputs)) for i in df]
         os.system('rm tmp/*')
         for p in processes:
             p.start()
@@ -250,8 +252,7 @@ if __name__ == '__main__':
         if args.gas:
             file_list = ['df_score_gas', 'beta_tensor', 'alpha_values', 'Q', 'b_gas', 'a_gas', 'dis_res', 'res', 'sgm_eq_gas']
         else:
-            # file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
-            file_list = ['beta_tensor']
+            file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
         logging.info('Merging files...')
         file_merge(pidnums, file_list)
         remove_file(pidnums, file_list)

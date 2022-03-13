@@ -64,6 +64,8 @@ cpdef float loglikelihood(cnp.ndarray params, cnp.ndarray X):
     cdef float a
     cdef float alpha
     cdef float beta
+    cdef float sum
+
     omega, a, alpha, beta = params[0], params[1], params[2], params[3]
 
     # cdef float sigma
@@ -73,7 +75,6 @@ cpdef float loglikelihood(cnp.ndarray params, cnp.ndarray X):
     for i in range(1, T - 1):
         b[i + 1] = omega + alpha * (X[i] - a - b[i] * X[i - 1]) * X[i-1] + beta * b[i]
 
-    cdef float sum
     sum = 0
     for i in range(T - 1):
         sum += - 0.5 * (X[i + 1] - a - b[i + 1] * X[i]) * (X[i + 1] - a - b[i + 1] * X[i])

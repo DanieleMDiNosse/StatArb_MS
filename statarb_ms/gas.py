@@ -12,114 +12,235 @@ import loglikelihood
 from tqdm import tqdm
 from sklearn.preprocessing import MinMaxScaler
 
-def likelihood_jac(estimates, X, b):
-    num_par = estimates.shape[0]
+
+# def likelihood_jac(estimates, X, b):
+#     num_par = estimates.shape[0]
+#     if num_par == 4:
+#         omega, a, alpha, beta = estimates
+#         sgm = 1
+#     if num_par == 5:
+#         omega, a, alpha, beta, sgm = estimates
+#
+#     St = (X[1:-1]**2 * X[:-2] - a * X[:-2] *
+#           X[1:-1] - b[1:-1] * X[:-2]**2 * X[1:-1])
+#     S = (X[2:] - a - omega * X[1:-1] - alpha / sgm**2 * St - beta * b[1:-1] * X[1:-1])
+#
+#     dda = - (S / sgm**2 * (alpha / sgm**2 * X[:-2] * X[1:-1] - 1)).sum()
+#     ddw = (X[1:-1]/ sgm**2 * S).sum()
+#     ddal = (S * St / sgm**4).sum()
+#     ddb = (S / sgm**2 * b[1:-1] * X[1:-1]).sum()
+#     if num_par == 5:
+#         dds = (-1 / sgm + S**2 / sgm**3 -
+#                2 * alpha / sgm**5 * S * St).sum()
+#         jac = [dda, ddw, ddal, ddb, dds]
+#     else:
+#         jac = [dda, ddw, ddal, ddb]
+#
+#     return np.array(jac)
+
+def likelihood_jac(params, X, b, model='autoregressive'):
+    a, omega, alpha, beta, sgm = params
+    num_par = params.shape[0]
+    XX = X[1:-1]
+    Xm1 = X[:-2]
+    Xp1 = X[2:]
+    b = b[1:-1]
+
+    dda =  (-(2*XX*Xm1*alpha/sgm**2 - 2)*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/(2*sgm**2)).sum()
+    ddw =  (XX*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**2).sum()
+    ddal =  ((XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**4).sum()
+    ddb = ( XX*b*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**2).sum()
+
+    if num_par == 5:
+        dds =  (-2*alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**5 - 1.0/sgm + (-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)**2/sgm**3).sum()
+        jac = - np.array([dda, ddw, ddal, ddb, dds])
     if num_par == 4:
-        omega, a, alpha, beta = estimates[0], estimates[1], estimates[2], estimates[3]
+        jac = - np.array([dda, ddw, ddal, ddb])
+
+    return jac
+
+def likelihood_hess(params, X, b, model='autoregressive'):
+    num_par = params.shape[0]
+    omega, a, alpha, beta, sgm = params
+    XX = X[1:-1]
+    Xm1 = X[:-2]
+    Xp1 = X[2:]
+    b = b[1:-1]
+
+    d2da2 =  (-(XX*Xm1*alpha/sgm**2 - 1)*(2*XX*Xm1*alpha/sgm**2 - 2)/(2*sgm**2)).sum()
+    d2dw2 =  (-XX**2/sgm**2).sum()
+    d2dal2 =  (- (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a)**2 / sgm**6).sum()
+    d2db2 =  (-XX**2*b**2/sgm**2).sum()
+    ddadw =  (XX*(2*XX*Xm1*alpha/sgm**2 - 2)/(2*sgm**2)).sum()
+    ddadal =  (-XX*Xm1*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**4 + (2*XX*Xm1*alpha/sgm**2 - 2)*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/(2*sgm**4)).sum()
+    ddadb =  (XX*b*(2*XX*Xm1*alpha/sgm**2 - 2)/(2*sgm**2)).sum()
+    ddwdal =  (-XX*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**4).sum()
+    ddwdb =  (-XX**2*b/sgm**2).sum()
+    ddaldb =  (-XX*b*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**4).sum()
+
     if num_par == 5:
-        omega, a, alpha, beta, sgm = estimates[0], estimates[1], estimates[2], estimates[3], estimates[4]
+        ddsdw =  (2*XX*alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**5 - 2*XX*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**3).sum()
+        ddsdal =  (2*alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)**2/sgm**7 - 4*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**5).sum()
+        ddsdb =  (2*XX*alpha*b*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**5 - 2*XX*b*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**3).sum()
+        ddsda =  (2*XX*Xm1*alpha*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**5 - alpha*(2*XX*Xm1*alpha/sgm**2 - 2)*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**5 + (2*XX*Xm1*alpha/sgm**2 - 2)*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**3).sum()
+        d2ds2 =  (-4*alpha**2*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)**2/sgm**8 + 14*alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**6 + 1.0/sgm**2 - 3*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)**2/sgm**4).sum()
 
-    stuff = (X[2:] - a - omega*X[1:-1] - alpha*(X[1:-1]**2*X[:-2] - a - X[:-2]*X[1:-1] - b[1:-1]*X[:-2]**2*X[1:-1]) - beta*b[1:-1]*X[1:-1])/sgm**2
-
-    dda = - (stuff * (alpha/sgm**2*X[:-2]*X[1:-1] - 1)).sum()
-    ddw = (X[1:-1] * stuff).sum()
-    ddal = -(stuff * (X[1:-1]*X[:-2]/sgm**2 * (b[1:-1]*X[:-2] + a - X[1:-1]))).sum()
-    ddb = (stuff*b[1:-1]*X[1:-1]).sum()
-    if num_par == 5:
-        dds = (-1/sgm**2 + 1/sgm**3*stuff - 2*alpha/sgm**5*stuff*(X[1:-1]**2*X[:-2] - a*X[1:-1]*X[:-2] - b[1:-1]*X[1:-1]*X[:-2]**2)).sum()
-        jac = [dda, ddw, ddal, ddb, dds]
-    else:
-        jac = [dda, ddw, ddal, ddb]
-
-    return np.array(jac)
-
-def likelihood_hess(estimates, X, b):
-    num_par = estimates.shape[0]
+        hess = - np.array([[d2da2, ddadw, ddadal, ddadb, ddsda], [ddadw, d2dw2, ddwdal, ddwdb, ddsdw], [ddadal, ddwdal,
+                                   d2dal2, ddaldb, ddsdal], [ddadb, ddwdb, ddaldb, d2db2, ddsdb], [ddsda, ddsdw, ddsdal, ddsdb, d2ds2]])
     if num_par == 4:
-        omega, a, alpha, beta = estimates[0], estimates[1], estimates[2], estimates[3]
-    if num_par == 5:
-        omega, a, alpha, beta, sgm = estimates[0], estimates[1], estimates[2], estimates[3], estimates[4]
+        hess = - np.array([[d2da2, ddadw, ddadal, ddadb], [ddadw, d2dw2, ddwdal, ddwdb], [ddadal, ddwdal,
+                                   d2dal2, ddaldb], [ddadb, ddwdb, ddaldb, d2db2]])
 
-    stuff = (X[2:] - a - omega*X[1:-1] - alpha*(X[1:-1]**2*X[:-2] - a - X[:-2]*X[1:-1] - b[1:-1]*X[:-2]**2*X[1:-1]) - beta*b[1:-1]*X[1:-1])/sgm**2
-    stuff1 = (X[1:-1]**2*X[:-2] - a*X[:-2]*X[1:-1] - b[1:-1]*X[:-2]**2*X[1:-1])
+    return hess
 
-    d2da2 = - ((alpha * X[1:] * X[:-1] - 1)**2).sum()
-    d2dw2 = - (X**2).sum()
-    d2dal2 = - ((X[:-1] * X[1:] * (b[1:] * X[:-1] + a - X[1:]))**2).sum()
-    d2db2 = - ((b * X)**2).sum()
 
-    ddadw = (X[1:] * (alpha * X[1:] * X[:-1] - 1)).sum()
-    ddadal = - (X[:-2] * X[1:-1] * (X[2:] - a - omega * X[1:-1] - alpha * (X[1:-1]**2 * X[:-2] - a * X[:-2] * X[1:-1] - b[1:-1] * X[:-2]**2 * X[1:-1]) - beta * b[1:-1] * X[1:-1]) + (alpha * X[:-2]* X[1:-1] - 1) * (X[:-2] * X[1:-1] * (b[1:-1] * X[:-2] + a - X[1:-1]))).sum()
-    ddadb = ((alpha * X[1:] * X[:-1] - 1) * b[1:] * X[1:]).sum()
 
-    ddwdal = (X[:-1] * X[1:]**2 * (b[1:] * X[:-1] + a - X[1:])).sum()
-    ddwdb = - (b * X**2).sum()
-    ddaldb = (X[1:]**2 * X[:-1] * b[1:] * (b[1:] * X[:-1] + a - X[1:])).sum()
+# def likelihood_hess(estimates, X, b):
+#     num_par = estimates.shape[0]
+#     if num_par == 4:
+#         omega, a, alpha, beta = estimates
+#         sgm = 1
+#     if num_par == 5:
+#         omega, a, alpha, beta, sgm = estimates
+#
+#     St = (X[1:-1]**2 * X[:-2] - a * X[:-2] *
+#           X[1:-1] - b[1:-1] * X[:-2]**2 * X[1:-1])
+#     S = (X[2:] - a - omega * X[1:-1] - alpha / sgm**2 * St - beta * b[1:-1] * X[1:-1])
+#
+#     d2da2 = - ((alpha * X[1:] * X[:-1] - 1)**2).sum()
+#     d2dw2 = - (X**2).sum()
+#     d2dal2 = - (St**2 / sgm**6).sum()
+#     d2db2 = - ((b * X)**2).sum()
+#
+#     ddadw = (X[1:] * (alpha * X[1:] * X[:-1] - 1)).sum()
+#     ddadal = - (1 / sgm**2 * (X[:-2] * X[1:-1] / sgm**2 * S - St / sgm**2 * (alpha / sgm**2 * X[:-2] * X[1:-1] - 1))).sum()
+#     ddadb = ((alpha * X[1:] * X[:-1] - 1) * b[1:] * X[1:] / sgm**2).sum()
+#
+#     ddwdal = - (X[1:-1] * St / sgm**4).sum()
+#     ddwdb = - (b[1:-1] * X[1:-1]**2 / sgm**2).sum()
+#     ddaldb = - (St * b[1:-1] * X[1:-1] / sgm**4).sum()
+#
+#     if num_par == 5:
+#         d2ds2 = (1 / sgm**3 * (2 - 3 * S**2 / sgm + 14 * alpha *
+#                  St * S / sgm**3 - 4 * alpha**2 * St**2 / sgm**5)).sum()
+#         # d2ds2 = (1/sgm**2 * (1 + 1/sgm**2*(3*S**2 + 2/sgm**2*(2*alpha*S*St + 5*S*St - 2*alpha**2*St/sgm**4)))).sum()
+#         ddsdw = (- 2 * S * X[1:-1] / sgm**3 + 2 *
+#                  alpha * X[1:-1] * St / sgm**5).sum()
+#         ddsdal = (2 * St / sgm**5 * (alpha * St / sgm**2 - 2 * S)).sum()
+#         ddsdb = (2 * b[1:-1] * X[1:-1] / sgm**3 * (alpha * St / sgm**2 - S)).sum()
+#         ddsda = (2 / sgm**3 * (alpha / sgm**2 * X[1:-1] * X[:-2] - 1) * (S - alpha * St / sgm**2) + 2 * alpha * S / sgm**5 * X[:-2] * X[1:-1]).sum()
+#
+#         hess = - np.array([[d2da2, ddadw, ddadal, ddadb, ddsda], [ddadw, d2dw2, ddwdal, ddwdb, ddsdw], [ddadal, ddwdal,
+#                           d2dal2, ddaldb, ddsdal], [ddadb, ddwdb, ddaldb, d2db2, ddsdb], [ddsda, ddsdw, ddsdal, ddsdb, d2ds2]])
+#
+#     if num_par == 4:
+#         hess = - np.array([[d2da2, ddadw, ddadal, ddadb], [ddadw, d2dw2, ddwdal, ddwdb], [
+#                           ddadal, ddwdal, d2dal2, ddaldb], [ddadb, ddwdb, ddaldb, d2db2]])
+#     return hess
 
-    if num_par == 5:
-        d2ds2 = (1/sgm**2 * (1 + 1/sgm**2*(3*stuff**2 + 2/sgm**2*(2*alpha*stuff*stuff1 + 5*stuff*stuff1 - 2*alpha**2*stuff1/sgm**4)))).sum()
-        ddsdw = (- 2*stuff*X[1:-1]/sgm**3 + 2*alpha*X[1:-1]*stuff1/sgm**5).sum()
-        ddsdal = (2*stuff1/sgm**5*(alpha*stuff1/sgm**2 - 2*stuff)).sum()
-        ddsdb = (- 2*stuff*b[1:-1]*X[1:-1]/sgm**3 + 2*alpha*stuff1*b[1:-1]*X[1:-1]/sgm**5).sum()
-        ddsda = (2*stuff/sgm**3 * (alpha/sgm**2*X[:-2]*X[1:-1] - 1) - 2*alpha/sgm**5*(alpha/sgm**2*X[:-2]*X[1:-1] - 1)*stuff1 + 2*alpha*stuff/sgm**5*X[:-2]*X[1:-1]).sum()
-        hess = - np.array([[d2da2, ddadw, ddadal, ddadb, ddsda], [ddadw, d2dw2, ddwdal, ddwdb, ddsdw], [ddadal, ddwdal, d2dal2, ddaldb, ddsdal], [ddadb, ddwdb, ddaldb, d2db2, ddsdb], [ddsda, ddsdw, ddsdal, ddsdb, d2ds2]])
-    else:
-        hess = - np.array([[d2da2, ddadw, ddadal, ddadb], [ddadw, d2dw2, ddwdal, ddwdb], [ddadal, ddwdal, d2dal2, ddaldb], [ddadb, ddwdb, ddaldb, d2db2]])
-    return np.array(hess)
 
-def ML_errors(estimates, X, b):
-    jac = likelihood_jac(estimates, X, b)
-    hess = likelihood_hess(estimates, X, b)
+def ML_errors(params, X, b, specification):
+    jac = likelihood_jac(params, X, b)
+    hess = likelihood_hess(params, X, b)
+    T = X.shape[0]
+    num_par = params.shape[0]
 
-    J = np.outer(jac,jac)
+    J = np.outer(jac, jac)
     hess_inv = np.linalg.inv(hess)
+    # print('my hess_inv \n', hess_inv)
 
-    var = np.dot(hess_inv, np.dot(J, hess_inv))
-    std_err = np.sqrt([var[i,i]/X.shape[0] for i in range(estimates.shape[0])]) # ATTENTION: T is used here since you deleted it from likelihood
+    if specification == 'mis':
+        var = np.dot(hess_inv, np.dot(J, hess_inv))
+        # ATTENTION: T is used here since you deleted it from likelihood
+        std_err = np.sqrt([var[i, i] / T for i in range(num_par)])
+    if specification == 'well':
+        # ATTENTION: T is used here since you deleted it from likelihood
+        std_err = np.sqrt([hess_inv[i, i] / T for i in range(num_par)])
 
     return std_err
+
+
+def b_error(hess, deltas, X):
+    T = X.shape[0]
+    num_par = deltas.shape[0]
+    hess_inv = np.linalg.inv(hess)
+    s = 0
+    for i in range(num_par - 1):
+        for j in range(i + 1, num_par):
+            s += deltas[i] * hess_inv[i, j] * deltas[j]
+    var = 1 / T * sum([hess_inv[i, i] * deltas[i] **
+                      2 for i in range(num_par)]) + 2 / T * s
+    std = np.sqrt(var)
+    return std
+
 
 def estimation(fun, X, init_params, method='L-BFGS-B', targeting_estimation=False, verbose=False, visualization=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
     b = np.zeros(shape=T)
     xi = np.zeros(shape=T)
+    dbda, dbdw, dbdal, dbdb = np.zeros_like(X), np.zeros_like(
+        X), np.zeros_like(X), np.zeros_like(X)
 
     if targeting_estimation:
         init_params0 = np.random.uniform(0, 1, size=2)
         sigma = 1
-        res = minimize(loglikelihood.targeting_loglikelihood, init_params0, X, method=method)
-        omega, a = res.x[0], res.x[1]
+        res = minimize(loglikelihood.targeting_loglikelihood,
+                       init_params0, X, method=method)
+        omega, a = res.x
         b_bar = omega
         b[:2] = b_bar
-        res = minimize(fun, init_params, (X, b_bar), method=method, options={'eps': 1e-3})
+        res = minimize(fun, init_params, (X, b_bar),
+                       method=method, options={'eps': 1e-3})
         a, alpha, beta = res.x[0], res.x[1], res.x[2]
         omega = beta * (1 - b_bar)
         res = [omega, a, alpha, beta]
 
     else:
-        res = minimize(fun, init_params, X, method=method, options={'eps': 1e-3})
-        omega, a, alpha, beta = res.x[0], res.x[1], res.x[2], res.x[3]
-        sigma = 1
+        res = minimize(fun, init_params, X, method=method,
+                       options={'eps': 1e-3})
+        omega, a, alpha, beta = res.x
+        sgm = 1
 
     if verbose:
         print(f'Initial guess: \n {init_params}')
         print(res)
         time.sleep(2.5)
 
-    for i in range(1, T - 1):
-        b[i + 1] = omega + alpha * xi[i] * X[i - 1] / sigma**2 + beta * b[i]
-        xi[i + 1] = (X[i + 1] - a - b[i + 1] * X[i])
+    for t in range(1, T - 1):
+        b[t + 1] = omega + alpha * xi[t] * X[t - 1] / sgm**2 + beta * b[t]
+        xi[t + 1] = (X[t + 1] - a - b[t + 1] * X[t])
+
+        dbda[t + 1] = - alpha * X[t - 1] / sgm**2 * (1 + X[t - 1] * dbda[t])
+        dbdw[t + 1] = 1 - alpha / sgm**2 * X[t - 1]**2 * dbdw[t]
+        dbdal[t + 1] = X[t - 1] / sgm**2 * \
+            (X[t] - a - b[t] * X[t - 1] - alpha * X[t - 1] * dbdal[t])
+        dbdb[t + 1] = X[t] - alpha / sgm**2 * X[t - 1]**2 * dbdb[t]
+
+    delta_a = beta * dbda[-1] - alpha / sgm**2 * X[-2]
+    delta_w = beta * dbdw[-1] + 1
+    delta_al = beta * dbdal[-1] + 1 / sgm**2 * \
+        (X[-1] - a - b[-1] * X[-2]) * X[-2]
+    delta_b = beta * dbdb[-1] + b[-1]
+
+    deltas = np.array([delta_a, delta_w, delta_al, delta_b])
+
+    std = b_error(likelihood_hess(res.x, X, b), deltas, X)
+    par_std = ML_errors(res.x, X, b, specification='mis')
+    print('Std Errors: ',par_std)
 
     if visualization:
-        plt.figure(tight_layout=True)
+        plt.figure(figsize=(12, 5), tight_layout=True)
         plt.plot(b, linewidth=1, label='Filtered Data')
+        plt.fill_between(list(range(T)), b + std, b - std,
+                         color='crimson', label='Std: {:.2f}'.format(std), alpha=0.3)
         plt.legend()
         plt.grid(True)
-        plt.title(f'[omega, a , alpha, beta]: {res.x}')
+        plt.title('[omega, a, alpha, beta]: {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}'.format(
+            res.x[0], par_std[0], res.x[1], par_std[1], res.x[2], par_std[2], res.x[3], par_std[3]))
         plt.show()
 
-    return b, a, xi, res
+    return b, a, xi, res, std
 
 
 if __name__ == '__main__':
@@ -136,10 +257,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     plt.style.use('seaborn')
-    np.random.seed(666)
+    # np.random.seed(666)
 
-    if args.update == 0: update = 'gaussian'
-    if args.update == 1: update = 'logistic'
+    if args.update == 0:
+        update = 'gaussian'
+    if args.update == 1:
+        update = 'logistic'
 
     if args.convergence:
         n_params = 4
@@ -157,8 +280,8 @@ if __name__ == '__main__':
                 shape=N), np.empty(shape=N), np.empty(shape=N), np.empty(shape=N)
             par = np.random.uniform(0, 0.5, size=(N, 4))
             for i in range(N):
-                b, a, xi, res = estimation(
-                    reduced_loglikelihood.loglikelihood, x, par[i], method='Nelder-Mead', targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
+                b, a, xi, res, std = estimation(
+                    reduced_loglikelihood.loglikelihood, x, par[i], targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
                 omega_val[i] = res.x[0]
                 a_val[i] = res.x[1]
                 alpha_val[i] = res.x[2]
@@ -195,7 +318,6 @@ if __name__ == '__main__':
                  edgecolor='darkblue', alpha=0.6)
         ax4.title.set_text('beta')
         plt.savefig(go_up(1) + 'score_1000res_100init_60days.png')
-
 
         # plt.figure(figsize=(12, 8), tight_layout=True)
         # ax0 = plt.subplot(2, 3, 4)
@@ -239,7 +361,8 @@ if __name__ == '__main__':
         plt.show()
 
     else:
-        X = np.load('/run/media/danielemdn/0A9A624E5CE1F5FA/saved_data/GAS100/dis_res100.npy')
+        X = np.load(
+            '/run/media/danielemdn/0A9A624E5CE1F5FA/saved_data/A&L/dis_res.npy')
         days = X.shape[0]
         n_stocks = X.shape[1]
         time_list = []
@@ -249,10 +372,11 @@ if __name__ == '__main__':
         x = X[day, stock, :]
         if args.targ_est:
             init_params = np.random.uniform(0, 0.5, size=3)
-            b, a, xi, res = estimation(loglikelihood.loglikelihood_after_targ, x, init_params, targeting_estimation=args.targ_est, visualization=True)
+            b, a, xi, res, std = estimation(loglikelihood.loglikelihood_after_targ,
+                                            x, init_params, targeting_estimation=args.targ_est, visualization=True)
         else:
             init_params = np.random.uniform(0, 0.5, size=4)
-            b, a, xi, res = estimation(loglikelihood.loglikelihood, x, init_params, targeting_estimation=args.targ_est,verbose=args.verbose, visualization=True)
-            print(ML_errors(res.x, x, b))
+            b, a, xi, res, std = estimation(loglikelihood.loglikelihood, x, init_params,
+                                            targeting_estimation=args.targ_est, verbose=args.verbose, visualization=True)
         if (math.isnan(b[-1])) or (b[-1] < 0):
             print(b[-1])

@@ -33,7 +33,6 @@ def regression(X, Y, const=True):
     residuals = np.array(res.resid)
     rsquared = res.rsquared
 
-
     return beta0, betas, conf_intervals, residuals, predictions, rsquared
 
 def auto_regression(X):
