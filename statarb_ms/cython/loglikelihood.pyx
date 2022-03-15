@@ -78,4 +78,4 @@ cpdef float loglikelihood(cnp.ndarray params, cnp.ndarray X):
     sum = 0
     for i in range(T - 1):
         sum += - 0.5 * (X[i + 1] - a - b[i + 1] * X[i]) * (X[i + 1] - a - b[i + 1] * X[i])
-    return - sum
+    return - sum / T

@@ -6,6 +6,7 @@ from scipy.stats import poisson, norm
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 import time
+import logging
 from regression_parameters import regression
 from gas import ML_errors, likelihood_jac, likelihood_hess, b_error
 
@@ -85,7 +86,7 @@ def model_loglikelihood(params, X, model):
 
 def model_estimation(fun, X, init_params, model, specification):
     res = minimize(fun, init_params, (X, model), method='BFGS',
-                   options={'maxiter': 1000})
+                   options={'eps':1e-5})
     # res = minimize(fun, init_params, (X, model), method='dogleg', jac=likelihood_jac, hess=likelihood_hess,
     #                options={'maxiter': 1000})
     estimates = res.x
@@ -176,10 +177,16 @@ if __name__ == '__main__':
     parser.add_argument("-d", "--dynamics", type=int,
                         help='Dynamics for b: 0 for GAS, 1 for sinusodial, 2 for step function, 3 for exponential decay')
     parser.add_argument("-lm", "--lmtest", action='store_true', help='Lm test')
-
     args = parser.parse_args()
+    levels = {'critical': logging.CRITICAL,
+              'error': logging.ERROR,
+              'warning': logging.WARNING,
+              'info': logging.INFO,
+              'debug': logging.DEBUG}
+    logging.basicConfig(level=levels[args.log])
+
     plt.style.use('seaborn')
-    # np.random.seed(666)
+    np.random.seed(666)
 
     if args.model == 0:
         model = 'autoregressive'
@@ -197,6 +204,11 @@ if __name__ == '__main__':
     if args.dynamics == 3:
         dynamics = 'ar1'
         specification = 'mis'
+
+    logging.info(f' Model: {model}')
+    logging.info(f' Dynamics of b: {dynamics}')
+    logging.info(f' Specification: {specification}')
+    time.sleep(1.5)
 
     n = 1000
     if model == 'autoregressive':
