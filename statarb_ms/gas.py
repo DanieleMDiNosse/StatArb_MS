@@ -12,35 +12,10 @@ import loglikelihood
 from tqdm import tqdm
 from sklearn.preprocessing import MinMaxScaler
 
-
-# def likelihood_jac(estimates, X, b):
-#     num_par = estimates.shape[0]
-#     if num_par == 4:
-#         omega, a, alpha, beta = estimates
-#         sgm = 1
-#     if num_par == 5:
-#         omega, a, alpha, beta, sgm = estimates
-#
-#     St = (X[1:-1]**2 * X[:-2] - a * X[:-2] *
-#           X[1:-1] - b[1:-1] * X[:-2]**2 * X[1:-1])
-#     S = (X[2:] - a - omega * X[1:-1] - alpha / sgm**2 * St - beta * b[1:-1] * X[1:-1])
-#
-#     dda = - (S / sgm**2 * (alpha / sgm**2 * X[:-2] * X[1:-1] - 1)).sum()
-#     ddw = (X[1:-1]/ sgm**2 * S).sum()
-#     ddal = (S * St / sgm**4).sum()
-#     ddb = (S / sgm**2 * b[1:-1] * X[1:-1]).sum()
-#     if num_par == 5:
-#         dds = (-1 / sgm + S**2 / sgm**3 -
-#                2 * alpha / sgm**5 * S * St).sum()
-#         jac = [dda, ddw, ddal, ddb, dds]
-#     else:
-#         jac = [dda, ddw, ddal, ddb]
-#
-#     return np.array(jac)
-
 def likelihood_jac(params, X, b, model='autoregressive'):
     a, omega, alpha, beta, sgm = params
     num_par = params.shape[0]
+    T = X.shape[0]
     XX = X[1:-1]
     Xm1 = X[:-2]
     Xp1 = X[2:]
@@ -49,7 +24,7 @@ def likelihood_jac(params, X, b, model='autoregressive'):
     dda =  (-(2*XX*Xm1*alpha/sgm**2 - 2)*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/(2*sgm**2)).sum()
     ddw =  (XX*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**2).sum()
     ddal =  ((XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**4).sum()
-    ddb = ( XX*b*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**2).sum()
+    ddb = (XX*b*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**2).sum()
 
     if num_par == 5:
         dds =  (-2*alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)*(-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)/sgm**5 - 1.0/sgm + (-XX*b*beta - XX*omega + Xp1 - a - alpha*(XX**2*Xm1 - XX*Xm1**2*b - XX*Xm1*a)/sgm**2)**2/sgm**3).sum()
@@ -61,6 +36,7 @@ def likelihood_jac(params, X, b, model='autoregressive'):
 
 def likelihood_hess(params, X, b, model='autoregressive'):
     num_par = params.shape[0]
+    T = X.shape[0]
     omega, a, alpha, beta, sgm = params
     XX = X[1:-1]
     Xm1 = X[:-2]
@@ -94,63 +70,13 @@ def likelihood_hess(params, X, b, model='autoregressive'):
     return hess
 
 
-
-# def likelihood_hess(estimates, X, b):
-#     num_par = estimates.shape[0]
-#     if num_par == 4:
-#         omega, a, alpha, beta = estimates
-#         sgm = 1
-#     if num_par == 5:
-#         omega, a, alpha, beta, sgm = estimates
-#
-#     St = (X[1:-1]**2 * X[:-2] - a * X[:-2] *
-#           X[1:-1] - b[1:-1] * X[:-2]**2 * X[1:-1])
-#     S = (X[2:] - a - omega * X[1:-1] - alpha / sgm**2 * St - beta * b[1:-1] * X[1:-1])
-#
-#     d2da2 = - ((alpha * X[1:] * X[:-1] - 1)**2).sum()
-#     d2dw2 = - (X**2).sum()
-#     d2dal2 = - (St**2 / sgm**6).sum()
-#     d2db2 = - ((b * X)**2).sum()
-#
-#     ddadw = (X[1:] * (alpha * X[1:] * X[:-1] - 1)).sum()
-#     ddadal = - (1 / sgm**2 * (X[:-2] * X[1:-1] / sgm**2 * S - St / sgm**2 * (alpha / sgm**2 * X[:-2] * X[1:-1] - 1))).sum()
-#     ddadb = ((alpha * X[1:] * X[:-1] - 1) * b[1:] * X[1:] / sgm**2).sum()
-#
-#     ddwdal = - (X[1:-1] * St / sgm**4).sum()
-#     ddwdb = - (b[1:-1] * X[1:-1]**2 / sgm**2).sum()
-#     ddaldb = - (St * b[1:-1] * X[1:-1] / sgm**4).sum()
-#
-#     if num_par == 5:
-#         d2ds2 = (1 / sgm**3 * (2 - 3 * S**2 / sgm + 14 * alpha *
-#                  St * S / sgm**3 - 4 * alpha**2 * St**2 / sgm**5)).sum()
-#         # d2ds2 = (1/sgm**2 * (1 + 1/sgm**2*(3*S**2 + 2/sgm**2*(2*alpha*S*St + 5*S*St - 2*alpha**2*St/sgm**4)))).sum()
-#         ddsdw = (- 2 * S * X[1:-1] / sgm**3 + 2 *
-#                  alpha * X[1:-1] * St / sgm**5).sum()
-#         ddsdal = (2 * St / sgm**5 * (alpha * St / sgm**2 - 2 * S)).sum()
-#         ddsdb = (2 * b[1:-1] * X[1:-1] / sgm**3 * (alpha * St / sgm**2 - S)).sum()
-#         ddsda = (2 / sgm**3 * (alpha / sgm**2 * X[1:-1] * X[:-2] - 1) * (S - alpha * St / sgm**2) + 2 * alpha * S / sgm**5 * X[:-2] * X[1:-1]).sum()
-#
-#         hess = - np.array([[d2da2, ddadw, ddadal, ddadb, ddsda], [ddadw, d2dw2, ddwdal, ddwdb, ddsdw], [ddadal, ddwdal,
-#                           d2dal2, ddaldb, ddsdal], [ddadb, ddwdb, ddaldb, d2db2, ddsdb], [ddsda, ddsdw, ddsdal, ddsdb, d2ds2]])
-#
-#     if num_par == 4:
-#         hess = - np.array([[d2da2, ddadw, ddadal, ddadb], [ddadw, d2dw2, ddwdal, ddwdb], [
-#                           ddadal, ddwdal, d2dal2, ddaldb], [ddadb, ddwdb, ddaldb, d2db2]])
-#     return hess
-
-
-def ML_errors(params, X, b, specification):
-    jac = likelihood_jac(params, X, b)
-    hess = likelihood_hess(params, X, b)
+def ML_errors(jac, hess_inv, params, X, specification):
     T = X.shape[0]
     num_par = params.shape[0]
-
     J = np.outer(jac, jac)
-    hess_inv = np.linalg.inv(hess)
-    # print('my hess_inv \n', hess_inv)
 
     if specification == 'mis':
-        var = np.dot(hess_inv, np.dot(J, hess_inv))
+        var = np.dot(np.dot(hess_inv, J), hess_inv)
         # ATTENTION: T is used here since you deleted it from likelihood
         std_err = np.sqrt([var[i, i] / T for i in range(num_par)])
     if specification == 'well':
@@ -160,16 +86,21 @@ def ML_errors(params, X, b, specification):
     return std_err
 
 
-def b_error(hess, deltas, X):
+def b_error(jac, hess_inv, deltas, X, specification):
     T = X.shape[0]
     num_par = deltas.shape[0]
-    hess_inv = np.linalg.inv(hess)
+    J = np.outer(jac, jac)
+    var_par = np.dot(np.dot(hess_inv, J), hess_inv)
+    print(deltas)
+
     s = 0
     for i in range(num_par - 1):
         for j in range(i + 1, num_par):
-            s += deltas[i] * hess_inv[i, j] * deltas[j]
-    var = 1 / T * sum([hess_inv[i, i] * deltas[i] **
-                      2 for i in range(num_par)]) + 2 / T * s
+            if specification == 'well': A = hess_inv
+            if specification == 'mis': A = var_par
+            s += deltas[i] * A[i, j] * deltas[j]
+        var = 1 / T * sum([A[i, i] * deltas[i] **
+                    2 for i in range(num_par)]) + 2 / T * s
     std = np.sqrt(var)
     return std
 
@@ -233,10 +164,10 @@ def estimation(fun, X, init_params, method='L-BFGS-B', targeting_estimation=Fals
         plt.figure(figsize=(12, 5), tight_layout=True)
         plt.plot(b, linewidth=1, label='Filtered Data')
         plt.fill_between(list(range(T)), b + std, b - std,
-                         color='crimson', label='Std: {:.2f}'.format(std), alpha=0.3)
+                         color='crimson', label=r'$\sigma_b: {:.2f}$'.format(std), alpha=0.3)
         plt.legend()
         plt.grid(True)
-        plt.title('[omega, a, alpha, beta]: {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}'.format(
+        plt.title(r'$[\omega, a, \alpha, \beta]: {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}$'.format(
             res.x[0], par_std[0], res.x[1], par_std[1], res.x[2], par_std[2], res.x[3], par_std[3]))
         plt.show()
 
@@ -304,19 +235,19 @@ if __name__ == '__main__':
         ax0.title.set_text('Score')
         ax1 = plt.subplot(1, 5, 2)
         ax1.hist(a_sgm, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
-        ax1.title.set_text('a')
+        ax1.title.set_text(r'$\sigma_a$')
         ax2 = plt.subplot(1, 5, 3)
         ax2.hist(omega_sgm, bins=40, color='blue',
                  edgecolor='darkblue', alpha=0.6)
-        ax2.title.set_text('omega')
+        ax2.title.set_text(r'$\sigma_{\omega}$')
         ax3 = plt.subplot(1, 5, 4)
         ax3.hist(alpha_sgm, bins=40, color='blue',
                  edgecolor='darkblue', alpha=0.6)
-        ax3.title.set_text('alpha')
+        ax3.title.set_text(r'$\sigma_{\alpha}$')
         ax4 = plt.subplot(1, 5, 5)
         ax4.hist(beta_sgm, bins=40, color='blue',
                  edgecolor='darkblue', alpha=0.6)
-        ax4.title.set_text('beta')
+        ax4.title.set_text(r'$\sigma_{\beta}$')
         plt.savefig(go_up(1) + 'score_1000res_100init_60days.png')
 
         # plt.figure(figsize=(12, 8), tight_layout=True)
