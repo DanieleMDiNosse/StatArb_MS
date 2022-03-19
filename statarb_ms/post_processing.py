@@ -18,18 +18,7 @@ import time
 from regression_parameters import auto_regression
 
 def plot_pnl(pnl, pnl_1, pnl_gas, pnl_gas1, pnl_gas2, pnl_gas3, pnl_gas4, pnl_gas5, pnl_gas6, pnl_gas7, pnl_gas8, spy_pnl):
-    # pnl_names = [str.split('.')[0] for str in os.listdir('../saved_data/PnL')]
-    # pnls = [np.load(go_up(1) + f'/saved_data/PnL/{name}.npy') for name in pnl_names]
-    # plt.figure(figsize=(12,8), tight_layout=True)
-    # for pnl, pnl_name in zip(pnls, pnl_names):
-    #     plt.plot(pnl, linewidth=1, label=f'{pnl_name}')
-    # trading_days = np.array(pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date)
-    # x_quantity = 126
-    # x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
-    # x_label_day = [trading_days[252 + i] for i in x_label_position]
-    # plt.grid(True)
-    # plt.legend(fontsize=11, loc='upper left')
-    # plt.show()
+
     plt.plot(pnl, 'k', linewidth=1, label='Avellaneda & Lee PnL (60 days)', alpha=0.8)
     plt.plot(pnl_gas, 'green', linewidth=1, label='GAS Strategy PnL (60 days run 1)', alpha=0.8)
     plt.plot(pnl_gas2, 'blue', linewidth=1, label='GAS Strategy PnL (60 days run 2)', alpha=0.8)
@@ -47,15 +36,21 @@ def plot_pnl(pnl, pnl_1, pnl_gas, pnl_gas1, pnl_gas2, pnl_gas3, pnl_gas4, pnl_ga
     plt.legend(fontsize=11, loc='upper left')
     plt.show()
 
-    # plt.rcParams.update(IPython_default)
-    # plt.figure(figsize=(10,8))
-    # plt.fill_between(range(percs.shape[0]), 0, percs[:,2], color='gray', label='Closed')
-    # plt.fill_between(range(percs.shape[0]), percs[:,2], percs[:,2] + percs[:,1], color='crimson', label='Short')
-    # plt.fill_between(range(percs.shape[0]), percs[:,2] + percs[:,1], percs[:,2] + percs[:,1] + percs[:,0], color='green', label='Long')
-    # plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
-    # plt.yticks(np.arange(0,1.2,0.2), ['0%', '20%', '40%', '60%', '80%', '100%'], fontsize=11)
-    # plt.legend(fontsize=11, loc='lower right')
-    # plt.show()
+def plot_raw_pnl():
+    pnl_names = [str.split('.')[0] for str in os.listdir('../saved_data/PnL')]
+    pnls = [np.load(go_up(1) + f'/saved_data/PnL/{name}.npy') for name in pnl_names]
+    pnl_names = [str.split('_')[1] for str in pnl_names]
+    plt.figure(figsize=(12,8), tight_layout=True)
+    for pnl, pnl_name in zip(pnls, pnl_names):
+        plt.plot(pnl[:4030-252], linewidth=1, label=f'{pnl_name}')
+    trading_days = np.array(pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date)[:4030+126]
+    x_quantity = 126
+    x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
+    x_label_day = [trading_days[252 + i] for i in x_label_position]
+    plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
+    plt.grid(True)
+    legend = plt.legend(fontsize=11, loc='upper left')
+    plt.show()
 
 def rejected_stocks(score_dataframe_list):
     counts = np.zeros(shape=len(score_dataframe_list))

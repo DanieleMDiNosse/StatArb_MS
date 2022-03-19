@@ -12,6 +12,16 @@ import loglikelihood
 from tqdm import tqdm
 from sklearn.preprocessing import MinMaxScaler
 
+
+def initial_value(fun, n_iter, X, num_par):
+    evals = np.zeros(shape=(n_iter))
+    initial_guesses = np.random.uniform(0, 1, size=(n_iter, num_par))
+    for i in range(n_iter):
+        eval = fun(initial_guesses[i, :], X)
+        evals[i] = eval
+    min_idx = np.where(evals == np.amin(evals))
+    return initial_guesses[min_idx][0]
+
 def likelihood_jac(params, X, b, model='autoregressive'):
     a, omega, alpha, beta, sgm = params
     num_par = params.shape[0]
@@ -88,7 +98,7 @@ def ML_errors(jac, hess_inv, params, X, specification):
 
 def b_error(jac, hess_inv, deltas, X, specification):
     T = X.shape[0]
-    num_par = deltas.shape[0]
+    num_par = 3
     J = np.outer(jac, jac)
     var_par = np.dot(np.dot(hess_inv, J), hess_inv)
     print(deltas)
@@ -110,9 +120,6 @@ def estimation(fun, X, init_params, method='L-BFGS-B', targeting_estimation=Fals
     T = X.shape[0]
     b = np.zeros(shape=T)
     xi = np.zeros(shape=T)
-    dbda, dbdw, dbdal, dbdb = np.zeros_like(X), np.zeros_like(
-        X), np.zeros_like(X), np.zeros_like(X)
-
     if targeting_estimation:
         init_params0 = np.random.uniform(0, 1, size=2)
         sigma = 1
@@ -142,36 +149,18 @@ def estimation(fun, X, init_params, method='L-BFGS-B', targeting_estimation=Fals
         b[t + 1] = omega + alpha * xi[t] * X[t - 1] / sgm**2 + beta * b[t]
         xi[t + 1] = (X[t + 1] - a - b[t + 1] * X[t])
 
-        dbda[t + 1] = - alpha * X[t - 1] / sgm**2 * (1 + X[t - 1] * dbda[t])
-        dbdw[t + 1] = 1 - alpha / sgm**2 * X[t - 1]**2 * dbdw[t]
-        dbdal[t + 1] = X[t - 1] / sgm**2 * \
-            (X[t] - a - b[t] * X[t - 1] - alpha * X[t - 1] * dbdal[t])
-        dbdb[t + 1] = X[t] - alpha / sgm**2 * X[t - 1]**2 * dbdb[t]
-
-    delta_a = beta * dbda[-1] - alpha / sgm**2 * X[-2]
-    delta_w = beta * dbdw[-1] + 1
-    delta_al = beta * dbdal[-1] + 1 / sgm**2 * \
-        (X[-1] - a - b[-1] * X[-2]) * X[-2]
-    delta_b = beta * dbdb[-1] + b[-1]
-
-    deltas = np.array([delta_a, delta_w, delta_al, delta_b])
-
-    std = b_error(likelihood_hess(res.x, X, b), deltas, X)
-    par_std = ML_errors(res.x, X, b, specification='mis')
-    print('Std Errors: ',par_std)
-
     if visualization:
         plt.figure(figsize=(12, 5), tight_layout=True)
         plt.plot(b, linewidth=1, label='Filtered Data')
-        plt.fill_between(list(range(T)), b + std, b - std,
-                         color='crimson', label=r'$\sigma_b: {:.2f}$'.format(std), alpha=0.3)
+        # plt.fill_between(list(range(T)), b + std, b - std,
+        #                  color='crimson', label=r'$\sigma_b: {:.2f}$'.format(std), alpha=0.3)
         plt.legend()
         plt.grid(True)
-        plt.title(r'$[\omega, a, \alpha, \beta]: {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}, {:.4f} +/- {:.4f}$'.format(
-            res.x[0], par_std[0], res.x[1], par_std[1], res.x[2], par_std[2], res.x[3], par_std[3]))
+        plt.title(r'$[\omega, a, \alpha, \beta]: {:.4f} , {:.4f} , {:.4f} , {:.4f} $'.format(
+            res.x[0],  res.x[1],  res.x[2], res.x[3]))
         plt.show()
 
-    return b, a, xi, res, std
+    return b, a, xi, res
 
 
 if __name__ == '__main__':
@@ -199,7 +188,7 @@ if __name__ == '__main__':
         n_params = 4
         N = 100
         NN = 1000
-        X = np.load(go_up(1) + '/saved_data/dis_res70.npy')
+        X = np.load(go_up(1) + '/saved_data/dis_res60.npy')
         days = X.shape[0]
         n_stocks = X.shape[1]
         s_sgm, a_sgm, omega_sgm, beta_sgm, alpha_sgm = [], [], [], [], []
@@ -209,10 +198,11 @@ if __name__ == '__main__':
             x = X[day[i], stock[i], :]
             a_val, omega_val, beta_val, alpha_val, s_val = np.empty(shape=N), np.empty(
                 shape=N), np.empty(shape=N), np.empty(shape=N), np.empty(shape=N)
-            par = np.random.uniform(0, 0.5, size=(N, 4))
+            par = np.random.uniform(0, 1, size=(N, 4))
             for i in range(N):
-                b, a, xi, res, std = estimation(
-                    reduced_loglikelihood.loglikelihood, x, par[i], targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
+                # init_params = initial_value(loglikelihood.loglikelihood, 100, x, n_params) #fun, n_iter, X, num_par
+                b, a, xi, res = estimation(
+                    loglikelihood.loglikelihood, x, par[i], targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
                 omega_val[i] = res.x[0]
                 a_val[i] = res.x[1]
                 alpha_val[i] = res.x[2]
@@ -302,12 +292,12 @@ if __name__ == '__main__':
         print(day, stock)
         x = X[day, stock, :]
         if args.targ_est:
-            init_params = np.random.uniform(0, 0.5, size=3)
+            init_params = initial_value(loglikelihood.loglikelihood, 100, x, 3)
             b, a, xi, res, std = estimation(loglikelihood.loglikelihood_after_targ,
                                             x, init_params, targeting_estimation=args.targ_est, visualization=True)
         else:
-            init_params = np.random.uniform(0, 0.5, size=4)
-            b, a, xi, res, std = estimation(loglikelihood.loglikelihood, x, init_params,
+            init_params = initial_value(loglikelihood.loglikelihood, 100, x, 4)
+            b, a, xi, res = estimation(loglikelihood.loglikelihood, x, init_params,
                                             targeting_estimation=args.targ_est, verbose=args.verbose, visualization=True)
         if (math.isnan(b[-1])) or (b[-1] < 0):
             print(b[-1])

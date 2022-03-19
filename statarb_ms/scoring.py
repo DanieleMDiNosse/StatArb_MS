@@ -6,7 +6,7 @@ from tqdm import tqdm
 from makedir import go_up
 from post_processing import file_merge, remove_file
 from loglikelihood import loglikelihood, loglikelihood_after_targ, targeting_loglikelihood
-from gas import estimation
+from gas import estimation, initial_value
 from factors import pca, risk_factors, money_on_stock
 from regression_parameters import regression, auto_regression
 from sklearn.metrics import r2_score
@@ -99,12 +99,13 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
 
             if method == 'gas_modelization':
                 if targeting_estimation:
-                    init_params = np.random.uniform(0, 0.5, size=3)
+                    init_params = np.random.uniform(0, 1, size=3)
                     b, a, xi, est, std = estimation(loglikelihood_after_targ, X, init_params, targeting_estimation=targeting_estimation)
                 else:
                     # est -> omega, a, alpha, beta
-                    init_params = np.random.uniform(0, 0.5, size=4)
-                    b, a, xi, est, std = estimation(loglikelihood, X, init_params)
+                    init_params = np.random.uniform(0, 1, size=4)
+                    # init_params = initial_value(loglikelihood, 100, X, 4)
+                    b, a, xi, est = estimation(loglikelihood, X, init_params)
 
                 b_values_gas[i, stock_idx, :] = b
                 a_values_gas[i, stock_idx, :] = a
@@ -129,8 +130,6 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
                 if method == 'gas_modelization': sgm_eq[i, stock_idx] = np.std(xi) * np.sqrt(1 / (1 - b * b))
                 # naive method. Keep in mind that s-score depends on the risk factors
                 score[i, stock_idx] = -m / sgm_eq[i, stock_idx] - beta0 / (k * sgm_eq[i, stock_idx])
-                print(score[i, stock_idx], discrete_conf_int[1,:])
-                time.sleep(1)
 
     with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
         file.write(f'Number of b values for process {os.getpid()}: {c} \n')
@@ -140,14 +139,14 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
     if export:
         if method == 'gas_modelization':
             df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
-            np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
-            np.save(go_up(1) + f'/saved_data/alpha_values_{os.getpid()}', alpha_values)
-            np.save(go_up(1) + f'/saved_data/sgm_eq_gas_{os.getpid()}', sgm_eq)
-            np.save(go_up(1) + f'/saved_data/b_gas_{os.getpid()}', b_values_gas)
-            np.save(go_up(1) + f'/saved_data/a_gas_{os.getpid()}', a_values_gas)
-            np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
-            np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
-            np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
+            # np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
+            # np.save(go_up(1) + f'/saved_data/alpha_values_{os.getpid()}', alpha_values)
+            # np.save(go_up(1) + f'/saved_data/sgm_eq_gas_{os.getpid()}', sgm_eq)
+            # np.save(go_up(1) + f'/saved_data/b_gas_{os.getpid()}', b_values_gas)
+            # np.save(go_up(1) + f'/saved_data/a_gas_{os.getpid()}', a_values_gas)
+            # np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
+            # np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
+            # np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
 
         if method == 'constant_speed':
             df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
@@ -237,7 +236,7 @@ if __name__ == '__main__':
         end = time.time()
 
     else:
-        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 70, args.save_outputs)) for i in df]
+        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 80, args.save_outputs)) for i in df]
         os.system('rm tmp/*')
         for p in processes:
             p.start()
@@ -250,11 +249,13 @@ if __name__ == '__main__':
         pidnums = [int(x) for x in os.listdir('tmp')]
         pidnums.sort()
         if args.gas:
-            file_list = ['df_score_gas', 'beta_tensor', 'alpha_values', 'Q', 'b_gas', 'a_gas', 'dis_res', 'res', 'sgm_eq_gas']
+            # file_list = ['df_score_gas', 'beta_tensor', 'alpha_values', 'Q', 'b_gas', 'a_gas', 'dis_res', 'res', 'sgm_eq_gas']
+            file_list = ['df_score_gas']
         else:
             file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
         logging.info('Merging files...')
         file_merge(pidnums, file_list)
+        logging.info('Removing splitted files...')
         remove_file(pidnums, file_list)
         os.system('rm tmp/*')
 

@@ -17,7 +17,7 @@ def pca(df_returns, n_components):
     ----------
     df_returns : pandas.core.frame.DataFrame
         Dataframe of 1-day returns for each stock.
-    n_components : int
+    n_components : int, bool
         Number of components you want your dataframe be projected to.
     variable_n_factor : bool
         to be set to True if the number of principal components is chosen through a fixed amount of explained variance, False if it is set by n_components.
@@ -34,7 +34,10 @@ def pca(df_returns, n_components):
     scaler = StandardScaler()
     df_returns_norm = pd.DataFrame(scaler.fit_transform(
         df_returns), columns=df_returns.columns)
-    pca = PCA(n_components=n_components)
+    if n_components == 'False':
+        pca = PCA()
+    else:
+        pca = PCA(n_components=n_components)
     pca.fit(df_returns_norm.values)
     eigenvalues = pca.explained_variance_
     eigenvectors = pca.components_
@@ -136,6 +139,17 @@ def risk_factors(df_returns, Q, eigenvectors, export=False):
 
     return factors
 
+def theoretical_eigenvalue_distribution(N, T, var, eigenvalues):
+    # eigenvalues = sorted(eigenvalues)
+
+    Q = T/N
+    lambda_max = var * (1 + 1/Q + 2*np.sqrt(1/Q))
+    lambda_min = var * (1 + 1/Q - 2*np.sqrt(1/Q))
+    print(eigenvalues)
+    rho = np.array([Q/(2*np.pi*var) * np.sqrt((lambda_max - lam)*(lam - lambda_min)) / lam for lam in eigenvalues])
+
+    return rho
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -162,26 +176,35 @@ if __name__ == '__main__':
     plt.style.use('seaborn')
 
     df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
-    eigenvalues, eigenvectors = pca(df_returns[-252:], n_components=args.n_components)
-    eigenportfolio = eigenportfolios(df_returns, eigenvectors)
-    first_components = list(eigenportfolio[0].values())
-    first_ticks = list(eigenportfolio[0].keys())
-    print(first_ticks)
-    plt.scatter(first_ticks, first_components, s=1.5)
-    plt.show()
-    if args.plots:
-        trading_days = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date
-        x_label_position = np.arange(0, len(trading_days)-252, 252)
-        x_label_day = [trading_days[i] for i in x_label_position]
-        plt.figure()
-        plt.bar(np.arange(len(eigenvalues)), eigenvalues,color='k', alpha=0.8)
-        plt.xlabel('Eigenvalues')
-        plt.ylabel('Explained Variance')
-        plt.show()
+    N = df_returns.shape[1]
+    T = 252
+    import seaborn as sns
+    # window = np.exp(-np.linspace(-0.05,0.05,100)**2)
+    # plt.figure()
+    eigenvalues, eigenvectors = pca(df_returns[:T], n_components='False')
 
-        plt.figure()
-        plt.hist(eigenvalues, color='k', bins=50, alpha=0.8)
+    # plt.plot(np.convolve(eigenvalues, window * 1. / sum(window), mode='same'))
+    # eigenportfolio = eigenportfolios(df_returns, eigenvectors)
+    # first_components = list(eigenportfolio[0].values())
+    # first_ticks = list(eigenportfolio[0].keys())
+    # print(first_ticks)
+    # plt.scatter(first_ticks, first_components, s=1.5)
+    # plt.show()
+    if args.plots:
+        # trading_days = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date
+        # x_label_position = np.arange(0, len(trading_days)-252, 252)
+        # x_label_day = [trading_days[i] for i in x_label_position]
+        # plt.figure(figsize=(12,5), tight_layout=True)
+        # plt.bar(np.arange(len(eigenvalues)), eigenvalues,color='k', alpha=0.8)
+        # plt.xlabel('Eigenvalues')
+        # plt.ylabel('Explained Variance')
+        # plt.show()
+
+        plt.hist(eigenvalues, color='k', density=True, bins=300, alpha=0.8)
+        # sns.displot(np.array(eigenvalues), kind='kde', bw_adjust=0.1)
+        plt.plot(eigenvalues, theoretical_eigenvalue_distribution(N, T, 0.7, eigenvalues), 'crimson', linewidth=2, label=r'$\sigma^2 = 0.7$')
         plt.title('Density of states')
+        # plt.legend()
         plt.show()
 
         # explained_variance = []

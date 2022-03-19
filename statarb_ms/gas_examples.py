@@ -12,6 +12,7 @@ from gas import ML_errors, likelihood_jac, likelihood_hess, b_error
 
 
 def synt_data(model, *args, dynamics, size):
+    np.random.seed(666)
     X = np.zeros(shape=size)
     b = np.zeros(shape=size)
 
@@ -23,7 +24,7 @@ def synt_data(model, *args, dynamics, size):
                 b[t + 1] = omega + alpha * X[t - 1] * \
                     (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
             if dynamics == 'sin':
-                b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / 100)
+                b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / int(size/10))
             if dynamics == 'step':
                 b[:2] = 0.1
                 if (t < 300):
@@ -55,12 +56,27 @@ def synt_data(model, *args, dynamics, size):
             X[t + 1] = np.random.poisson(np.exp(b[t + 1]))
     return X, b
 
+def initial_value(fun, n_iter, X, num_par, model):
+    evals = np.zeros(shape=(n_iter))
+    initial_guesses = np.random.uniform(0.1, 1, size=(n_iter, num_par))
+    for i in range(n_iter):
+        eval = fun(initial_guesses[i, :], X, model)
+        evals[i] = eval
+    min_idx = np.where(evals == np.amin(evals))
+    return initial_guesses[min_idx][0]
 
 def model_loglikelihood(params, X, model):
     T = X.shape[0]
     b = np.zeros_like(X)
     if model == 'autoregressive':
         a, omega, alpha, beta, sgm = params
+
+        # a, alpha, sgm = params
+        # omega = 0
+        # beta = 1
+
+        # a, omega = params
+        # alpha, beta, sgm = 0, 0, 1
 
         for i in range(1, T - 1):
             b[i + 1] = omega + alpha * \
@@ -84,13 +100,16 @@ def model_loglikelihood(params, X, model):
     return - sum / T
 
 
-def model_estimation(fun, X, init_params, model, specification):
-    res = minimize(fun, init_params, (X, model), method='BFGS',
-                   options={'eps':1e-5})
+def model_estimation(fun, X, init_params, model, specification, method='BFGS'):
+    res = minimize(fun, init_params, (X, model), method=method)
     # res = minimize(fun, init_params, (X, model), method='dogleg', jac=likelihood_jac, hess=likelihood_hess,
     #                options={'maxiter': 1000})
     estimates = res.x
-    std_err = ML_errors(res.jac, res.hess_inv, estimates, X, specification)
+    if method != 'Nelder-Mead':
+        std_err = ML_errors(res.jac, res.hess_inv, estimates, X, specification)
+    else:
+        print('Standard errors on parameters can not be computed directly from minimize output due to the non-gradient nature of the optimizer')
+        std_err = [0, 0, 0, 0]
 
     T = X.shape[0]
     b = np.zeros_like(X)
@@ -99,6 +118,14 @@ def model_estimation(fun, X, init_params, model, specification):
 
     if model == 'autoregressive':
         a, omega, alpha, beta, sgm = estimates
+
+        # a, alpha, sgm = estimates
+        # omega = 0
+        # beta = 1
+
+        # a, omega = estimates
+        # alpha, beta, sgm = 0, 0, 1
+
         for t in range(1, T - 1):
             b[t + 1] = omega + alpha * X[t - 1] * \
                 (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
@@ -133,16 +160,21 @@ def model_estimation(fun, X, init_params, model, specification):
                 (X[t] - np.exp(b[t])) * (np.exp(b[t])) + beta * b[t]
 
             dfidb[t + 1] = beta + alpha * np.exp(b[t]) * (X[t] - 2 * np.exp(b[t]))
-            dbdw[t + 1] = 1 + alpha * X[t - 1] * np.exp(b[t - 1]) * dbdw[t] - 2* alpha * np.exp(2*b[t - 1]) * dbdw[t] + beta * dbdw[t]
-            dbdal[t + 1] = X[t - 1] * np.exp(b[t - 1]) + alpha * X[t - 1] * np.exp(b[t - 1]) * dbdal[t] - np.exp(2*b[t - 1]) + 2*alpha * np.exp(b[t - 1]) * dbdal[t] + beta * dbdal[t]
-            dbdb[t + 1] = alpha * X[t - 1] * np.exp(b[t - 1]) * dbdb[t] - 2 * alpha * np.exp(b[t- 1]) + b[t - 1] + beta * dbdb[t]
+            dbdw[t + 1] = dbdw[t] * (alpha * X[t - 1] * np.exp(b[t - 1]) - 2 * alpha * np.exp(2 * b[t - 1]) + beta) + 1
+            dbdal[t + 1] = dbdal[t] * (alpha * X[t - 1] * np.exp(b[t - 1]) - 2 * alpha * np.exp(b[t - 1]) + beta) + np.exp(b[t - 1]) * (X[t - 1] - np.exp(b[t - 1]))
+            dbdb[t + 1] = dbdb[t] * (alpha * X[t - 1] * np.exp(b[t - 1]) - 2 * alpha * np.exp(2 * b[t - 1]) + beta) + b[t - 1]
 
         delta_w = dfidb * dbdw + 1
-        delta_al = dfidb * dbdal + (X - np.exp(b) * np.exp(b))
+        delta_al = dfidb * dbdal + (X - np.exp(b)) * np.exp(b)
         delta_b = dfidb * dbdb + b
         deltas =  np.array([delta_w[-1], delta_al[-1], delta_b[-1]])
+        print('deltas', deltas)
 
-    std_b = b_error(res.jac, res.hess_inv, deltas, X, specification)
+    if method != 'Nelder-Mead':
+        std_b = b_error(res.jac, res.hess_inv, deltas, X, specification)
+    else:
+        print('Standard errors on b can not be computed directly from minimize output due to the non-gradient nature of the optimizer')
+        std_b = 0
 
     return b, res, std_err, std_b
 
@@ -186,7 +218,6 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     plt.style.use('seaborn')
-    np.random.seed(666)
 
     if args.model == 0:
         model = 'autoregressive'
@@ -227,6 +258,8 @@ if __name__ == '__main__':
         omega = 0.183
         X, b = synt_data(model, alpha, beta, omega, dynamics=dynamics, size=n)
 
+    np.random.seed()
+
     if args.lmtest:
         params = [omega, a, sgm]
         ESS = LM_test_statistic(X, params)
@@ -234,15 +267,17 @@ if __name__ == '__main__':
         time.sleep(10)
 
     else:
-        init_params = np.random.uniform(0, 0.5, size=num_par)
         fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))
         axs[0].plot(X[:n], 'k', label='Real', linewidth=1)
         axs[1].plot(b[:n], 'k', label='Real', linewidth=1)
         axs[0].set_ylabel('X')
         axs[1].set_ylabel('b')
 
+        init_params = initial_value(model_loglikelihood, 100, X, num_par, model)
+        # init_params = np.random.uniform(0, 1, size=num_par)
+        # res = minimize(model_loglikelihood, init_params, (X, model), method='BFGS', options={'maxiter': 300})
         B, res, std_err, std_b = model_estimation(
-            model_loglikelihood, X, init_params, model, specification)
+            model_loglikelihood, X, init_params, model, specification, method='BFGS')
         print(res)
 
         # MSE = mean_squared_error(b, B)
@@ -260,7 +295,7 @@ if __name__ == '__main__':
         print('Error on b: ', std_b)
 
         axs[1].plot(B[:n], 'crimson', label='Filtered', linewidth=1)
-        # axs[1].plot(b_test[:n], 'blue', label='Manual', linewidth=1)
+        axs[1].hlines(B[:n].mean(), 0, n, 'crimson', label='Filtered mean: {:.2f}'.format(B.mean()), linestyle='dashed', linewidth=1)
         axs[1].fill_between(list(range(n)), B[:n] + 2 * std_b,
                             B[:n] - 2 * std_b, color='crimson', label=r'$2\sigma_b: {:.2f}$'.format(2*std_b), alpha=0.4)
 
@@ -272,10 +307,11 @@ if __name__ == '__main__':
         N = 20
         est_par = np.empty(shape=(N, num_par))
         stderr_par = np.empty(shape=(N, num_par))
-        par = np.random.uniform(0, 0.5, size=(N, num_par))
+        par = np.random.uniform(0, 1, size=(N, num_par))
         fun_val = []
         b_val = []
         for i in tqdm(range(len(par))):
+            init_params = initial_value(model_loglikelihood, 100, X, num_par, model)
             B, res, std_err, deltas = model_estimation(
                 model_loglikelihood, X, par[i], model, specification)
             fun_val.append(res.fun)
@@ -285,63 +321,63 @@ if __name__ == '__main__':
         plt.figure(figsize=(12, 8))
         ax0 = plt.subplot(2, 3, 4)
         ax0.plot(b_val, 'crimson', linewidth=1)
-        ax0.title.set_text(r'$b_{60} values$')
+        ax0.title.set_text(r'$b_{60}$')
         ax1 = plt.subplot(2, 3, 1)
         ax1.plot(fun_val, 'crimson', linewidth=1)
-        ax1.title.set_text('Likelihood Evaluations')
+        ax1.title.set_text('Likelihood')
         ax2 = plt.subplot(num_par, 3, 2)
         ax2.plot(par[:, 0], 'slateblue', linewidth=1)
-        ax2.title.set_text(r'$Initial \omega$')
+        ax2.title.set_text(r'$\omega_{init}$')
         ax2.tick_params(labelbottom=False)
         ax3 = plt.subplot(num_par, 3, 5)
         ax3.plot(par[:, 1], 'slateblue', linewidth=1)
-        ax3.title.set_text('Initial a')
+        ax3.title.set_text(r'$a_{init}$')
         ax3.tick_params(labelbottom=False)
         ax4 = plt.subplot(num_par, 3, 8)
         ax4.plot(par[:, 2], 'slateblue', linewidth=1)
-        ax4.title.set_text(r'$Initial \alpha$')
+        ax4.title.set_text(r'$\alpha_{init}$')
         ax4.tick_params(labelbottom=False)
         ax5 = plt.subplot(num_par, 3, 11)
         ax5.plot(par[:, 3], 'slateblue', linewidth=1)
-        ax5.title.set_text(r'$Initial \beta$')
+        ax5.title.set_text(r'$\beta_{init}$')
         ax5.tick_params(labelbottom=False)
         ax11 = plt.subplot(num_par, 3, 14)
         ax11.plot(par[:, 4], 'slateblue', linewidth=1)
-        ax11.title.set_text(r'$Initial \sigma$')
+        ax11.title.set_text(r'$\sigma_{init}$')
 
         ax6 = plt.subplot(num_par, 3, 3)
         ax6.plot(est_par[:, 0], 'g', linewidth=1)
         ax6.errorbar(np.arange(
             0, N), est_par[:, 0], yerr=stderr_par[:, 0], elinewidth=0.6, capsize=3, capthick=1)
         ax6.hlines(omega, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
-        ax6.title.set_text(r'$Estimated \omega$')
+        ax6.title.set_text(r'$\hat{\omega}$')
         ax6.tick_params(labelbottom=False)
         ax7 = plt.subplot(num_par, 3, 6)
         ax7.plot(est_par[:, 1], 'green', linewidth=1)
         ax7.errorbar(np.arange(
             0, N), est_par[:, 1], yerr=stderr_par[:, 1], elinewidth=0.6, capsize=3, capthick=1)
         ax7.hlines(a, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
-        ax7.title.set_text('Estimated a')
+        ax7.title.set_text(r'$\hat{a}$')
         ax7.tick_params(labelbottom=False)
         ax8 = plt.subplot(num_par, 3, 9)
         ax8.plot(est_par[:, 2], 'green', linewidth=1)
         ax8.errorbar(np.arange(
             0, N), est_par[:, 2], yerr=stderr_par[:, 2], elinewidth=0.6, capsize=3, capthick=1)
         ax8.hlines(alpha, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
-        ax8.title.set_text(r'$Estimated \alpha$')
+        ax8.title.set_text(r'$\hat{\alpha}$')
         ax8.tick_params(labelbottom=False)
         ax9 = plt.subplot(num_par, 3, 12)
         ax9.plot(est_par[:, 3], 'green', linewidth=1)
         ax9.errorbar(np.arange(
             0, N), est_par[:, 3], yerr=stderr_par[:, 3], elinewidth=0.6, capsize=3, capthick=1)
         ax9.hlines(beta, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
-        ax9.title.set_text(r'$Estimated \beta$')
+        ax9.title.set_text(r'$\hat{\beta}$')
         ax9.tick_params(labelbottom=False)
         ax10 = plt.subplot(num_par, 3, 15)
         ax10.plot(est_par[:, 4], 'green', linewidth=1)
         ax10.errorbar(np.arange(
             0, N), est_par[:, 4], yerr=stderr_par[:, 4], elinewidth=0.6, capsize=3, capthick=1)
         ax10.hlines(sgm, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
-        ax10.title.set_text(r'$Estimated \sigma$')
+        ax10.title.set_text(r'$\hat{\sigma}$')
         plt.grid(True)
         plt.show()
