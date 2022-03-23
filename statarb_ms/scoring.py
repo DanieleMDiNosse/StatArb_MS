@@ -15,6 +15,7 @@ import multiprocessing as mp
 import os
 import matplotlib.pyplot as plt
 from scipy.stats import normaltest
+import telegram_send
 
 
 def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_for_factors=252, lookback_for_residual=60, export=True):
@@ -85,32 +86,109 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
             res[i, stock_idx, :] = residuals
             X = np.cumsum(residuals)
             dis_res[i, stock_idx, :] = X
+    #
+    #         if method == 'constant_speed':
+    #             X = np.append(X, X[-1])
+    #             parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
+    #             a, b = parameters[0], parameters[1]
+    #             # Registro la dinamica di b nel tempo, memorizzando media e intervallo di confidenza. L'idea successiva è quella di modellizzare b
+    #             # tramite un GAS model.
+    #             b_values[i, stock_idx, 0], b_values[i, stock_idx, 1:] = b, discrete_conf_int[1,:] # discrete_conf_int contains both the conf_int for a (0) and for b (1)
+    #             R_squared[i, stock_idx] = r2_score(X[:-1], np.array(discrete_pred))
+    #             # Registro tutti i residui per i test sulla normalità ed "indipendenza" da fare successivamente
+    #             dis_res_reg[i, stock_idx, :] = discrete_resid
+    #
+    #         if method == 'gas_modelization':
+    #             if targeting_estimation:
+    #                 init_params = np.random.uniform(0, 1, size=3)
+    #                 b, a, xi, est, std = estimation(loglikelihood_after_targ, X, init_params, targeting_estimation=targeting_estimation)
+    #             else:
+    #                 # est -> omega, a, alpha, beta
+    #                 init_params = np.random.uniform(0, 1, size=4)
+    #                 # init_params = initial_value(loglikelihood, 100, X, 4)
+    #                 b, a, xi, est = estimation(loglikelihood, X, init_params)
+    #
+    #             b_values_gas[i, stock_idx, :] = b
+    #             a_values_gas[i, stock_idx, :] = a
+    #             b = b[-1] # Mi serve solo l'ultimo valore per lo score
+    #             if b < 0: # se b è negativo, sostituiscilo con quello stimato supponendo sia costante nella finestra temporale
+    #                 X = np.append(X, X[-1])
+    #                 parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
+    #                 a, b = parameters[0], parameters[1]
+    #                 c += 1
+    #
+    #         if b == 0.0:
+    #             print(f'B NULLO PER {stock}')
+    #             break
+    #
+    #         k = -np.log(b) * lookback_for_factors
+    #         if k < lookback_for_factors / (0.5 * lookback_for_residual):
+    #             score[i, stock_idx] = 0
+    #             cc += 1
+    #         else:
+    #             m = a / (1 - b)
+    #             if method == 'constant_speed': sgm_eq[i, stock_idx] =  np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
+    #             if method == 'gas_modelization': sgm_eq[i, stock_idx] = np.std(xi) * np.sqrt(1 / (1 - b * b))
+    #             # naive method. Keep in mind that s-score depends on the risk factors
+    #             score[i, stock_idx] = -m / sgm_eq[i, stock_idx] - beta0 / (k * sgm_eq[i, stock_idx])
+    #
+    # with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
+    #     file.write(f'Number of negative b values for process {os.getpid()}: {c} \n')
+    #     file.write(f'Number of stock w mean reversion refused {os.getpid()}: {cc}')
+    #
+    # df_score = pd.DataFrame(score, columns=df_returns.columns)
+    if export:
+        if method == 'gas_modelization':
+            # df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
+            # np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
+            # np.save(go_up(1) + f'/saved_data/alpha_values_{os.getpid()}', alpha_values)
+            # np.save(go_up(1) + f'/saved_data/sgm_eq_gas_{os.getpid()}', sgm_eq)
+            # np.save(go_up(1) + f'/saved_data/b_gas_{os.getpid()}', b_values_gas)
+            # np.save(go_up(1) + f'/saved_data/a_gas_{os.getpid()}', a_values_gas)
+            # np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
+            np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
+            # np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
 
+        if method == 'constant_speed':
+            df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
+            np.save(go_up(1) + f'/saved_data/dis_res_reg_{os.getpid()}', dis_res_reg)
+            np.save(go_up(1) + f'/saved_data/b_values_{os.getpid()}', b_values)
+            np.save(go_up(1) + f'/saved_data/R_squared_{os.getpid()}', R_squared)
+            np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
+            np.save(go_up(1) + f'/saved_data/alpha_values_{os.getpid()}', alpha_values)
+            np.save(go_up(1) + f'/saved_data/sgm_eq_{os.getpid()}', sgm_eq)
+            np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
+            np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
+
+def only_scoring(dis_res, df_returns, method, lookback_for_factors, lookback_for_residual, targeting_estimation=False):
+    trading_days = df_returns.shape[0] - lookback_for_factors
+    n_stocks = df_returns.shape[1]
+    score = np.zeros(shape=(trading_days, n_stocks))
+    c = 0
+    cc = 0
+
+    with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
+        pass
+
+    for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
+        for stock in df_returns.columns:
+            stock_idx = df_returns.columns.get_loc(stock)
+            X = dis_res[i, stock_idx, :]
             if method == 'constant_speed':
                 X = np.append(X, X[-1])
                 parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
                 a, b = parameters[0], parameters[1]
-                # Registro la dinamica di b nel tempo, memorizzando media e intervallo di confidenza. L'idea successiva è quella di modellizzare b
-                # tramite un GAS model.
-                b_values[i, stock_idx, 0], b_values[i, stock_idx, 1:] = b, discrete_conf_int[1,:] # discrete_conf_int contains both the conf_int for a (0) and for b (1)
-                R_squared[i, stock_idx] = r2_score(X[:-1], np.array(discrete_pred))
-                # Registro tutti i residui per i test sulla normalità ed "indipendenza" da fare successivamente
-                dis_res_reg[i, stock_idx, :] = discrete_resid
 
             if method == 'gas_modelization':
                 if targeting_estimation:
                     init_params = np.random.uniform(0, 1, size=3)
                     b, a, xi, est, std = estimation(loglikelihood_after_targ, X, init_params, targeting_estimation=targeting_estimation)
                 else:
-                    # est -> omega, a, alpha, beta
                     init_params = np.random.uniform(0, 1, size=4)
-                    # init_params = initial_value(loglikelihood, 100, X, 4)
                     b, a, xi, est = estimation(loglikelihood, X, init_params)
 
-                b_values_gas[i, stock_idx, :] = b
-                a_values_gas[i, stock_idx, :] = a
-                b = b[-1] # Mi serve solo l'ultimo valore per lo score
-                if b < 0: # se b è negativo, sostituiscilo con quello stimato supponendo sia costante nella finestra temporale
+                b = b[-1]
+                if b < 0:
                     X = np.append(X, X[-1])
                     parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
                     a, b = parameters[0], parameters[1]
@@ -126,38 +204,18 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
                 cc += 1
             else:
                 m = a / (1 - b)
-                if method == 'constant_speed': sgm_eq[i, stock_idx] =  np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
-                if method == 'gas_modelization': sgm_eq[i, stock_idx] = np.std(xi) * np.sqrt(1 / (1 - b * b))
-                # naive method. Keep in mind that s-score depends on the risk factors
-                score[i, stock_idx] = -m / sgm_eq[i, stock_idx] - beta0 / (k * sgm_eq[i, stock_idx])
+                if method == 'constant_speed': sgm_eq =  np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
+                if method == 'gas_modelization': sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b * b))
+                score[i, stock_idx] = -m / sgm_eq
 
     with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
-        file.write(f'Number of b values for process {os.getpid()}: {c} \n')
+        file.write(f'Number of negative b values for process {os.getpid()}: {c} \n')
         file.write(f'Number of stock w mean reversion refused {os.getpid()}: {cc}')
 
     df_score = pd.DataFrame(score, columns=df_returns.columns)
-    if export:
-        if method == 'gas_modelization':
-            df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
-            # np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
-            # np.save(go_up(1) + f'/saved_data/alpha_values_{os.getpid()}', alpha_values)
-            # np.save(go_up(1) + f'/saved_data/sgm_eq_gas_{os.getpid()}', sgm_eq)
-            # np.save(go_up(1) + f'/saved_data/b_gas_{os.getpid()}', b_values_gas)
-            # np.save(go_up(1) + f'/saved_data/a_gas_{os.getpid()}', a_values_gas)
-            # np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
-            # np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
-            # np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
+    if method == 'gas_modelization': df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
+    if method == 'constant_speed': df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
 
-        if method == 'constant_speed':
-            df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
-            np.save(go_up(1) + f'/saved_data/dis_res_reg_{os.getpid()}', dis_res_reg)
-            np.save(go_up(1) + f'/saved_data/b_values_{os.getpid()}', b_values)
-            np.save(go_up(1) + f'/saved_data/R_squared_{os.getpid()}', R_squared)
-            np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
-            np.save(go_up(1) + f'/saved_data/alpha_values_{os.getpid()}', alpha_values)
-            np.save(go_up(1) + f'/saved_data/sgm_eq_{os.getpid()}', sgm_eq)
-            np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
-            np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
 
 def SPY_beta(df_returns, spy, lookback_for_factors=252, lookback_for_residual=60, export=True):
 
@@ -210,6 +268,7 @@ if __name__ == '__main__':
 
     df_returns = pd.read_csv(go_up(1) +
                              "/saved_data/ReturnsData.csv")[:4030]
+    dis_res = np.load(go_up(1) + "/saved_data/dis_res60.npy")
 
     if args.spy:
         spy = pd.read_csv(go_up(1) + "/saved_data/spy.csv")
@@ -218,6 +277,7 @@ if __name__ == '__main__':
     # df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
     # df = [df_returns[:1000], df_returns[748:1749], df_returns[1497:2498], df_returns[2246:3247], df_returns[2995:3996], df_returns[3744:4745], df_returns[4493:5494],df_returns[5242:]]
     df = [df_returns[:750], df_returns[498:1249], df_returns[997:1748], df_returns[1496:2247], df_returns[1995:2746], df_returns[2494:3245], df_returns[2993:3744], df_returns[3492:]]
+    dr = [dis_res[:750,:,:], dis_res[498:1249,:,:], dis_res[997:1748,:,:], dis_res[1496:2247,:,:], dis_res[1995:2746,:,:], dis_res[2494:3245,:,:], dis_res[2993:3744,:,:], dis_res[3492:,:,:]]
 
 
     if args.gas == True: method = 'gas_modelization'
@@ -236,28 +296,34 @@ if __name__ == '__main__':
         end = time.time()
 
     else:
-        processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 80, args.save_outputs)) for i in df]
-        os.system('rm tmp/*')
-        for p in processes:
-            p.start()
-            time.sleep(0.5)
-        for p in processes:
-            p.join()
-        end = time.time()
+        for iter in range(7):
+            np.random.seed()
+            # processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
+            processes = [mp.Process(target=only_scoring, args=(i, j, method, 252, 60)) for i,j in zip(dr, df)]
+            os.system('rm tmp/*')
+            for p in processes:
+                p.start()
+                time.sleep(0.5)
+            for p in processes:
+                p.join()
+            end = time.time()
 
 
-        pidnums = [int(x) for x in os.listdir('tmp')]
-        pidnums.sort()
-        if args.gas:
-            # file_list = ['df_score_gas', 'beta_tensor', 'alpha_values', 'Q', 'b_gas', 'a_gas', 'dis_res', 'res', 'sgm_eq_gas']
-            file_list = ['df_score_gas']
-        else:
-            file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
-        logging.info('Merging files...')
-        file_merge(pidnums, file_list)
-        logging.info('Removing splitted files...')
-        remove_file(pidnums, file_list)
-        os.system('rm tmp/*')
+            pidnums = [int(x) for x in os.listdir('tmp')]
+            pidnums.sort()
+            if args.gas:
+                # file_list = ['df_score_gas', 'beta_tensor', 'alpha_values', 'Q', 'b_gas', 'a_gas', 'dis_res', 'res', 'sgm_eq_gas']
+                file_list = ['df_score_gas']
+            else:
+                # file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
+                file_list = ['df_score']
+            logging.info('Merging files...')
+            file_name = f'ScoreData_bfgs60_{8+iter}'
+            file_merge(pidnums, file_list, file_name)
+            logging.info('Removing splitted files...')
+            remove_file(pidnums, file_list)
+            os.system('rm tmp/*')
+            telegram_send.send(messages=[f'Iteration {iter} terminated'])
 
     time_elapsed = (end - start)
     logging.info('Time required for generate s-scores: %.2f seconds' %time_elapsed)

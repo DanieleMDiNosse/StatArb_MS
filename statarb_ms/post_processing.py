@@ -37,19 +37,31 @@ def plot_pnl(pnl, pnl_1, pnl_gas, pnl_gas1, pnl_gas2, pnl_gas3, pnl_gas4, pnl_ga
     plt.show()
 
 def plot_raw_pnl():
+    plt.style.use('seaborn')
     pnl_names = [str.split('.')[0] for str in os.listdir('../saved_data/PnL')]
     pnls = [np.load(go_up(1) + f'/saved_data/PnL/{name}.npy') for name in pnl_names]
     pnl_names = [str.split('_')[1] for str in pnl_names]
     plt.figure(figsize=(12,8), tight_layout=True)
+
     for pnl, pnl_name in zip(pnls, pnl_names):
-        plt.plot(pnl[:4030-252], linewidth=1, label=f'{pnl_name}')
+        if (pnl_name.split('(')[1] == '60days') or (pnl_name.split('(')[1] == '60days)'):
+            plt.plot(pnl[:4030-252], 'k', linewidth=1, label=f'{pnl_name}', alpha=0.4)
+        if (pnl_name.split('(')[1] == '80days') or (pnl_name.split('(')[1] == '80days)'):
+            plt.plot(pnl[:4030-252], 'b', linewidth=1, label=f'{pnl_name}', alpha=0.4)
+        if (pnl_name.split('(')[1] == '100days') or (pnl_name.split('(')[1] == '100days)'):
+            plt.plot(pnl[:4030-252], 'gray', linewidth=1, label=f'{pnl_name}', alpha=0.6)
+        if pnl_name.split('(')[0] == 'AvellanedaLee':
+            plt.plot(pnl[:4030-252], 'purple', linewidth=2.5, label=f'{pnl_name}', alpha=1)
+        if pnl_name == 'FirstPrincipalComp()':
+            plt.plot(pnl[:4030-252], 'crimson', linewidth=1, label=f'{pnl_name}', alpha=1)
+
     trading_days = np.array(pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date)[:4030+126]
     x_quantity = 126
     x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
     x_label_day = [trading_days[252 + i] for i in x_label_position]
     plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
     plt.grid(True)
-    legend = plt.legend(fontsize=11, loc='upper left')
+    # plt.legend(fontsize=11, loc='upper left')
     plt.show()
 
 def rejected_stocks(score_dataframe_list):
@@ -233,17 +245,18 @@ def onesample_ttest(name):
     plt.show()
 
 def stationarity_check(name_residuals_file):
-    '''Augumented Dickey Fuller test in order to check the null hypothesis that there is a unit root in the time series. This function, so,test
-    the stationarity of the residuals of the regression of stocks on the risk factors. The function plot a heatmap illustrating the fraction of times that the null hypothesis is accepted (p-value > 0.05)
-    or rejected (p-values < 0.05).'''
+    '''Augumented Dickey Fuller test in order to check the null hypothesis that there is a unit root in the time series. This function, so, test
+    the stationarity of the residuals of the regression of stocks on the risk factors. The function plot a heatmap illustrating the fraction of
+    times that the null hypothesis is accepted (p-value > 0.05) or rejected (p-values < 0.05).'''
 
     residuals = np.load(go_up(1) + f'/saved_data/{name_residuals_file}.npy')
     days = residuals.shape[0]
+    days = 500
     n_stocks = residuals.shape[1]
     p_values = np.zeros(shape=(days, n_stocks))
     bin_vec = np.vectorize(binary)
-    for day in tqdm(range(1)):
-        for stock in range(1):
+    for day in tqdm(range(days)):
+        for stock in range(n_stocks):
             res = adfuller(residuals[day, stock, :])
             p_values[day, stock] = res[1]
     p_values = bin_vec(p_values)
@@ -258,13 +271,13 @@ def stationarity_check(name_residuals_file):
     plt.title(f'Accepted: {ones}, Rejected: {zeros}')
     plt.show()
 
-def file_merge(pidnums, file_list):
+def file_merge(pidnums, file_list, file_name):
 
     for file in file_list:
         try:
             df_score = [pd.read_csv(go_up(1) + f'/saved_data/{file}_{i}.csv') for i in pidnums]
-            name = input('Name for the Score csv file: ')
-            pd.concat(df_score, ignore_index=True).to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
+            # name = input('Name for the Score csv file: ')
+            pd.concat(df_score, ignore_index=True).to_csv(go_up(1) + f'/saved_data/{file_name}.csv', index=False)
         except:
             splitted_files = [np.load(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
             name = input(f'Name for the {file} file: ')
@@ -277,11 +290,15 @@ def remove_file(pidnums, file_list):
         except:
             [os.remove(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
 
-def sharpe_ratio(pnl, benchmark_pnl):
+def sharpe_ratio(pnl, benchmark_pnl, period):
+    sharpe_ratio = np.zeros(shape=(pnl.shape[0]-period))
     pnl_ret = get_returns(pd.DataFrame(pnl), export_returns_csv=False)
     benchmark_pnl_ret = get_returns(pd.DataFrame(benchmark_pnl), export_returns_csv=False)
-    diff = pnl_ret - benchmark_pnl_ret
-    sharpe_ratio = diff.mean()/diff.std() * 100
+    for i in range(pnl.shape[0] - period):
+        pnl_ret_period = pnl_ret[i:i+period]
+        benchmark_pnl_ret_period = benchmark_pnl_ret[i:i+period]
+        diff = pnl_ret_period - benchmark_pnl_ret_period
+        sharpe_ratio[i] = diff.mean()/diff.std() * 100
     return sharpe_ratio
 
 
@@ -328,7 +345,7 @@ if __name__ == '__main__':
     IPython_default = plt.rcParams.copy()
     plt.style.use('seaborn')
     np.random.seed(666)
-    trading_days = np.array(pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date)
+    trading_days = np.array(pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date)[:4030 + 126]
     tickers = pd.read_csv(go_up(1) + '/saved_data/ReturnsData.csv').columns.to_list()
 
     if args.plots:
