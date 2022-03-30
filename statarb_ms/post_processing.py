@@ -64,16 +64,37 @@ def plot_raw_pnl():
     # plt.legend(fontsize=11, loc='upper left')
     plt.show()
 
-def rejected_stocks(score_dataframe_list):
+def rejected_stocks():
+    score60 = [pd.read_csv(f'../saved_data/ScoreData_bfgs60_{i}.csv') for i in range(15)]
+    score80 = [pd.read_csv(f'../saved_data/ScoreData_bfgs80_{i}.csv') for i in range(15)]
+    scoreAL60 = pd.read_csv(f'../saved_data/ScoreData60.csv')
+    scoreAL80 = pd.read_csv(f'../saved_data/ScoreData60.csv')
+    scoreAL100 = pd.read_csv(f'../saved_data/ScoreData60.csv')
+    score_dataframe_list = [scoreAL60, scoreAL80, scoreAL100]
+    for i in score60:
+        score_dataframe_list.append(i)
+    for i in score80:
+        score_dataframe_list.append(i)
     counts = np.zeros(shape=len(score_dataframe_list))
-    for df,i in zip(score_dataframe_list, range(len(score_dataframe_list))):
+    for df, i in zip(score_dataframe_list, range(len(score_dataframe_list))):
         count = 0
         for col in df.columns:
             count += df[col].value_counts()[0]
         counts[i] = count/(df.shape[0]*df.shape[1]) * 100
     plt.figure(figsize=(12,8), tight_layout=True)
     x = np.arange(0, len(score_dataframe_list))
-    plt.bar(x, counts, color='darkblue', tick_label=['A&L', '60', '60(1)', '70', '100', '60 w targ'], alpha=0.7)
+    label0 = [f'GAS(60days)_{i}' for i in range(len(score60))]
+    label1 = [f'GAS(80days)_{i}' for i in range(len(score80))]
+    label = ['A&L(60days)', 'A&L(80days)', 'A&L(100days)']
+    for i in label0:
+        label.append(i)
+    for i in label1:
+        label.append(i)
+    print(label)
+    colors = ['crimson','crimson','crimson','gray','gray','gray','gray','gray','gray','gray','gray','gray','gray','gray','gray','gray','gray','gray', 'blue','blue','blue','blue','blue','blue','blue','blue','blue','blue','blue','blue','blue','blue','blue']
+    edgecolors = ['darkred','darkred','darkred','black','black','black','black','black','black','black','black','black','black','black','black','black','black','black', 'darkblue','darkblue','darkblue','darkblue','darkblue','darkblue','darkblue','darkblue','darkblue','darkblue','darkblue','darkblue','darkblue','darkblue','darkblue',]
+    plt.bar(x, counts, color=colors, edgecolor=edgecolors, alpha=0.6)
+    plt.xticks(np.arange(len(label)), label, rotation=90)
     plt.grid(True)
     plt.ylabel('Percentage')
     plt.show()
@@ -291,16 +312,91 @@ def remove_file(pidnums, file_list):
             [os.remove(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
 
 def sharpe_ratio(pnl, benchmark_pnl, period):
-    sharpe_ratio = np.zeros(shape=(pnl.shape[0]-period))
-    pnl_ret = get_returns(pd.DataFrame(pnl), export_returns_csv=False)
-    benchmark_pnl_ret = get_returns(pd.DataFrame(benchmark_pnl), export_returns_csv=False)
+    sharpe_ratio = np.zeros(shape=(pnl.shape[0] - period))
+    pnl_ret = get_returns(pd.DataFrame(pnl), export_returns_csv=False, m=1)
+    benchmark_pnl_ret = get_returns(pd.DataFrame(benchmark_pnl), export_returns_csv=False, m=1)
     for i in range(pnl.shape[0] - period):
         pnl_ret_period = pnl_ret[i:i+period]
         benchmark_pnl_ret_period = benchmark_pnl_ret[i:i+period]
         diff = pnl_ret_period - benchmark_pnl_ret_period
-        sharpe_ratio[i] = diff.mean()/diff.std() * 100
-    return sharpe_ratio
+        sharpe_ratio[i] = diff.mean()/diff.std()
+    return np.sqrt(period) * sharpe_ratio
 
+def yearly_returns():
+    plt.style.use('seaborn')
+    pnls80 = np.array([np.load(f'../saved_data/PnL/pnl_LBFGSB(80days({i})).npy') for i in range(15)])
+    plt.figure(figsize=(8,6), tight_layout=True)
+    yearly_rets = np.zeros(shape=(pnls80.shape[0], 15))
+    for k in range(pnls80.shape[0]):
+        pnl = pnls80[k]
+        for i, j in zip(range(0, 3528, 252), range(15)):
+            yearly_rets[k, j] = (pnl[i + 252] - pnl[i]) / pnl[i] * 100
+        yearly_rets[k, -1] = (pnl[-1] - pnl[-250])/pnl[-250] * 100 # last year is not totally complete
+    yearly_rets_mean = yearly_rets.mean(axis=0)
+    yearly_rets_std = yearly_rets.std(axis=0)
+    plt.bar(np.arange(15), yearly_rets_mean, color='black', alpha=0.8)
+    plt.bar(np.arange(15), 2 * yearly_rets_std, bottom=yearly_rets_mean, color='crimson', alpha=0.5)
+    plt.bar(np.arange(15), - 2 * yearly_rets_std, bottom=yearly_rets_mean, color='crimson', alpha=0.5)
+    xlabel = [str(1996 + i) for i in range(15)]
+    plt.xticks(np.arange(15), xlabel, rotation=90)
+    plt.ylabel('%')
+    plt.title('Yearly returns (80 days)')
+
+    pnls60 = np.array([np.load(f'../saved_data/PnL/pnl_LBFGSB(60days({i})).npy') for i in range(15)])
+    plt.figure(figsize=(8,6), tight_layout=True)
+    yearly_rets = np.zeros(shape=(pnls60.shape[0], 15))
+    for k in range(pnls60.shape[0]):
+        pnl = pnls60[k]
+        for i, j in zip(range(0, 3528, 252), range(15)):
+            yearly_rets[k, j] = (pnl[i + 252] - pnl[i]) / pnl[i] * 100
+        yearly_rets[k, -1] = (pnl[-1] - pnl[-250])/pnl[-250] * 100 # last year is not totally complete
+    yearly_rets_mean = yearly_rets.mean(axis=0)
+    yearly_rets_std = yearly_rets.std(axis=0)
+    plt.bar(np.arange(15), yearly_rets_mean, color='black', alpha=0.8)
+    plt.bar(np.arange(15), 2 * yearly_rets_std, bottom=yearly_rets_mean, color='crimson', alpha=0.5)
+    plt.bar(np.arange(15), - 2 * yearly_rets_std, bottom=yearly_rets_mean, color='crimson', alpha=0.5)
+    xlabel = [str(1996 + i) for i in range(15)]
+    plt.xticks(np.arange(15), xlabel, rotation=90)
+    plt.ylabel('%')
+    plt.title('Yearly returns (60 days)')
+
+    pnlAL60 = np.load(f'../saved_data/PnL/pnl_AvellanedaLee(60days).npy')
+    plt.figure(figsize=(8,6), tight_layout=True)
+    yearly_rets = np.zeros(shape=15)
+    for i, j in zip(range(0, 3528, 252), range(15)):
+        yearly_rets[j] = (pnlAL60[i + 252] - pnlAL60[i]) / pnlAL60[i] * 100
+    yearly_rets[-1] = (pnlAL60[-1] - pnlAL60[-250])/pnlAL60[-250] * 100 # last year is not totally complete
+    plt.bar(np.arange(15), yearly_rets, color='black', alpha=0.8)
+    xlabel = [str(1996 + i) for i in range(15)]
+    plt.xticks(np.arange(15), xlabel, rotation=90)
+    plt.ylabel('%')
+    plt.title('Yearly returns (60 days)')
+
+    pnlAL80 = np.load(f'../saved_data/PnL/pnl_AvellanedaLee(80days).npy')
+    plt.figure(figsize=(8,6), tight_layout=True)
+    yearly_rets = np.zeros(shape=15)
+    for i, j in zip(range(0, 3528, 252), range(15)):
+        yearly_rets[j] = (pnlAL80[i + 252] - pnlAL80[i]) / pnlAL80[i] * 100
+    yearly_rets[-1] = (pnlAL80[-1] - pnlAL80[-250])/pnlAL80[-250] * 100 # last year is not totally complete
+    plt.bar(np.arange(15), yearly_rets, color='black', alpha=0.8)
+    xlabel = [str(1996 + i) for i in range(15)]
+    plt.xticks(np.arange(15), xlabel, rotation=90)
+    plt.ylabel('%')
+    plt.title('Yearly returns (80 days)')
+
+
+    pnlAL100 = np.load(f'../saved_data/PnL/pnl_AvellanedaLee(100days).npy')
+    plt.figure(figsize=(8,6), tight_layout=True)
+    yearly_rets = np.zeros(shape=15)
+    for i, j in zip(range(0, 3528, 252), range(15)):
+        yearly_rets[j] = (pnlAL100[i + 252] - pnlAL100[i]) / pnlAL100[i] * 100
+    yearly_rets[-1] = (pnlAL100[-1] - pnlAL100[-250])/pnlAL100[-250] * 100 # last year is not totally complete
+    plt.bar(np.arange(15), yearly_rets, color='black', alpha=0.8)
+    xlabel = [str(1996 + i) for i in range(15)]
+    plt.xticks(np.arange(15), xlabel, rotation=90)
+    plt.ylabel('%')
+    plt.title('Yearly returns (100 days)')
+    plt.show()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -333,6 +429,8 @@ if __name__ == '__main__':
                         help='Plot heatmap for p-values from one sample t-test on the mean of the residuals. ')
     parser.add_argument('-rj', '--rej_stocks', action='store_true',
                         help='Bar plot for the percentage of stocks with mean reversion speed less than half period of estimation')
+    parser.add_argument('-sr', '--sharpe_ratio', action='store_true',
+                        help='Rolling sharpe ratio')
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -414,6 +512,61 @@ if __name__ == '__main__':
             x_label_position = np.arange(252, len(trading_days), x_quantity)
             x_label_day = [trading_days[i] for i in x_label_position]
             plot_alphas(name1, name2)
+        if args.sharpe_ratio:
+            logging.info('Rolling Sharpe Ratios')
+            period = 252
+
+            pnls80 = [np.load(f'../saved_data/PnL/pnl_LBFGSB(80days({i})).npy') for i in range(15)]
+            pnls60 = [np.load(f'../saved_data/PnL/pnl_LBFGSB(60days({i})).npy') for i in range(15)]
+            pnlAL60 = np.load(f'../saved_data/PnL/pnl_AvellanedaLee(60days).npy')[:pnls80[0].shape[0]]
+            pnlAL80 = np.load(f'../saved_data/PnL/pnl_AvellanedaLee(80days).npy')
+            pnlAL100 = np.load(f'../saved_data/PnL/pnl_AvellanedaLee(100days).npy')
+            spy = np.load('../saved_data/PnL/pnl_FirstPrincipalComp().npy')[:pnls80[0].shape[0]]
+
+            SR80 = np.array([sharpe_ratio(pnl, spy, period) for pnl in pnls80])
+            SR80_mean = SR80.mean(axis=0)
+            SR80_std = SR80.std(axis=0)
+            plt.figure(figsize=(12,5), tight_layout=True)
+            plt.plot(SR80_mean, 'k', linewidth=1)
+            plt.fill_between(np.arange(SR80_mean.shape[0]), SR80_mean + 2 * SR80_std, SR80_mean - 2 * SR80_std, color='crimson', alpha=0.5)
+            x_label_position = np.arange(252*2, len(trading_days), 126)
+            x_label_day = [trading_days[i] for i in x_label_position]
+            plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+            plt.title('Rolling Sharpe Ratio (80 days)')
+
+            SR60 = np.array([sharpe_ratio(pnl, spy, period) for pnl in pnls60])
+            SR60_mean = SR60.mean(axis=0)
+            SR60_std = SR60.std(axis=0)
+            plt.figure(figsize=(12,5), tight_layout=True)
+            plt.plot(SR60_mean, 'k', linewidth=1)
+            plt.fill_between(np.arange(SR60_mean.shape[0]), SR60_mean + 2 * SR60_std, SR60_mean - 2 * SR80_std, color='crimson', alpha=0.5)
+            x_label_position = np.arange(252*2, len(trading_days), 126)
+            x_label_day = [trading_days[i] for i in x_label_position]
+            plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+            plt.title('Rolling Sharpe Ratio (60 days)')
+
+            plt.figure(figsize=(12,5), tight_layout=True)
+            plt.plot(sharpe_ratio(pnlAL60, spy, period), 'k', linewidth=1)
+            x_label_position = np.arange(252*2, len(trading_days), 126)
+            x_label_day = [trading_days[i] for i in x_label_position]
+            plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+            plt.title('Rolling Sharpe Ratio (Avellaneda & Lee 60 days)')
+
+            plt.figure(figsize=(12,5), tight_layout=True)
+            plt.plot(sharpe_ratio(pnlAL80, spy, period), 'k', linewidth=1)
+            x_label_position = np.arange(252*2, len(trading_days), 126)
+            x_label_day = [trading_days[i] for i in x_label_position]
+            plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+            plt.title('Rolling Sharpe Ratio (Avellaneda & Lee 80 days)')
+
+            plt.figure(figsize=(12,5), tight_layout=True)
+            plt.plot(sharpe_ratio(pnlAL100, spy, period), 'k', linewidth=1)
+            x_label_position = np.arange(252*2, len(trading_days), 126)
+            x_label_day = [trading_days[i] for i in x_label_position]
+            plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+            plt.title('Rolling Sharpe Ratio (Avellaneda & Lee 100 days)')
+            plt.show()
+
 
     if args.rej_stocks:
         name1 = input('Score dataframe (Avellaneda & Lee): ')

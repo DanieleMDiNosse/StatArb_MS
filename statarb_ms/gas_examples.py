@@ -9,6 +9,9 @@ import time
 import logging
 from regression_parameters import regression
 from gas import ML_errors, likelihood_jac, likelihood_hess, b_error
+from sklearn.preprocessing import MinMaxScaler
+import statsmodels.api as sm
+from scipy.stats import chi2
 
 
 def synt_data(model, *args, dynamics, size):
@@ -17,9 +20,8 @@ def synt_data(model, *args, dynamics, size):
     b = np.zeros(shape=size)
 
     if model == 'autoregressive':
-        eps = np.random.normal(0, sgm, size=size)
-        X[1] = eps[1]
-        for t in range(1, X.shape[0] - 1):
+        X[1] = np.random.normal(0, sgm)
+        for t in range(1, size - 1):
             if dynamics == 'gas':
                 b[t + 1] = omega + alpha * X[t - 1] * \
                     (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
@@ -33,10 +35,7 @@ def synt_data(model, *args, dynamics, size):
                     b[t + 1] = 0.5
                 if (t >= 600):
                     b[t + 1] = 0.1
-            if dynamics == 'ar1':
-                w, k = 0.1, 0.5
-                b[t + 1] = w + k * b[t] + np.random.normal(0, 0.1)
-            X[t + 1] = a + b[t + 1] * X[t] + eps[t + 1]
+            X[t + 1] = a + b[t + 1] * X[t] + np.random.normal(0, sgm)
 
     if model == 'poisson':
         X[0] = np.random.poisson(b[0])
@@ -45,12 +44,12 @@ def synt_data(model, *args, dynamics, size):
                 b[t + 1] = omega + alpha * \
                     (X[t] - np.exp(b[t])) * (np.exp(b[t])) + beta * b[t]
             if dynamics == 'sin':
-                b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / 150)
+                b[t + 1] =0.5 + 0.5 * np.sin(np.pi * (t + 1) / int(size/5))
             if dynamics == 'step':
                 if t < 300:
                     b[t + 1] = 0.1
                 if t >= 300:
-                    b[t + 1] = 1
+                    b[t + 1] = 0.5
                 if t >= 600:
                     b[t + 1] = 0.1
             X[t + 1] = np.random.poisson(np.exp(b[t + 1]))
@@ -70,22 +69,18 @@ def model_loglikelihood(params, X, model):
     b = np.zeros_like(X)
     if model == 'autoregressive':
         a, omega, alpha, beta, sgm = params
-
-        # a, alpha, sgm = params
-        # omega = 0
-        # beta = 1
-
-        # a, omega = params
-        # alpha, beta, sgm = 0, 0, 1
-
+        # omega, alpha, beta, sgm = params
+        # alpha, sgm = params
+        # omega, beta = 0, 1
         for i in range(1, T - 1):
             b[i + 1] = omega + alpha * \
                 (X[i] - a - b[i] * X[i - 1]) * X[i - 1] / sgm**2 + beta * b[i]
+            # b[i + 1] = omega + alpha * X[i - 1] * np.exp(-b[i]) / (sgm**2 * (1 + np.exp(-b[i]))**2) * (X[i] - X[i - 1] / (1 + np.exp(-b[i]))) + beta * b[i]
 
         sum = 0
-        for i in range(1, T - 1):
-            sum += (- 0.5 * np.log(2*np.pi*sgm**2) - 0.5 *
-                    (X[i + 1] - a - b[i + 1] * X[i])**2 / sgm**2)
+        for i in range(T - 1):
+            sum += - 0.5 * np.log(2*np.pi*sgm**2) - 0.5 / sgm**2 * (X[i + 1] - a - b[i + 1] * X[i])**2
+            # sum += - 0.5 * np.log(2*np.pi*sgm**2) - 0.5 / sgm**2 * (X[i + 1] - X[i] / (1 + np.exp(-b[i + 1])))**2
 
     if model == 'poisson':
         alpha, beta, omega = params
@@ -100,10 +95,17 @@ def model_loglikelihood(params, X, model):
     return - sum / T
 
 
-def model_estimation(fun, X, init_params, model, specification, method='BFGS'):
-    res = minimize(fun, init_params, (X, model), method=method)
-    # res = minimize(fun, init_params, (X, model), method='dogleg', jac=likelihood_jac, hess=likelihood_hess,
-    #                options={'maxiter': 1000})
+def model_estimation(X, model, specification, method='BFGS'):
+    if model == 'autoregressive': num_par = 5
+    if model == 'poisson': num_par = 3
+
+    init_params = np.random.uniform(0, 1, size=num_par)
+    res = minimize(model_loglikelihood, init_params, (X, model), method=method)
+
+    while res.success == False:
+        init_params = np.random.uniform(0, 1, size=num_par)
+        res = minimize(model_loglikelihood, init_params, (X, model), method=method)
+
     estimates = res.x
     if method != 'Nelder-Mead':
         std_err = ML_errors(res.jac, res.hess_inv, estimates, X, specification)
@@ -118,18 +120,14 @@ def model_estimation(fun, X, init_params, model, specification, method='BFGS'):
 
     if model == 'autoregressive':
         a, omega, alpha, beta, sgm = estimates
-
-        # a, alpha, sgm = estimates
-        # omega = 0
-        # beta = 1
-
-        # a, omega = estimates
-        # alpha, beta, sgm = 0, 0, 1
+        # omega, alpha, beta, sgm = estimates
+        # alpha, sgm = estimates
+        # omega, beta = 0, 1
 
         for t in range(1, T - 1):
             b[t + 1] = omega + alpha * X[t - 1] * \
                 (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
-
+            b[t + 1] = omega + alpha * X[t - 1] * np.exp(-b[t]) / (sgm**2 * (1 + np.exp(-b[t]))**2) * (X[t] - X[t - 1] / (1 + np.exp(-b[t]))) + beta * b[t]
             dbda[t + 1] = - alpha * X[t - 1] / \
                 sgm**2 * (1 + X[t - 1] * dbda[t]) + beta * dbda[t]
             dbdw[t + 1] = 1 - alpha / sgm**2 * X[t - 1]**2 * dbdw[t] + beta * dbdw[t]
@@ -148,13 +146,12 @@ def model_estimation(fun, X, init_params, model, specification, method='BFGS'):
             (sgm**3) * (X[-1] - a - b[-1] * X[-2]) * X[-2]
 
         deltas =  np.array([delta_a, delta_w, delta_al, delta_b, delta_s])
-
-    # jac = likelihood_jac(estimates, X, b, model)
-    # hess_inv = np.linalg.inv(likelihood_hess(estimates, X, b, model))
-    # std_err = ML_errors(jac, hess_inv, estimates, X, specification)
+        print(f'Deltas: {deltas}')
+        # deltas = np.zeros(shape=5)
 
     if model == 'poisson':
         alpha, beta, omega = estimates
+
         for t in range(T - 1):
             b[t + 1] = omega + alpha * \
                 (X[t] - np.exp(b[t])) * (np.exp(b[t])) + beta * b[t]
@@ -168,34 +165,37 @@ def model_estimation(fun, X, init_params, model, specification, method='BFGS'):
         delta_al = dfidb * dbdal + (X - np.exp(b)) * np.exp(b)
         delta_b = dfidb * dbdb + b
         deltas =  np.array([delta_w[-1], delta_al[-1], delta_b[-1]])
-        print('deltas', deltas)
 
     if method != 'Nelder-Mead':
         std_b = b_error(res.jac, res.hess_inv, deltas, X, specification)
+        # std_b = 0
     else:
         print('Standard errors on b can not be computed directly from minimize output due to the non-gradient nature of the optimizer')
         std_b = 0
 
-    return b, res, std_err, std_b
+    return b, res, std_err, std_b, init_params
 
 
-def LM_test_statistic(Xr, params):
+def LM_test_statistic(X, params):
     omega, a, sigma = params[0], params[1], params[2]
-    T = Xr.shape[0]
-    Y = np.zeros_like(Xr)
-    X = np.zeros_like(Xr)
-    for t in range(1, T):
-        Y[t] = 1 / (Xr[t - 1] / sigma**2 * (Xr[t] - omega * Xr[t - 1] - a))
-    for t in range(2, T):
-        X[t] = Xr[t - 1] / sigma**2 * (Xr[t] - omega * Xr[t - 1] - a)
-    c_w, c_a, conf_intervals, residuals, predictions, rsquared = regression(
-        X, Y)
-    print(c_w, c_a)
 
-    Y_est = c_w + c_a * X[t]
-    ESS = ((Y_est - Y.mean())**2).sum()
+    delta_w = X[1:-1] / sigma**2 * (X[2:] - a - omega * X[1:-1])
+    scaled_score = delta_w * sigma / X[1:-1]
+    delta_a = (X[2:] - a - X[1:-1] * omega) / sigma**2
+    delta_al = delta_w / sigma**2 * (X[1:-1]**2 * X[:-2] - a * X[:-2] * X[1:-1] - omega * X[:-2]**2 * X[1:-1])
+    delta_b = delta_w * omega * X[1:-1]
+    delta_sgm = - 1/sigma + delta_w**2 * sigma
 
-    return ESS
+    response = np.ones_like(X[:-3]).T
+    regressors = np.array([delta_a[1:], delta_al[1:], delta_b[1:], delta_sgm[1:], delta_w[1:], scaled_score[:-1] * delta_w[1:]]).T
+    model = sm.OLS(response, regressors)
+    res = model.fit()
+    c_a, c_al, c_b, c_sgm, c_w, c_A = res.params
+    ones_est = np.zeros_like(response)
+    ones_est = c_a * regressors[:,0] + c_al * regressors[:,1] + c_b * regressors[:,2] + c_sgm * regressors[:,3] + c_w * regressors[:, 4] + c_A * regressors[:, 5]
+    ESS = ((ones_est - response.mean())**2).sum()
+    pvalue = 1 - chi2.cdf(ESS, df=1)
+    return ESS, pvalue
 
 
 if __name__ == '__main__':
@@ -223,27 +223,24 @@ if __name__ == '__main__':
         model = 'autoregressive'
     if args.model == 1:
         model = 'poisson'
+
     if args.dynamics == 0:
         dynamics = 'gas'
-        specification = 'well'
+        specification = 'correct'
     if args.dynamics == 1:
         dynamics = 'sin'
         specification = 'mis'
     if args.dynamics == 2:
         dynamics = 'step'
         specification = 'mis'
-    if args.dynamics == 3:
-        dynamics = 'ar1'
-        specification = 'mis'
 
     logging.info(f' Model: {model}')
     logging.info(f' Dynamics of b: {dynamics}')
     logging.info(f' Specification: {specification}')
-    time.sleep(1.5)
+    time.sleep(1)
 
     n = 1000
     if model == 'autoregressive':
-        num_par = 5
         omega = 0.05
         alpha = 0.08
         beta = 0.06
@@ -252,32 +249,21 @@ if __name__ == '__main__':
         X, b = synt_data(model, a, omega, alpha,
                          beta, sgm, dynamics=dynamics, size=n)
     if model == 'poisson':
-        num_par = 3
         alpha = 0.081
         beta = -0.395
         omega = 0.183
         X, b = synt_data(model, alpha, beta, omega, dynamics=dynamics, size=n)
 
-    np.random.seed()
-
-    if args.lmtest:
-        params = [omega, a, sgm]
-        ESS = LM_test_statistic(X, params)
-        print(ESS)
-        time.sleep(10)
-
     else:
+        np.random.seed()
         fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))
         axs[0].plot(X[:n], 'k', label='Real', linewidth=1)
         axs[1].plot(b[:n], 'k', label='Real', linewidth=1)
         axs[0].set_ylabel('X')
         axs[1].set_ylabel('b')
 
-        init_params = initial_value(model_loglikelihood, 100, X, num_par, model)
-        # init_params = np.random.uniform(0, 1, size=num_par)
-        # res = minimize(model_loglikelihood, init_params, (X, model), method='BFGS', options={'maxiter': 300})
-        B, res, std_err, std_b = model_estimation(
-            model_loglikelihood, X, init_params, model, specification, method='BFGS')
+        # init_params = initial_value(model_loglikelihood, 100, X, num_par, model)
+        B, res, std_err, std_b, init_params = model_estimation(X, model, specification, method='BFGS')
         print(res)
 
         # MSE = mean_squared_error(b, B)
@@ -303,17 +289,46 @@ if __name__ == '__main__':
         axs[1].legend()
         plt.show()
 
+    if args.lmtest:
+        params = [res.x[0], res.x[1], res.x[4]]
+        ESS, pvalue = LM_test_statistic(X, params)
+        print('ESS', ESS)
+        print('pvalue', pvalue)
+        exit()
+
     if args.convergence:
-        N = 20
+        # N = 100
+        # NN = 1
+        # c = 0
+        # sgmb_list = []
+        # for i in tqdm(range(NN)):
+        #     # np.random.seed()
+        #     b_list = np.empty(shape=N)
+        #     X, b = synt_data(model, a, omega, alpha,
+        #                      beta, sgm, dynamics=dynamics, size=n)
+        #     for j in range(N):
+        #         B, res, std_err, deltas, init_params = model_estimation(X, model, specification)
+        #         b_list[j] = B[-1]
+        #     scaler = MinMaxScaler()
+        #     b_list = scaler.fit_transform(b_list.reshape(-1,1))
+        #     sgmb_list.append(b_list.std())
+        # print(sgmb_list)
+        # # plt.figure(figsize=(8, 6), tight_layout=True)
+        # # plt.hist(sgmb_list, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
+        # # plt.title(r"$b_{T}$ standard deviations")
+        # # plt.savefig('../b_1000data_100init.png')
+        # # plt.show()
+
+        if model == 'autoregressive': num_par = 5
+        if model == 'poisson': num_par = 3
+        N = 100
         est_par = np.empty(shape=(N, num_par))
         stderr_par = np.empty(shape=(N, num_par))
         par = np.random.uniform(0, 1, size=(N, num_par))
         fun_val = []
         b_val = []
         for i in tqdm(range(len(par))):
-            init_params = initial_value(model_loglikelihood, 100, X, num_par, model)
-            B, res, std_err, deltas = model_estimation(
-                model_loglikelihood, X, par[i], model, specification)
+            B, res, std_err, std_b, init_params = model_estimation(X, model, specification)
             fun_val.append(res.fun)
             est_par[i] = res.x
             stderr_par[i] = 2*std_err
@@ -321,6 +336,8 @@ if __name__ == '__main__':
         plt.figure(figsize=(12, 8))
         ax0 = plt.subplot(2, 3, 4)
         ax0.plot(b_val, 'crimson', linewidth=1)
+        ax0.errorbar(np.arange(
+            0, N), b_val, yerr=std_b, elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
         ax0.title.set_text(r'$b_{60}$')
         ax1 = plt.subplot(2, 3, 1)
         ax1.plot(fun_val, 'crimson', linewidth=1)
@@ -348,35 +365,35 @@ if __name__ == '__main__':
         ax6 = plt.subplot(num_par, 3, 3)
         ax6.plot(est_par[:, 0], 'g', linewidth=1)
         ax6.errorbar(np.arange(
-            0, N), est_par[:, 0], yerr=stderr_par[:, 0], elinewidth=0.6, capsize=3, capthick=1)
+            0, N), est_par[:, 0], yerr=stderr_par[:, 0], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
         ax6.hlines(omega, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax6.title.set_text(r'$\hat{\omega}$')
         ax6.tick_params(labelbottom=False)
         ax7 = plt.subplot(num_par, 3, 6)
         ax7.plot(est_par[:, 1], 'green', linewidth=1)
         ax7.errorbar(np.arange(
-            0, N), est_par[:, 1], yerr=stderr_par[:, 1], elinewidth=0.6, capsize=3, capthick=1)
+            0, N), est_par[:, 1], yerr=stderr_par[:, 1], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
         ax7.hlines(a, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax7.title.set_text(r'$\hat{a}$')
         ax7.tick_params(labelbottom=False)
         ax8 = plt.subplot(num_par, 3, 9)
         ax8.plot(est_par[:, 2], 'green', linewidth=1)
         ax8.errorbar(np.arange(
-            0, N), est_par[:, 2], yerr=stderr_par[:, 2], elinewidth=0.6, capsize=3, capthick=1)
+            0, N), est_par[:, 2], yerr=stderr_par[:, 2], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
         ax8.hlines(alpha, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax8.title.set_text(r'$\hat{\alpha}$')
         ax8.tick_params(labelbottom=False)
         ax9 = plt.subplot(num_par, 3, 12)
         ax9.plot(est_par[:, 3], 'green', linewidth=1)
         ax9.errorbar(np.arange(
-            0, N), est_par[:, 3], yerr=stderr_par[:, 3], elinewidth=0.6, capsize=3, capthick=1)
+            0, N), est_par[:, 3], yerr=stderr_par[:, 3], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
         ax9.hlines(beta, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax9.title.set_text(r'$\hat{\beta}$')
         ax9.tick_params(labelbottom=False)
         ax10 = plt.subplot(num_par, 3, 15)
         ax10.plot(est_par[:, 4], 'green', linewidth=1)
         ax10.errorbar(np.arange(
-            0, N), est_par[:, 4], yerr=stderr_par[:, 4], elinewidth=0.6, capsize=3, capthick=1)
+            0, N), est_par[:, 4], yerr=stderr_par[:, 4], elinewidth=0.6, capsize=3, capthick=1, errorevery=int(N/4))
         ax10.hlines(sgm, 0, N, 'darkgreen', linestyle='dashed', linewidth=1)
         ax10.title.set_text(r'$\hat{\sigma}$')
         plt.grid(True)

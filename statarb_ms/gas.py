@@ -89,7 +89,7 @@ def ML_errors(jac, hess_inv, params, X, specification):
         var = np.dot(np.dot(hess_inv, J), hess_inv)
         # ATTENTION: T is used here since you deleted it from likelihood
         std_err = np.sqrt([var[i, i] / T for i in range(num_par)])
-    if specification == 'well':
+    if specification == 'correct':
         # ATTENTION: T is used here since you deleted it from likelihood
         std_err = np.sqrt([hess_inv[i, i] / T for i in range(num_par)])
 
@@ -101,42 +101,63 @@ def b_error(jac, hess_inv, deltas, X, specification):
     num_par = 3
     J = np.outer(jac, jac)
     var_par = np.dot(np.dot(hess_inv, J), hess_inv)
-    print(deltas)
 
     s = 0
     for i in range(num_par - 1):
         for j in range(i + 1, num_par):
-            if specification == 'well': A = hess_inv
-            if specification == 'mis': A = var_par
+            if specification == 'correct':
+                A = hess_inv
+            if specification == 'mis':
+                A = var_par
             s += deltas[i] * A[i, j] * deltas[j]
-        var = 1 / T * sum([A[i, i] * deltas[i] **
-                    2 for i in range(num_par)]) + 2 / T * s
+    var = 1 / T * sum([A[i, i] * deltas[i] **
+                2 for i in range(num_par)]) + 2 / T * s
     std = np.sqrt(var)
     return std
 
 
-def estimation(fun, X, init_params, method='L-BFGS-B', targeting_estimation=False, verbose=False, visualization=False):
+def estimation(X, method='L-BFGS-B', targeting_estimation=False, verbose=False, visualization=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
     b = np.zeros(shape=T)
     xi = np.zeros(shape=T)
     if targeting_estimation:
         init_params0 = np.random.uniform(0, 1, size=2)
-        sigma = 1
+        sgm = 1
         res = minimize(loglikelihood.targeting_loglikelihood,
-                       init_params0, X, method=method)
+                       init_params0, X, method=method, options={'eps': 1e-3})
+
+        while res.success == False:
+            init_params0 = np.random.uniform(0, 1, size=2)
+            res = minimize(loglikelihood.targeting_loglikelihood,
+                           init_params0, X, method=method, options={'eps': 1e-3})
+
         omega, a = res.x
         b_bar = omega
         b[:2] = b_bar
-        res = minimize(fun, init_params, (X, b_bar),
+        init_params = np.random.uniform(0, 1, size=3)
+        res = minimize(loglikelihood.loglikelihood_after_targ, init_params, (X, b_bar),
                        method=method, options={'eps': 1e-3})
+
+        while res.success == False:
+            init_params = np.random.uniform(0, 1, size=3)
+            res = minimize(loglikelihood.loglikelihood_after_targ,
+                           init_params, X, method=method, options={'eps': 1e-3})
+
         a, alpha, beta = res.x[0], res.x[1], res.x[2]
         omega = beta * (1 - b_bar)
         res = [omega, a, alpha, beta]
 
     else:
-        res = minimize(fun, init_params, X, method=method,
+        init_params = np.random.uniform(0, 1, size=4)
+        res = minimize(loglikelihood.loglikelihood, init_params, X, method=method,
                        options={'eps': 1e-3})
+
+        while res.success == False:
+            init_params = np.random.uniform(0, 1, size=4)
+            res = minimize(loglikelihood.loglikelihood,
+                           init_params, X, method=method, options={'eps': 1e-3})
+
         omega, a, alpha, beta = res.x
         sgm = 1
 
@@ -185,60 +206,49 @@ if __name__ == '__main__':
         update = 'logistic'
 
     if args.convergence:
-        n_params = 4
+        # n_params = 4
         N = 100
         NN = 1000
-        X = np.load(go_up(1) + '/saved_data/dis_res60.npy')
+        X = np.load(go_up(1) + '/saved_data/dis_res100.npy')
         days = X.shape[0]
         n_stocks = X.shape[1]
-        s_sgm, a_sgm, omega_sgm, beta_sgm, alpha_sgm = [], [], [], [], []
+        b_sgm = np.empty(shape=NN)
         day = np.random.randint(0, days, size=NN)
         stock = np.random.randint(0, n_stocks, size=NN)
         for i in tqdm(range(NN), desc='Covergence'):
             x = X[day[i], stock[i], :]
-            a_val, omega_val, beta_val, alpha_val, s_val = np.empty(shape=N), np.empty(
-                shape=N), np.empty(shape=N), np.empty(shape=N), np.empty(shape=N)
-            par = np.random.uniform(0, 1, size=(N, 4))
-            for i in range(N):
+            b_val = np.empty(shape=N)
+            for j in range(N):
                 # init_params = initial_value(loglikelihood.loglikelihood, 100, x, n_params) #fun, n_iter, X, num_par
-                b, a, xi, res = estimation(
-                    loglikelihood.loglikelihood, x, par[i], targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
-                omega_val[i] = res.x[0]
-                a_val[i] = res.x[1]
-                alpha_val[i] = res.x[2]
-                beta_val[i] = res.x[3]
-                b = b[-1]
-                m = a / (1 - b)
-                sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b * b))
-                s_val[i] = -m / sgm_eq
+                b, a, xi, res = estimation(x, targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
+                b_val[j] = b[-1]
             scaler = MinMaxScaler()
-            a_val, omega_val, beta_val, alpha_val, s_val = scaler.fit_transform(a_val.reshape(-1, 1)), scaler.fit_transform(
-                omega_val.reshape(-1, 1)), scaler.fit_transform(beta_val.reshape(-1, 1)), scaler.fit_transform(alpha_val.reshape(-1, 1)), scaler.fit_transform(s_val.reshape(-1, 1))
-            s_sgm.append(s_val.std())
-            alpha_sgm.append(alpha_val.std())
-            omega_sgm.append(omega_val.std())
-            beta_sgm.append(beta_val.std())
-            a_sgm.append(a_val.std())
-        plt.figure(figsize=(17, 4), tight_layout=True)
-        ax0 = plt.subplot(1, 5, 1)
-        ax0.hist(s_sgm, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
-        ax0.title.set_text('Score')
-        ax1 = plt.subplot(1, 5, 2)
-        ax1.hist(a_sgm, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
-        ax1.title.set_text(r'$\sigma_a$')
-        ax2 = plt.subplot(1, 5, 3)
-        ax2.hist(omega_sgm, bins=40, color='blue',
-                 edgecolor='darkblue', alpha=0.6)
-        ax2.title.set_text(r'$\sigma_{\omega}$')
-        ax3 = plt.subplot(1, 5, 4)
-        ax3.hist(alpha_sgm, bins=40, color='blue',
-                 edgecolor='darkblue', alpha=0.6)
-        ax3.title.set_text(r'$\sigma_{\alpha}$')
-        ax4 = plt.subplot(1, 5, 5)
-        ax4.hist(beta_sgm, bins=40, color='blue',
-                 edgecolor='darkblue', alpha=0.6)
-        ax4.title.set_text(r'$\sigma_{\beta}$')
-        plt.savefig(go_up(1) + 'score_1000res_100init_60days.png')
+            b_val = scaler.fit_transform(b_val.reshape(-1, 1))
+            b_sgm[i] = b_val.std()
+        np.save('b_sgm100', b_sgm)
+        plt.figure(figsize=(8, 6), tight_layout=True)
+        plt.hist(b_sgm, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
+        plt.title(r"b_{60}'s standard deviations")
+        plt.savefig(go_up(1) + 'b_1000res_100init100days_iter.png')
+        # ax0 = plt.subplot(1, 5, 1)
+        # ax0.hist(s_sgm, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
+        # ax0.title.set_text('Score')
+        # ax1 = plt.subplot(1, 5, 2)
+        # ax1.hist(a_sgm, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
+        # ax1.title.set_text(r'$\sigma_a$')
+        # ax2 = plt.subplot(1, 5, 3)
+        # ax2.hist(omega_sgm, bins=40, color='blue',
+        #          edgecolor='darkblue', alpha=0.6)
+        # ax2.title.set_text(r'$\sigma_{\omega}$')
+        # ax3 = plt.subplot(1, 5, 4)
+        # ax3.hist(alpha_sgm, bins=40, color='blue',
+        #          edgecolor='darkblue', alpha=0.6)
+        # ax3.title.set_text(r'$\sigma_{\alpha}$')
+        # ax4 = plt.subplot(1, 5, 5)
+        # ax4.hist(beta_sgm, bins=40, color='blue',
+        #          edgecolor='darkblue', alpha=0.6)
+        # ax4.title.set_text(r'$\sigma_{\beta}$')
+        # plt.savefig(go_up(1) + 'b_1000res_100init_100days_targ.png')
 
         # plt.figure(figsize=(12, 8), tight_layout=True)
         # ax0 = plt.subplot(2, 3, 4)
@@ -282,22 +292,25 @@ if __name__ == '__main__':
         plt.show()
 
     else:
-        X = np.load(
-            '/run/media/danielemdn/0A9A624E5CE1F5FA/saved_data/A&L/dis_res.npy')
+        X = np.load(go_up(1) + '/saved_data/dis_res60.npy')
         days = X.shape[0]
         n_stocks = X.shape[1]
-        time_list = []
-        day = np.random.randint(days)
-        stock = np.random.randint(n_stocks)
-        print(day, stock)
-        x = X[day, stock, :]
-        if args.targ_est:
-            init_params = initial_value(loglikelihood.loglikelihood, 100, x, 3)
-            b, a, xi, res, std = estimation(loglikelihood.loglikelihood_after_targ,
-                                            x, init_params, targeting_estimation=args.targ_est, visualization=True)
-        else:
-            init_params = initial_value(loglikelihood.loglikelihood, 100, x, 4)
-            b, a, xi, res = estimation(loglikelihood.loglikelihood, x, init_params,
-                                            targeting_estimation=args.targ_est, verbose=args.verbose, visualization=True)
+        # day = np.random.randint(days)
+        # stock = np.random.randint(n_stocks)
+        # print(day, stock)
+        x = X[3665, 251, :]
+        bs = []
+        for i in tqdm(range(100)):
+            if args.targ_est:
+                init_params = initial_value(loglikelihood.loglikelihood, 100, x, 3)
+                b, a, xi, res, std = estimation(loglikelihood.loglikelihood_after_targ,
+                                                x, init_params, targeting_estimation=args.targ_est, visualization=True)
+            else:
+                # init_params = initial_value(loglikelihood.loglikelihood, 100, x, 4)
+                init_params = np.random.uniform(size=4)
+                b, a, xi, res = estimation(x, init_params,
+                                                targeting_estimation=args.targ_est, verbose=args.verbose, visualization=False)
+                bs.append(b[-1])
+        print(np.array(bs).std())
         if (math.isnan(b[-1])) or (b[-1] < 0):
             print(b[-1])

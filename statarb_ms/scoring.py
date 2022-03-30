@@ -16,6 +16,7 @@ import os
 import matplotlib.pyplot as plt
 from scipy.stats import normaltest
 import telegram_send
+import math
 
 
 def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_for_factors=252, lookback_for_residual=60, export=True):
@@ -166,6 +167,7 @@ def only_scoring(dis_res, df_returns, method, lookback_for_factors, lookback_for
     score = np.zeros(shape=(trading_days, n_stocks))
     c = 0
     cc = 0
+    ccc = 0
 
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
@@ -176,16 +178,14 @@ def only_scoring(dis_res, df_returns, method, lookback_for_factors, lookback_for
             X = dis_res[i, stock_idx, :]
             if method == 'constant_speed':
                 X = np.append(X, X[-1])
-                parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
+                parameters, discrete_pred, xi, discrete_conf_int = auto_regression(X)
                 a, b = parameters[0], parameters[1]
 
             if method == 'gas_modelization':
                 if targeting_estimation:
-                    init_params = np.random.uniform(0, 1, size=3)
-                    b, a, xi, est, std = estimation(loglikelihood_after_targ, X, init_params, targeting_estimation=targeting_estimation)
+                    b, a, xi, est, std = estimation(X, targeting_estimation=targeting_estimation)
                 else:
-                    init_params = np.random.uniform(0, 1, size=4)
-                    b, a, xi, est = estimation(loglikelihood, X, init_params)
+                    b, a, xi, est = estimation(X)
 
                 b = b[-1]
                 if b < 0:
@@ -193,7 +193,6 @@ def only_scoring(dis_res, df_returns, method, lookback_for_factors, lookback_for
                     parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
                     a, b = parameters[0], parameters[1]
                     c += 1
-
             if b == 0.0:
                 print(f'B NULLO PER {stock}')
                 break
@@ -204,13 +203,13 @@ def only_scoring(dis_res, df_returns, method, lookback_for_factors, lookback_for
                 cc += 1
             else:
                 m = a / (1 - b)
-                if method == 'constant_speed': sgm_eq =  np.std(discrete_resid) * np.sqrt(1 / (1 - b * b))
-                if method == 'gas_modelization': sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b * b))
+                sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b**2))
                 score[i, stock_idx] = -m / sgm_eq
 
     with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
         file.write(f'Number of negative b values for process {os.getpid()}: {c} \n')
         file.write(f'Number of stock w mean reversion refused {os.getpid()}: {cc}')
+        file.write(f'Nan scores {os.getpid()}: {ccc}')
 
     df_score = pd.DataFrame(score, columns=df_returns.columns)
     if method == 'gas_modelization': df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
@@ -268,7 +267,7 @@ if __name__ == '__main__':
 
     df_returns = pd.read_csv(go_up(1) +
                              "/saved_data/ReturnsData.csv")[:4030]
-    dis_res = np.load(go_up(1) + "/saved_data/dis_res60.npy")
+    dis_res = np.load(go_up(1) + "/saved_data/dis_res80.npy")
 
     if args.spy:
         spy = pd.read_csv(go_up(1) + "/saved_data/spy.csv")
@@ -296,10 +295,10 @@ if __name__ == '__main__':
         end = time.time()
 
     else:
-        for iter in range(7):
+        for iter in range(8):
             np.random.seed()
             # processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
-            processes = [mp.Process(target=only_scoring, args=(i, j, method, 252, 60)) for i,j in zip(dr, df)]
+            processes = [mp.Process(target=only_scoring, args=(i, j, method, 252, 80)) for i,j in zip(dr, df)]
             os.system('rm tmp/*')
             for p in processes:
                 p.start()
@@ -318,7 +317,7 @@ if __name__ == '__main__':
                 # file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
                 file_list = ['df_score']
             logging.info('Merging files...')
-            file_name = f'ScoreData_bfgs60_{8+iter}'
+            file_name = f'ScoreData_bfgs80_{15+iter}'
             file_merge(pidnums, file_list, file_name)
             logging.info('Removing splitted files...')
             remove_file(pidnums, file_list)
