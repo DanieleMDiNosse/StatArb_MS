@@ -292,6 +292,51 @@ def stationarity_check(name_residuals_file):
     plt.title(f'Accepted: {ones}, Rejected: {zeros}')
     plt.show()
 
+def LM_test_statistic(X, params):
+    '''Lagrange Multiplier test. It tests the presence of instantaneous autocorellation in the score under the null
+    hypothesis of constant parameter. See "Iliyan Georgiev, David I. Harvey, Stephen J. Leybourne, A.M. Robert Taylor, Testing for parameter
+    instability in predictive regression models, Journal of Econometrics, Volume 204, Issue 1, 2018."
+
+    Parameters
+    ----------
+    X : numpy ndarray
+    Time series over which the estimation of the GAS model has been done.
+    params: list or numpy ndarray
+    Maximum Likelihood estimates
+
+    Returns
+    -------
+    pvalue: float
+    One side p-value.
+    '''
+    omega, a, sigma = params[0], params[1], params[2]
+
+    delta_w = X[1:-1] / sigma**2 * (X[2:] - a - omega * X[1:-1])
+    scaled_score = delta_w * sigma / X[1:-1]
+    delta_a = (X[2:] - a - X[1:-1] * omega) / sigma**2
+    delta_al = delta_w / sigma**2 * (X[1:-1]**2 * X[:-2] - a * X[:-2] * X[1:-1] - omega * X[:-2]**2 * X[1:-1])
+    delta_b = delta_w * omega * X[1:-1]
+    if sigma == 1:
+        regressors = np.array([delta_a[1:], delta_al[1:], delta_b[1:], delta_w[1:], scaled_score[:-1] * delta_w[1:]]).T
+    else:
+        delta_sgm = - 1/sigma + delta_w**2 * sigma
+        regressors = np.array([delta_a[1:], delta_al[1:], delta_b[1:], delta_sgm[1:], delta_w[1:], scaled_score[:-1] * delta_w[1:]]).T
+
+    response = np.ones_like(X[:-3]).T
+    ones_est = np.zeros_like(response)
+    model = sm.OLS(response, regressors)
+    res = model.fit()
+    if sigma == 1:
+        c_a, c_al, c_b, c_w, c_A = res.params
+        ones_est = c_a * regressors[:,0] + c_al * regressors[:,1] + c_b * regressors[:,2]  + c_w * regressors[:, 3] + c_A * regressors[:, 4]
+    else:
+        c_a, c_al, c_b, c_sgm, c_w, c_A = res.params
+        ones_est = c_a * regressors[:,0] + c_al * regressors[:,1] + c_b * regressors[:,2] + c_sgm * regressors[:,3] + c_w * regressors[:, 4] + c_A * regressors[:, 5]
+    ESS = ((ones_est - response.mean())**2).sum()
+    pvalue = 1 - chi2.cdf(ESS, df=1)
+
+    return pvalue
+
 def file_merge(pidnums, file_list, file_name):
 
     for file in file_list:
@@ -312,15 +357,16 @@ def remove_file(pidnums, file_list):
             [os.remove(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
 
 def sharpe_ratio(pnl, benchmark_pnl, period):
-    sharpe_ratio = np.zeros(shape=(pnl.shape[0] - period))
+    sharpe_ratio = []
     pnl_ret = get_returns(pd.DataFrame(pnl), export_returns_csv=False, m=1)
     benchmark_pnl_ret = get_returns(pd.DataFrame(benchmark_pnl), export_returns_csv=False, m=1)
-    for i in range(pnl.shape[0] - period):
+    # max() is used to let the function handle a period of length equal to the maximum available, pnl.shape[0]
+    for i in range(max(1, pnl.shape[0] - period)):
         pnl_ret_period = pnl_ret[i:i+period]
         benchmark_pnl_ret_period = benchmark_pnl_ret[i:i+period]
         diff = pnl_ret_period - benchmark_pnl_ret_period
-        sharpe_ratio[i] = diff.mean()/diff.std()
-    return np.sqrt(period) * sharpe_ratio
+        sharpe_ratio.append(diff.mean()/diff.std())
+    return np.array(sharpe_ratio)
 
 def yearly_returns():
     plt.style.use('seaborn')
@@ -475,8 +521,6 @@ if __name__ == '__main__':
             x_quantity = int(input('Step of the labels on x-axis: '))
             x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
             x_label_day = [trading_days[252 + i] for i in x_label_position]
-            # name5 = input('Name of the positions percentage file: ')
-            # percs = np.load(go_up(1) + f'/saved_data/{name5}.npy')
             plot_pnl(pnl, pnl_1, pnl_gas, pnl_gas1, pnl_gas2, pnl_gas3, pnl_gas4, pnl_gas5, pnl_gas6, pnl_gas7, pnl_gas8, spy_pnl)
         if args.ret:
             plot_returns(pnl, pnl_gas, spy_pnl)
@@ -524,8 +568,8 @@ if __name__ == '__main__':
             spy = np.load('../saved_data/PnL/pnl_FirstPrincipalComp().npy')[:pnls80[0].shape[0]]
 
             SR80 = np.array([sharpe_ratio(pnl, spy, period) for pnl in pnls80])
-            SR80_mean = SR80.mean(axis=0)
-            SR80_std = SR80.std(axis=0)
+            SR80_mean = SR80.mean(axis=0).flatten()
+            SR80_std = SR80.std(axis=0).flatten()
             plt.figure(figsize=(12,5), tight_layout=True)
             plt.plot(SR80_mean, 'k', linewidth=1)
             plt.fill_between(np.arange(SR80_mean.shape[0]), SR80_mean + 2 * SR80_std, SR80_mean - 2 * SR80_std, color='crimson', alpha=0.5)
@@ -535,8 +579,8 @@ if __name__ == '__main__':
             plt.title('Rolling Sharpe Ratio (80 days)')
 
             SR60 = np.array([sharpe_ratio(pnl, spy, period) for pnl in pnls60])
-            SR60_mean = SR60.mean(axis=0)
-            SR60_std = SR60.std(axis=0)
+            SR60_mean = SR60.mean(axis=0).flatten()
+            SR60_std = SR60.std(axis=0).flatten()
             plt.figure(figsize=(12,5), tight_layout=True)
             plt.plot(SR60_mean, 'k', linewidth=1)
             plt.fill_between(np.arange(SR60_mean.shape[0]), SR60_mean + 2 * SR60_std, SR60_mean - 2 * SR80_std, color='crimson', alpha=0.5)

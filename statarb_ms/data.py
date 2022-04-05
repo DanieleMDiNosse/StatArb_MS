@@ -1,14 +1,16 @@
+import argparse
+import json
+import logging
+import time
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import pandas_datareader as web
 import requests
 from bs4 import BeautifulSoup
-import logging
-import argparse
-import json
-import time
 from makedir import go_up
+from tqdm import tqdm
 
 
 def get_ticker():
@@ -65,22 +67,30 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
         Pandas dataframe of historical close daily price
     '''
 
-    data = pd.DataFrame()
+    tickers.append('BRK')
+    prices = pd.DataFrame(columns=tickers)
+    volumes = pd.DataFrame(columns=tickers)
     for tick in tickers:
         try:
-            data[tick] = web.DataReader(
+            prices[tick] = web.DataReader(
                 tick, data_source=data_source, start=start, end=end).Close
-            logging.info(f'{tickers.index(tick) + 1}/{len(tickers)} Downloading price data of {tick}')
+            # prices[tick] = data['Close']
+            # volumes[tick] = data['Volume']
+            print(
+                f'{list(tickers).index(tick) + 1}/{len(tickers)} Downloading price and volume data of {tick}')
         except Exception:
-            logging.info(f"{tickers.index(tick) + 1}/{len(tickers)} There is no price data for {tick}")
+            print(
+                f"{list(tickers).index(tick) + 1}/{len(tickers)} There is no price or volume data for {tick}")
 
-    data = data.dropna(axis=1)
+    # prices = prices.dropna(axis=1)
 
     if export_csv:
-        name = input('Name of the file that will be saved: ')
-        data.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
+        name = input('Name for the PRICE data file that will be saved: ')
+        prices.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
+        # name = input('Name for the VOLUME data file that will be saved: ')
+        # volumes.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
 
-    return data
+    return prices
 
 
 def dividends_data(df_price, start, end, export_csv=True):
@@ -91,9 +101,11 @@ def dividends_data(df_price, start, end, export_csv=True):
         try:
             dividends[tick] = web.DataReader(
                 tick, data_source='tiingo', api_key='77db1f9b52ca2a404420fe0e850ddb042651f945', start=start, end=end).divCash
-            logging.info(f'{df_price.columns[1:].to_list().index(tick) + 1}/{df_price.columns[1:].shape} Downloading dividend data of {tick}')
+            logging.info(
+                f'{df_price.columns[1:].to_list().index(tick) + 1}/{df_price.columns[1:].shape} Downloading dividend data of {tick}')
         except Exception:
-            logging.info(f'{df_price.columns[1:].to_list().index(tick) + 1}/{df_price.columns[1:].shape} There is no dividend data for {tick}')
+            logging.info(
+                f'{df_price.columns[1:].to_list().index(tick) + 1}/{df_price.columns[1:].shape} There is no dividend data for {tick}')
 
     # dividends = pd.DataFrame(dividends)
     dividends = dividends.fillna(value=0.0)
@@ -106,7 +118,7 @@ def dividends_data(df_price, start, end, export_csv=True):
     return dividends
 
 
-def get_returns(dataframe, export_returns_csv=True, m=1):
+def get_returns(dataframe, volume_integration=False, export_returns_csv=True, m=1):
     """
     Get day-by-day returns values for a company. The dataframe has companies as attributes
     and days as rows, the values are the close prices of each days.
@@ -136,27 +148,52 @@ def get_returns(dataframe, export_returns_csv=True, m=1):
     if isinstance(dataframe.iloc[0][0], str):
         dataframe = dataframe.drop(columns=dataframe.columns[0])
 
-    df = pd.DataFrame()
+    df_ret = pd.DataFrame()
     for col in dataframe.columns:
-        yesterday = dataframe[col]
-        today = yesterday[m:]
-        df[col] = (np.array(today) / np.array(yesterday)[:-m]) - 1
+        df_ret[col] = np.diff(dataframe[col]) / dataframe[col][:-m]
+
+    if volume_integration:
+        name = input('Name of volume dataframe')
+        df_volume = pd.read_csv(go_up(1) + f'/saved_data/{name}.csv')
+        df_vol = pd.DataFrame(index=range(
+            df_volume.shape[0] - 10), columns=df_volume.columns)
+        for col in tqdm(df_volume.columns, desc='Volume integration'):
+            # diff_vol = np.diff(df_volume[col])
+            for i in range(df_volume.shape[0] - 10):
+                df_vol[col][i] = df_volume[col][i: i + 10].mean() / \
+                    df_volume[col][i + 9]
+        # Replace nan and inf values with 1. In this way these new returns will be equal to the simple returns
+        df_vol.replace([np.inf, -np.inf], 1, inplace=True)
+        df_vol = df_vol.fillna(value=1)
+
+        # there are some ticks whose volume data were not available. Have to drop them from returns dataframe
+        ticks = ['HFC', 'MXIM', 'XLNX', 'KSU', 'RRD']
+        df_ret = pd.DataFrame(df_vol * np.array(df_ret.drop(columns=ticks).iloc[9:]), columns=df_ret.columns)
 
     if export_returns_csv:
-        name = input('Name of the file that will be saved: ')
-        df.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
+        if volume_integration:
+            name = input(
+                'Name of the VOLUME INTEGRATED RETURNS file that will be saved: ')
+            df_ret.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
+        else:
+            name = input(
+                'Name of the SIMPLE RETURNS file that will be saved: ')
+            df_ret.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
 
-    return df
+    return df_ret
+
 
 def etf_assignment(df_returns, etf):
     df = df_returns
     tickers = df_returns.columns.to_list()
-    df_etf = [[pd.read_csv(go_up(1) + f'/saved_data/etf/{i}.csv').Ticker.to_list()] for i in etf]
+    df_etf = [[pd.read_csv(
+        go_up(1) + f'/saved_data/etf/{i}.csv').Ticker.to_list()] for i in etf]
     for tick in tickers:
         for df_etf_columns in df_etf:
             if tick in df_etf_columns[0]:
                 # print(tick, etf[df_etf.index(df_etf_columns)])
-                df = df.rename(columns={tick: tick + '_' + etf[df_etf.index(df_etf_columns)]})
+                df = df.rename(
+                    columns={tick: tick + '_' + etf[df_etf.index(df_etf_columns)]})
 
     file = open(go_up(1) + '/saved_data/no_etf_assignment.txt', 'w')
     c = 0
@@ -186,18 +223,26 @@ if __name__ == '__main__':
               'info': logging.INFO,
               'debug': logging.DEBUG}
 
-    etf = ['fdn', 'iyr', 'iyt', 'kre', 'rth', 'smh', 'xle', 'xlf', 'xlk', 'xlp', 'xlu', 'xlv', 'xly', 'xop', 'xu']
-    etf = ['xu']
-
     logging.basicConfig(level=levels[args.log])
-    # tickers = get_ticker() # this will download SPY tickers
-    # tickers = pd.read_csv(go_up(1) + '/saved_data/iSharesRussel3000.csv').Ticker.to_list()
-    data = price_data(etf,args.start, args.end)
-    # russel_data = pd.read_csv(go_up(1) + '/saved_data/RusselPriceData.csv')
-    # df_price = pd.read_csv(
-    #     "/home/danielemdn/Documents/thesis/StatArb_MS/saved_data/PriceData.csv")
-    # returns = get_returns(russel_data)
-    # div = dividends_data(russel_data, start=args.start, end=args.end)
-    # df_returns = pd.read_csv(go_up(1) + '/saved_data/ReturnsData.csv')
-    # new_df_returns = etf_assignment(df_returns)
-    # new_df_returns.to_csv(go_up(1) + '/saved_data/ReturnsDatawETF.csv', index=False)
+    price = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv')
+    # df_ret = get_returns(price, volume_integration=True)
+
+
+    SP500histcost = pd.read_csv(go_up(1) + '/saved_data/SP500histcost.csv')
+    date_price = price[252:].Date.values
+    date_cost = SP500histcost.date.values
+    c=0
+    df = pd.DataFrame(index=range(date_price.shape[0]), columns=['Date', 'Tickers'])
+    for i in range(date_price.shape[0]):
+        print(date_price[i], date_cost[i])
+        time.sleep(2)
+        if date_cost[i] == date_price[i]:
+            print('equal')
+            df['Date'][i] = date_price[i]
+            df['Tickers'][i] = SP500histcost['tickers'][i]
+        if date_cost[i] != date_price[i]:
+            print('different')
+            df['Date'][i] = date_price[i]
+            df['Tickers'][i] = SP500histcost['tickers'][i - 1]
+
+    print(df.head(50))

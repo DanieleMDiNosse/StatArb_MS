@@ -2,15 +2,17 @@ import numpy as np
 import logging
 import argparse
 import pandas as pd
-from factors import *
-from regression_parameters import *
 import time
 from tqdm import tqdm
-from scoring import *
-from makedir import *
+from makedir import go_up
+import itertools
+import multiprocessing as mp
+from post_processing import sharpe_ratio, file_merge, remove_file
+import os
+import telegram_send
 
 
-def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_so=1.25, s_bc=0.75, s_sc=0.50):
+def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.1, s_so=1.15, s_bc=0.8, s_sc=0.7):
     '''This function run a back test of a statistical arbitrage strategy (Avellaneda and Lee, 2010. DOI: 10.1080/14697680903124632).
 
     Parameters
@@ -47,7 +49,7 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
     perc_positions = np.zeros(shape=(df_score.shape[0], 3))
     invest_amount = np.zeros(shape=(df_score.shape[0]+1))
 
-    for day in tqdm(range(df_score.shape[0] - 1)):
+    for day in range(df_score.shape[0] - 1):
         returns = np.array([])
         counter_no_trades = 0
         for stock in df_score.columns:
@@ -119,16 +121,28 @@ def spy_trading(df_returns, Q):
 
     return daily_PnL
 
+def grid_search(hyperparameters, score_data, name):
+    results = pd.DataFrame(index=range(len(hyperparameters)), columns=['Hyperparameters', 'SharpeRatio'])
+    with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
+        pass
+    for hyper in tqdm(hyperparameters, desc=f'{os.getpid()}'):
+        idx = hyperparameters.index(hyper)
+        s_bo, s_so, s_bc, s_sc = hyper
+        pnl, perc_positions = trading(df_returns, df_score, Q, beta_tensor, s_bo=hyper[0], s_so=hyper[1], s_bc=hyper[2], s_sc=hyper[3])
+        spy = np.load(go_up(1) + '/saved_data/PnL/pnl_FirstPrincipalComp().npy')[:pnl.shape[0]]
+        s_ratio = sharpe_ratio(pnl, spy, period=pnl.shape[0])[0]
+        print(s_ratio[0], type(s_ratio))
+        results['Hyperparameters'][idx] = hyper
+        results['SharpeRatio'][idx] = [s_bo, s_so, s_bc, s_sc]
+    results.to_csv(go_up(1) + f'/saved_data/{name}_{os.getpid()}.csv', index=False)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Generator of historical price data')
     parser.add_argument("-l", "--log", default="info",
                         help=("Provide logging level. Example --log debug', default='info"))
-    parser.add_argument("-vn", "--variable_number", action='store_true',
-                        help=("Use a variable number of PCA components. Each time the explained variance is 0.55. The default is False"))
-    parser.add_argument('-n', '--n_components', type=int, default=15,
-                        help='Number of PCA components to keep. Valid if variable_number is False. The default is 15')
-    parser.add_argument('-s', '--spy', action='store_true')
+    parser.add_argument('-s', '--spy', action='store_true', help='Generate PnL for the Buy and Hold strategy of the first principal component')
+    parser.add_argument('-g', '--grid_search', action='store_true', help='Gird search for model hyperparameters selection')
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -140,10 +154,45 @@ if __name__ == '__main__':
 
     start = time.time()
     df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
-    # name = input('Name of the Q file: ')
+    # df_returns = df_returns.drop(columns=['HFC', 'MXIM', 'XLNX', 'KSU', 'RRD'])
+    # df_returns = pd.DataFrame(df_returns.values[9:], columns=df_returns.columns, index=range(df_returns.shape[0]-9))
     Q = np.load(go_up(1) + f'/saved_data/Q.npy')
-    # name = input('Name of the beta_tensor file: ')
-    beta_tensor = np.load(go_up(1) + f'/saved_data/beta_tensor80.npy')
+    name = int(input('Lenght of estimation window for AR(1) parameters: '))
+    beta_tensor = np.load(go_up(1) + f'/saved_data/beta_tensor{name}.npy')
+    name = input('Name of the s-score data file: ')
+    df_score = pd.read_csv(go_up(1) + f'/saved_data/{name}.csv')[:4030]
+
+    if args.grid_search:
+        close_range = np.arange(0.5, 0.85, 0.05)
+        open_range = np.arange(1.1, 1.35, 0.05)
+        closes = list(itertools.permutations(close_range, 2))
+        opens = list(itertools.permutations(open_range, 2))
+
+        hyperparameters = []
+        for o in opens:
+            for c in closes:
+                hyperparameters.append([o[0], o[1], c[0], c[1]])
+        hyperparameters = [hyperparameters[i: i + 63] for i in range(0, len(hyperparameters), 63)]
+        print(hyperparameters[0], len(hyperparameters))
+
+        processes = [mp.Process(target=grid_search, args=(hyperparam, df_score, name)) for hyperparam in hyperparameters]
+        os.system('rm tmp/*')
+        for p in processes:
+            p.start()
+        for p in processes:
+            p.join()
+        end = time.time()
+
+        telegram_send.send(messages=[f'GridSearch on {name} terminated'])
+        pidnums = [int(x) for x in os.listdir('tmp')]
+        pidnums.sort()
+        logging.info('Merging files...')
+        file_merge(pidnums, [name], f'GridSearch_{name}')
+        logging.info('Removing splitted files...')
+        remove_file(pidnums, [name])
+        os.system('rm tmp/*')
+        exit()
+
     if args.spy:
         logging.info('Starting spy trading... ')
         time.sleep(1)
@@ -152,12 +201,10 @@ if __name__ == '__main__':
         np.save(go_up(1) + f'/saved_data/{name}', returns)
 
     else:
-        for i in range(15,22):
-        # name = input('Name of the s-score data file: ')
-            df_score = pd.read_csv(go_up(1) + f'/saved_data/ScoreData_bfgs80_{i}.csv')
+        for i in range(1):
             pnl, perc_positions = trading(df_returns, df_score, Q, beta_tensor)
-        # name = input('Name of the file that will be saved (strategy): ')
-            np.save(go_up(1) + f'/saved_data/PnL/pnl_LBFGSB(80days({i}))', pnl)
+            name = input('Name of the file that will be saved (strategy): ')
+            np.save(go_up(1) + f'/saved_data/PnL/{name}', pnl)
         # name = input('Name of the file that will be saved (positions percentage): ')
         # np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
 
