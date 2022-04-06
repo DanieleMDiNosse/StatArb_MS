@@ -67,7 +67,6 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
         Pandas dataframe of historical close daily price
     '''
 
-    tickers.append('BRK')
     prices = pd.DataFrame(columns=tickers)
     volumes = pd.DataFrame(columns=tickers)
     for tick in tickers:
@@ -118,7 +117,7 @@ def dividends_data(df_price, start, end, export_csv=True):
     return dividends
 
 
-def get_returns(dataframe, volume_integration=False, export_returns_csv=True, m=1):
+def get_returns(dataframe, volume_integration=False, export_csv=True, m=1):
     """
     Get day-by-day returns values for a company. The dataframe has companies as attributes
     and days as rows, the values are the close prices of each days.

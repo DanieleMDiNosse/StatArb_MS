@@ -11,7 +11,8 @@ import numpy as np
 import pandas as pd
 import telegram_send
 from factors import money_on_stock, pca, risk_factors
-from gas import estimation, initial_value
+from gas import estimation
+from data import price_data
 from loglikelihood import (loglikelihood, loglikelihood_after_targ,
                            targeting_loglikelihood)
 from makedir import go_up
@@ -53,10 +54,12 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
     Q : numpy ndarray
         Money to invest on each factors for each days. Dimensions are dim (trading days x n_factors x n_components x n_stocks)
     '''
+    constituents = pd.read_pickle(go_up(1) + '/saved_data/SP500histcost.pkl')
 
     trading_days = df_returns.shape[0] - lookback_for_factors  # 6294
     n_stocks = df_returns.shape[1]
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
+    beta_tensor = [[range(trading_days)], [], []]
     alpha_values = np.zeros(shape=(trading_days, n_stocks))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
     dis_res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
@@ -85,6 +88,21 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
         pass
 
     for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
+        s = time.time()
+        start = constituents['Date'][i]
+        end = constituents['Date'][lookback_for_factors + i]
+        cost = constituents['Tickers'][i: lookback_for_factors + i]
+        ticks = []
+        for l in cost:
+            for ticker in l:
+                ticks.append(ticker)
+        ticks = np.unique(np.array(ticks))
+        prices = price_data(ticks, start, end, export_csv=False)
+        df_returns = get_returns(prices, export_csv=False)
+        f = time.time()
+        print(f-s)
+        time.sleep(2)
+
         # Una finestra temporale di 252 giorni è traslata di 1 giorno. Ogni volta viene eseguita una PCA su tale periodo
         # ed i fattori di rischio sono quindi valutati.
         # [0,252[, [1,253[ ecc -> ogni period comprende un anno di trading (252 giorni)
@@ -353,9 +371,9 @@ if __name__ == '__main__':
     else:
         for iter in range(1):
             np.random.seed()
-            # processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
-            processes = [mp.Process(target=only_scoring, args=(
-                i, j, method, 252, 60)) for i, j in zip(dr, df)]
+            processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
+            # processes = [mp.Process(target=only_scoring, args=(
+            #     i, j, method, 252, 60)) for i, j in zip(dr, df)]
             os.system('rm tmp/*')
             for p in processes:
                 p.start()
