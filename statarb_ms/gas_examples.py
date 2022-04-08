@@ -84,26 +84,33 @@ def model_loglikelihood(params, X, model):
     return - sum / T
 
 
-def model_estimation(X, model, specification, method='BFGS'):
+def model_estimation(X, model, specification):
     if model == 'autoregressive':
         num_par = 5
     if model == 'poisson':
         num_par = 3
+    res_iter = np.zeros(shape=(4, num_par + 1))
 
-    init_params = np.random.uniform(0, 1, size=num_par)
-    res = minimize(model_loglikelihood, init_params, (X, model), method=method)
-
-    while res.success == False:
+    for i in range(res_iter.shape[0]):
         init_params = np.random.uniform(0, 1, size=num_par)
-        res = minimize(model_loglikelihood, init_params,
-                       (X, model), method=method)
+        res = minimize(model_loglikelihood, init_params, (X,model), method='Nelder-Mead')
+        if np.isnan(res.fun) == False:
+            res_iter[i, :-1] = res.x
+            res_iter[i, -1] = res.fun
+        # if np.isnan(res_iter[:, -1]).any(axis=0):
+        #     res_iter = np.delete(res_iter, np.where(np.isnan(res_iter[:, -1]) == True), 0)
+
+    init_params = res_iter[np.where(res_iter[:,-1] == res_iter[:, -1].min())][0][:-1]
+    res = minimize(model_loglikelihood, init_params, (X, model), method='Nelder-Mead')
+    res = minimize(model_loglikelihood, res.x, (X, model), method='BFGS', options={'maxiter': 1})
+
+    # while res.success == False:
+    #     init_params = np.random.uniform(0, 1, size=num_par)
+    #     res = minimize(model_loglikelihood, init_params,
+    #                    (X, model), method=method)
 
     estimates = res.x
-    if method != 'Nelder-Mead':
-        std_err = ML_errors(res.jac, res.hess_inv, estimates, X, specification)
-    else:
-        print('Standard errors on parameters can not be computed directly from minimize output due to the non-gradient nature of the optimizer')
-        std_err = [0, 0, 0, 0]
+    std_err = ML_errors(res.jac, res.hess_inv, estimates, X, specification)
 
     T = X.shape[0]
     b = np.zeros_like(X)
@@ -162,12 +169,7 @@ def model_estimation(X, model, specification, method='BFGS'):
         delta_b = dfidb * dbdb + b
         deltas = np.array([delta_w[-1], delta_al[-1], delta_b[-1]])
 
-    if method != 'Nelder-Mead':
-        std_b = b_error(res.jac, res.hess_inv, deltas, X, specification)
-        # std_b = 0
-    else:
-        print('Standard errors on b can not be computed directly from minimize output due to the non-gradient nature of the optimizer')
-        std_b = 0
+    std_b = b_error(res.jac, res.hess_inv, deltas, X, specification)
 
     return b, res, std_err, std_b, init_params
 
@@ -237,7 +239,7 @@ if __name__ == '__main__':
         axs[1].set_ylabel('b')
 
         B, res, std_err, std_b, init_params = model_estimation(
-            X, model, specification, method='BFGS')
+            X, model, specification)
         print(res)
 
         # MSE = mean_squared_error(b, B)
@@ -297,7 +299,7 @@ if __name__ == '__main__':
             num_par = 5
         if model == 'poisson':
             num_par = 3
-        N = 100
+        N = 30
         est_par = np.empty(shape=(N, num_par))
         stderr_par = np.empty(shape=(N, num_par))
         par = np.random.uniform(0, 1, size=(N, num_par))
