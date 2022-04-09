@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import telegram_send
+from data import price_data
 from factors import money_on_stock, pca, risk_factors
 from gas import estimation
 from loglikelihood import (loglikelihood, loglikelihood_after_targ,
@@ -54,6 +55,8 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
         Money to invest on each factors for each days. Dimensions are dim (trading days x n_factors x n_components x n_stocks)
     '''
 
+    sp500cost = pd.read_pickle(
+        go_up(1) + '/saved_data/SP500histcost_matched.pkl')
     trading_days = df_returns.shape[0] - lookback_for_factors  # 6294
     n_stocks = df_returns.shape[1]
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
@@ -80,28 +83,51 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
     c = 0  # counter to track the number of negative bs comes from GAS model
     # counter to track the number of k < lookback_for_factors / (0.5 * lookback_for_residual):
     cc = 0
-
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
     for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
+        # Considero solo lo slice di 252 giorni
+        oneyear = sp500cost.iloc[i:lookback_for_factors + i]
+        period = df_returns[i:lookback_for_factors + i]
+        oneyearticks = []
+        # Considero tutte le liste di ticker distinte nello slice in esame
+        alloneyearticks = np.unique(oneyear['Tickers'])
+        # Aggiungo alla lista oneyearticks tutti i ticker presenti nelle liste in alloneyearticks
+        for l_ticks in alloneyearticks:
+            for tick in l_ticks:
+                oneyearticks.append(tick)
+        # Siccome si ripetono molte volte stessi ticker, non considero le ripetizioni
+        oneyearticks = list(set(oneyearticks))
+        # Ora che ho la lista di tutti i ticker che compaiono nei 252 giorni in esame, interseco
+        # la lista dei ticker del dataframe dei ritorni con la lista dei suddetti ticker, in modo
+        # da avere solamente i ritorni delle compagnie che sono listate (o state listate) nello
+        # SP500 nei 252 giorni in esame
+        period = period[period.columns.intersection(oneyearticks)]
+        # Droppo le colonne con missing values
+        period = period.dropna(axis=1)
+
         # Una finestra temporale di 252 giorni è traslata di 1 giorno. Ogni volta viene eseguita una PCA su tale periodo
         # ed i fattori di rischio sono quindi valutati.
         # [0,252[, [1,253[ ecc -> ogni period comprende un anno di trading (252 giorni)
-        period = df_returns[i:lookback_for_factors + i]
         eigenvalues, eigenvectors = pca(period, n_components=n_factor)
-        # trading_days x n_factors x n_stocks. Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori
-        Q[i, :, :] = money_on_stock(period, eigenvectors)
-        print(Q[i].shape)
-        time.sleep(4)
-        # ritorni dei fattori di rischio per ogni periodo
-        factors = risk_factors(period, Q[i], eigenvectors)
+        # Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori.
+        # shape Q -> trading_days x n_factors x n_stocks.
+        # Ho bisogno di sapere gli indici delle compagnie che sto effettivamente considerando, in modo
+        # da assegnare le giuste posizioni all'ammontare da investire
+        idxs = [df_returns.columns.get_loc(
+            period.columns[i]) for i in range(period.shape[1])]
+        # Adesso devo usare questi indici per assegnare i Qij.  Devo assegnare i Qij nella posizione giusta.
+        Q[i, :, idxs] = money_on_stock(period, eigenvectors).T
+        # Ritorni dei fattori di rischio
+        factors = risk_factors(period, Q[i, :, idxs].T, eigenvectors)
+        # time.sleep(5)
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
-        for stock in df_returns.columns:
-            stock_idx = df_returns.columns.get_loc(stock)
+        for stock in period.columns:
+            stock_idx = period.columns.get_loc(stock)
             beta0, betas, conf_inter, residuals, pred, _ = regression(
                 factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])
-            # Avoid estimation of non stationary residuals
+            # Avoid estimation on non stationary residuals
             p_value = adfuller(residuals)[1]
             if p_value > 0.05:
                 pass
@@ -134,10 +160,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
                             loglikelihood_after_targ, X, init_params, targeting_estimation=targeting_estimation)
                     else:
                         # est -> omega, a, alpha, beta
-                        init_params = np.random.uniform(0, 1, size=4)
-                        # init_params = initial_value(loglikelihood, 100, X, 4)
-                        b, a, xi, est = estimation(
-                            loglikelihood, X, init_params)
+                        b, a, xi, est = estimation(X)
                     estimates[i, stock_idx, :] = est.x
                     b_values_gas[i, stock_idx, :] = b
                     a_values_gas[i, stock_idx, :] = a
@@ -320,8 +343,8 @@ if __name__ == '__main__':
 
     # df_returns = pd.read_csv(go_up(1) +
     #                          "/saved_data/ReturnsData.csv").drop(columns=['HFC', 'MXIM', 'XLNX', 'KSU', 'RRD'])[:4030]
-    df_returns = pd.read_csv(go_up(1) +
-                             "/saved_data/ReturnsData.csv")[:4030]
+    df_returns = pd.read_pickle(go_up(1) +
+                                "/saved_data/ReturnsDataHuge.pkl")[:4030]
     dis_res = np.load(go_up(1) + "/saved_data/dis_res60.npy")
 
     if args.spy:
@@ -355,7 +378,9 @@ if __name__ == '__main__':
     else:
         for iter in range(1):
             np.random.seed()
-            processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
+
+            processes = [mp.Process(target=generate_data, args=(
+                i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
             # processes = [mp.Process(target=only_scoring, args=(
             #     i, j, method, 252, 60)) for i, j in zip(dr, df)]
             os.system('rm tmp/*')

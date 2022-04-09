@@ -67,9 +67,8 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
         Pandas dataframe of historical close daily price
     '''
 
-    tickers.append('BRK')
-    prices = pd.DataFrame(columns=tickers)
-    volumes = pd.DataFrame(columns=tickers)
+    prices = pd.DataFrame()
+    # volumes = pd.DataFrame(columns=tickers)
     for tick in tickers:
         try:
             prices[tick] = web.DataReader(
@@ -77,16 +76,16 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
             # prices[tick] = data['Close']
             # volumes[tick] = data['Volume']
             print(
-                f'{list(tickers).index(tick) + 1}/{len(tickers)} Downloading price and volume data of {tick}')
+                f'{list(tickers).index(tick) + 1}/{len(tickers)} Downloading price data of {tick}')
         except Exception:
             print(
-                f"{list(tickers).index(tick) + 1}/{len(tickers)} There is no price or volume data for {tick}")
+                f"{list(tickers).index(tick) + 1}/{len(tickers)} There is no price data for {tick}")
 
     # prices = prices.dropna(axis=1)
 
     if export_csv:
         name = input('Name for the PRICE data file that will be saved: ')
-        prices.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
+        prices.to_pickle(go_up(1) + f'/saved_data/{name}.pkl')
         # name = input('Name for the VOLUME data file that will be saved: ')
         # volumes.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
 
@@ -113,12 +112,12 @@ def dividends_data(df_price, start, end, export_csv=True):
 
     if export_csv:
         name = input('Name of the file that will be saved: ')
-        dividends.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
+        dividends.to_pickle(go_up(1) + f'/saved_data/{name}.pkl')
 
     return dividends
 
 
-def get_returns(dataframe, volume_integration=False, export_returns_csv=True, m=1):
+def get_returns(dataframe, volume_integration=False, export_csv=True, m=1):
     """
     Get day-by-day returns values for a company. The dataframe has companies as attributes
     and days as rows, the values are the close prices of each days.
@@ -170,15 +169,15 @@ def get_returns(dataframe, volume_integration=False, export_returns_csv=True, m=
         ticks = ['HFC', 'MXIM', 'XLNX', 'KSU', 'RRD']
         df_ret = pd.DataFrame(df_vol * np.array(df_ret.drop(columns=ticks).iloc[9:]), columns=df_ret.columns)
 
-    if export_returns_csv:
+    if export_csv:
         if volume_integration:
             name = input(
                 'Name of the VOLUME INTEGRATED RETURNS file that will be saved: ')
-            df_ret.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
+            df_ret.to_pickle(go_up(1) + f'/saved_data/{name}.pkl')
         else:
             name = input(
                 'Name of the SIMPLE RETURNS file that will be saved: ')
-            df_ret.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
+            df_ret.to_pickle(go_up(1) + f'/saved_data/{name}.pkl')
 
     return df_ret
 
@@ -224,25 +223,16 @@ if __name__ == '__main__':
               'debug': logging.DEBUG}
 
     logging.basicConfig(level=levels[args.log])
-    price = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv')
+    price = pd.read_pickle(go_up(1) + '/saved_data/PriceDataHuge.pkl')
     # df_ret = get_returns(price, volume_integration=True)
 
 
-    SP500histcost = pd.read_csv(go_up(1) + '/saved_data/SP500histcost.csv')
-    date_price = price[252:].Date.values
-    date_cost = SP500histcost.date.values
-    c=0
-    df = pd.DataFrame(index=range(date_price.shape[0]), columns=['Date', 'Tickers'])
-    for i in range(date_price.shape[0]):
-        print(date_price[i], date_cost[i])
-        time.sleep(2)
-        if date_cost[i] == date_price[i]:
-            print('equal')
-            df['Date'][i] = date_price[i]
-            df['Tickers'][i] = SP500histcost['tickers'][i]
-        if date_cost[i] != date_price[i]:
-            print('different')
-            df['Date'][i] = date_price[i]
-            df['Tickers'][i] = SP500histcost['tickers'][i - 1]
-
-    print(df.head(50))
+    SP500histcost = pd.read_pickle(go_up(1) + '/saved_data/SP500histcost.pkl')
+    unique_cost = np.unique(SP500histcost['Tickers'])
+    allticks = []
+    for costs in unique_cost:
+        for tick in costs:
+            allticks.append(tick)
+    allticks = list(set(allticks))
+    # price = price_data(allticks, start='1995-01-01', end='2020-12-31', data_source='yahoo', export_csv=True)
+    returns = get_returns(price, volume_integration=False, export_csv=True, m=1)
