@@ -12,7 +12,7 @@ import os
 import telegram_send
 
 
-def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.1, s_so=1.15, s_bc=0.8, s_sc=0.7):
+def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_so=1.25, s_bc=0.75, s_sc=0.5):
     '''This function run a back test of a statistical arbitrage strategy (Avellaneda and Lee, 2010. DOI: 10.1080/14697680903124632).
 
     Parameters
@@ -49,7 +49,7 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.1, s_so
     perc_positions = np.zeros(shape=(df_score.shape[0], 3))
     invest_amount = np.zeros(shape=(df_score.shape[0]+1))
 
-    for day in range(df_score.shape[0] - 1):
+    for day in tqdm(range(df_score.shape[0] - 1)):
         returns = np.array([])
         counter_no_trades = 0
         for stock in df_score.columns:

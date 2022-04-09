@@ -103,7 +103,7 @@ def ML_errors(jac, hess_inv, params, X, specification):
 
 def b_error(jac, hess_inv, deltas, X, specification):
     T = X.shape[0]
-    num_par = 3
+    num_par = hess_inv.shape[0]
     J = np.outer(jac, jac)
     var_par = np.dot(np.dot(hess_inv, J), hess_inv)
 
@@ -126,6 +126,7 @@ def estimation(X, method='L-BFGS-B', targeting_estimation=False, verbose=False, 
     T = X.shape[0]
     b = np.zeros(shape=T)
     xi = np.zeros(shape=T)
+    res_iter = np.zeros(shape=(2,5))
 
     if targeting_estimation:
         init_params0 = np.random.uniform(0, 1, size=2)
@@ -163,6 +164,23 @@ def estimation(X, method='L-BFGS-B', targeting_estimation=False, verbose=False, 
             init_params = np.random.uniform(0, 1, size=4)
             res = minimize(loglikelihood.loglikelihood,
                            init_params, X, method=method, options={'eps': 1e-3})
+
+        # for i in range(res_iter.shape[0]):
+        #     init_params = np.random.uniform(0, 1, size=4)
+        #     res = minimize(loglikelihood.loglikelihood, init_params, X, method='Nelder-Mead')
+        #     if np.isnan(res.fun) == False:
+        #         res_iter[i, :-1] = res.x
+        #         res_iter[i, -1] = res.fun
+        #
+        # init_params = res_iter[np.where(res_iter[:,4] == res_iter[:,4].min())][0][:4]
+        #
+        #
+        # # while res.success == False:
+        # #     init_params = np.random.uniform(0, 1, size=4)
+        # res = minimize(loglikelihood.loglikelihood,
+        #                init_params, X, method='Nelder-Mead')
+        # res = minimize(loglikelihood.loglikelihood,
+        #                res.x, X, method='BFGS', options={'maxiter': 1})
 
         omega, a, alpha, beta = res.x
         sgm = 1
@@ -212,49 +230,60 @@ if __name__ == '__main__':
         update = 'logistic'
 
     if args.convergence:
-        # n_params = 4
-        N = 100
-        NN = 1000
-        X = np.load(go_up(1) + '/saved_data/dis_res100.npy')
+        n_params = 4
+        N = 1000
+        NN = 1
+        X = np.load(go_up(1) + '/saved_data/dis_res60.npy')
         days = X.shape[0]
         n_stocks = X.shape[1]
         b_sgm = np.empty(shape=NN)
         day = np.random.randint(0, days, size=NN)
+        day = 118
         stock = np.random.randint(0, n_stocks, size=NN)
-        for i in tqdm(range(NN), desc='Covergence'):
-            x = X[day[i], stock[i], :]
-            b_val = np.empty(shape=N)
-            for j in range(N):
-                # init_params = initial_value(loglikelihood.loglikelihood, 100, x, n_params) #fun, n_iter, X, num_par
+        stock = 345
+        for i in range(NN):
+            print(f'Day: {day}, Stock: {stock}')
+            x = X[day, stock, :]
+            results = np.empty(shape=(N, n_params))
+            for j in tqdm(range(N), desc='Covergence'):
                 b, a, xi, res = estimation(
                     x, targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
-                b_val[j] = b[-1]
-            scaler = MinMaxScaler()
-            b_val = scaler.fit_transform(b_val.reshape(-1, 1))
-            b_sgm[i] = b_val.std()
-        np.save('b_sgm100', b_sgm)
-        plt.figure(figsize=(8, 6), tight_layout=True)
-        plt.hist(b_sgm, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
-        plt.title(r"b_{60}'s standard deviations")
-        plt.savefig(go_up(1) + 'b_1000res_100init100days_iter.png')
-        # ax0 = plt.subplot(1, 5, 1)
-        # ax0.hist(s_sgm, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
-        # ax0.title.set_text('Score')
-        # ax1 = plt.subplot(1, 5, 2)
-        # ax1.hist(a_sgm, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
-        # ax1.title.set_text(r'$\sigma_a$')
-        # ax2 = plt.subplot(1, 5, 3)
-        # ax2.hist(omega_sgm, bins=40, color='blue',
-        #          edgecolor='darkblue', alpha=0.6)
-        # ax2.title.set_text(r'$\sigma_{\omega}$')
-        # ax3 = plt.subplot(1, 5, 4)
-        # ax3.hist(alpha_sgm, bins=40, color='blue',
-        #          edgecolor='darkblue', alpha=0.6)
-        # ax3.title.set_text(r'$\sigma_{\alpha}$')
-        # ax4 = plt.subplot(1, 5, 5)
-        # ax4.hist(beta_sgm, bins=40, color='blue',
-        #          edgecolor='darkblue', alpha=0.6)
-        # ax4.title.set_text(r'$\sigma_{\beta}$')
+                results[j] = res.x
+            # scaler = MinMaxScaler()
+            # b_val = scaler.fit_transform(b_val.reshape(-1, 1))
+            # b_sgm[i] = b_val.std()
+        # np.save(go_up(1) + f'/saved_data/convergence_day{day}_stock{stock}_NM', results)
+        omega, a, alpha, beta = results[:, 0], results[:, 1], results[:, 2], results[:, 3]
+
+        plt.figure(figsize=(12, 8), tight_layout=True)
+        ax1 = plt.subplot(2, 2, 1)
+        ax1.hist(omega, bins=100, color='blue', alpha=0.6)
+        ax1.title.set_text(r'$\hat{\omega}$')
+        ax2 = plt.subplot(2, 2, 2)
+        ax2.hist(a, bins=100, color='blue', alpha=0.6)
+        ax2.title.set_text(r'$\hat{a}$')
+        ax3 = plt.subplot(2, 2, 3)
+        ax3.hist(alpha, bins=100, color='blue', alpha=0.6)
+        ax3.title.set_text(r'$\hat{\alpha}$')
+        ax4 = plt.subplot(2, 2, 4)
+        ax4.hist(beta, bins=100, color='blue', alpha=0.6)
+        ax4.title.set_text(r'$\hat{\beta}$')
+        plt.show()
+
+        plt.figure(figsize=(12, 8), tight_layout=True)
+        ax1 = plt.subplot(2, 2, 1)
+        ax1.plot(omega, color='darkblue', alpha=0.6)
+        ax1.title.set_text(r'$\hat{\omega}$')
+        ax2 = plt.subplot(2, 2, 2)
+        ax2.plot(a, color='darkblue', alpha=0.6)
+        ax2.title.set_text(r'$\hat{a}$')
+        ax3 = plt.subplot(2, 2, 3)
+        ax3.plot(alpha, color='darkblue', alpha=0.6)
+        ax3.title.set_text(r'$\hat{\alpha}$')
+        ax4 = plt.subplot(2, 2, 4)
+        ax4.plot(beta, color='darkblue', alpha=0.6)
+        ax4.title.set_text(r'$\hat{\beta}$')
+        plt.show()
         # plt.savefig(go_up(1) + 'b_1000res_100init_100days_targ.png')
 
         # plt.figure(figsize=(12, 8), tight_layout=True)
@@ -296,7 +325,6 @@ if __name__ == '__main__':
         # ax9.plot(est_par[:, 3], 'g', linewidth=1)
         # ax9.title.set_text('Estimated beta')
         # plt.grid(True)
-        plt.show()
 
     else:
         X = np.load(go_up(1) + '/saved_data/dis_res60.npy')

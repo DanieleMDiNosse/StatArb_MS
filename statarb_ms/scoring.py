@@ -260,33 +260,33 @@ def only_scoring(dis_res, df_returns, method, lookback_for_factors, lookback_for
                     b, a, xi, est = estimation(X)
                 estimates[i, stock_idx, :] = est.x
 
-    #             b = b[-1]
-    #             if b < 0:
-    #                 X = np.append(X, X[-1])
-    #                 parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
-    #                 a, b = parameters[0], parameters[1]
-    #                 c += 1
-    #         if b == 0.0:
-    #             print(f'B NULLO PER {stock}')
-    #             break
-    #
-    #         k = -np.log(b) * lookback_for_factors
-    #         if k < lookback_for_factors / (0.5 * lookback_for_residual):
-    #             score[i, stock_idx] = 0
-    #             cc += 1
-    #         else:
-    #             m = a / (1 - b)
-    #             sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b**2))
-    #             score[i, stock_idx] = -m / sgm_eq
-    #
-    # with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
-    #     file.write(f'Number of negative b values for process {os.getpid()}: {c} \n')
-    #     file.write(f'Number of stock w mean reversion refused {os.getpid()}: {cc}')
-    #     file.write(f'Nan scores {os.getpid()}: {ccc}')
-    #
-    # df_score = pd.DataFrame(score, columns=df_returns.columns)
+                b = b[-1]
+                if b < 0:
+                    X = np.append(X, X[-1])
+                    parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
+                    a, b = parameters[0], parameters[1]
+                    c += 1
+            if b == 0.0:
+                print(f'B NULLO PER {stock}')
+                break
+
+            k = -np.log(b) * lookback_for_factors
+            if k < lookback_for_factors / (0.5 * lookback_for_residual):
+                score[i, stock_idx] = 0
+                cc += 1
+            else:
+                m = a / (1 - b)
+                sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b**2))
+                score[i, stock_idx] = -m / sgm_eq
+
+    with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
+        file.write(f'Number of negative b values for process {os.getpid()}: {c} \n')
+        file.write(f'Number of stock w mean reversion refused {os.getpid()}: {cc}')
+        file.write(f'Nan scores {os.getpid()}: {ccc}')
+
+    df_score = pd.DataFrame(score, columns=df_returns.columns)
     if method == 'gas_modelization':
-        # df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
+        df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
         np.save(go_up(1) + f'/saved_data/estimates_{os.getpid()}', estimates)
     if method == 'constant_speed':
         df_score.to_csv(
@@ -378,6 +378,7 @@ if __name__ == '__main__':
     else:
         for iter in range(1):
             np.random.seed()
+
             processes = [mp.Process(target=generate_data, args=(
                 i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
             # processes = [mp.Process(target=only_scoring, args=(
@@ -385,7 +386,7 @@ if __name__ == '__main__':
             os.system('rm tmp/*')
             for p in processes:
                 p.start()
-                time.sleep(0.5)
+                time.sleep(0.3)
             for p in processes:
                 p.join()
             end = time.time()
@@ -400,7 +401,7 @@ if __name__ == '__main__':
                 # file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
                 file_list = ['df_score', 'beta_tensor', 'Q']
             logging.info('Merging files...')
-            file_name = 'ScoreData_60volint'
+            file_name = 'ScoreData_ibrid60_0'
             file_merge(pidnums, file_list, file_name)
             logging.info('Removing splitted files...')
             remove_file(pidnums, file_list)
