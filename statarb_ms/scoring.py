@@ -120,8 +120,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
         # Adesso devo usare questi indici per assegnare i Qij.  Devo assegnare i Qij nella posizione giusta.
         Q[i, :, idxs] = money_on_stock(period, eigenvectors).T
         # Ritorni dei fattori di rischio
-        factors = risk_factors(period, Q[i, :, idxs], eigenvectors)
-        print(factors.shape)
+        factors = risk_factors(period, Q[i, :, idxs].T, eigenvectors)
         # time.sleep(5)
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
         for stock in period.columns:
@@ -161,10 +160,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
                             loglikelihood_after_targ, X, init_params, targeting_estimation=targeting_estimation)
                     else:
                         # est -> omega, a, alpha, beta
-                        init_params = np.random.uniform(0, 1, size=4)
-                        # init_params = initial_value(loglikelihood, 100, X, 4)
-                        b, a, xi, est = estimation(
-                            loglikelihood, X, init_params)
+                        b, a, xi, est = estimation(X)
                     estimates[i, stock_idx, :] = est.x
                     b_values_gas[i, stock_idx, :] = b
                     a_values_gas[i, stock_idx, :] = a
