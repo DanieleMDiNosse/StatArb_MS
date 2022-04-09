@@ -92,6 +92,8 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
         eigenvalues, eigenvectors = pca(period, n_components=n_factor)
         # trading_days x n_factors x n_stocks. Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori
         Q[i, :, :] = money_on_stock(period, eigenvectors)
+        print(Q[i].shape)
+        time.sleep(4)
         # ritorni dei fattori di rischio per ogni periodo
         factors = risk_factors(period, Q[i], eigenvectors)
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
@@ -353,9 +355,9 @@ if __name__ == '__main__':
     else:
         for iter in range(1):
             np.random.seed()
-            # processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
-            processes = [mp.Process(target=only_scoring, args=(
-                i, j, method, 252, 60)) for i, j in zip(dr, df)]
+            processes = [mp.Process(target=generate_data, args=(i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
+            # processes = [mp.Process(target=only_scoring, args=(
+            #     i, j, method, 252, 60)) for i, j in zip(dr, df)]
             os.system('rm tmp/*')
             for p in processes:
                 p.start()
