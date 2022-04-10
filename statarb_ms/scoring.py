@@ -57,7 +57,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
 
     sp500cost = pd.read_pickle(
         go_up(1) + '/saved_data/SP500histcost_matched.pkl')
-    trading_days = df_returns.shape[0] - lookback_for_factors  # 6294
+    trading_days = df_returns.shape[0] - lookback_for_factors
     n_stocks = df_returns.shape[1]
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     alpha_values = np.zeros(shape=(trading_days, n_stocks))
@@ -86,7 +86,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
-    for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
+    for i in tqdm(range(1), desc=f'{os.getpid()}'):
         # Considero solo lo slice di 252 giorni
         oneyear = sp500cost.iloc[i:lookback_for_factors + i]
         period = df_returns[i:lookback_for_factors + i]
@@ -106,7 +106,6 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
         period = period[period.columns.intersection(oneyearticks)]
         # Droppo le colonne con missing values
         period = period.dropna(axis=1)
-
         # Una finestra temporale di 252 giorni è traslata di 1 giorno. Ogni volta viene eseguita una PCA su tale periodo
         # ed i fattori di rischio sono quindi valutati.
         # [0,252[, [1,253[ ecc -> ogni period comprende un anno di trading (252 giorni)
@@ -118,15 +117,17 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
         idxs = [df_returns.columns.get_loc(
             period.columns[i]) for i in range(period.shape[1])]
         # Adesso devo usare questi indici per assegnare i Qij.  Devo assegnare i Qij nella posizione giusta.
-        Q[i, :, idxs] = money_on_stock(period, eigenvectors).T
+        Q[i, :, idxs] = money_on_stock(period, eigenvectors) # questa cosa mi restituisce dei nan e inf. Devo ricontrollare se fin qui è fatto tutto bene e nel caso capire come assegnare bene le posizioni dei Qij
+        print('Q: ', np.isnan(money_on_stock(period, eigenvectors)).sum())
+        print('Q: ', np.isinf(money_on_stock(period, eigenvectors)).sum())
+        time.sleep(5)
         # Ritorni dei fattori di rischio
         factors = risk_factors(period, Q[i, :, idxs].T, eigenvectors)
-        # time.sleep(5)
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
         for stock in period.columns:
             stock_idx = period.columns.get_loc(stock)
             beta0, betas, conf_inter, residuals, pred, _ = regression(
-                factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])
+                factors[-lookback_for_residual:], period[-lookback_for_residual:][stock]) #exog, endog
             # Avoid estimation on non stationary residuals
             p_value = adfuller(residuals)[1]
             if p_value > 0.05:
@@ -192,25 +193,25 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
                     score[i, stock_idx] = -m / sgm_eq[i, stock_idx] - \
                         beta0 / (k * sgm_eq[i, stock_idx])
 
-    with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
-        file.write(
-            f'Number of negative b values for process {os.getpid()}: {c} \n')
-        file.write(
-            f'Number of stock w mean reversion refused {os.getpid()}: {cc}')
+    # with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
+    #     file.write(
+    #         f'Number of negative b values for process {os.getpid()}: {c} \n')
+    #     file.write(
+    #         f'Number of stock w mean reversion refused {os.getpid()}: {cc}')
 
     df_score = pd.DataFrame(score, columns=df_returns.columns)
     if export:
         if method == 'gas_modelization':
-            # df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
+            df_score.to_pickle(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.pkl')
             # np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
             # np.save(go_up(1) + f'/saved_data/alpha_values_{os.getpid()}', alpha_values)
             # np.save(go_up(1) + f'/saved_data/sgm_eq_gas_{os.getpid()}', sgm_eq)
             # np.save(go_up(1) + f'/saved_data/b_gas_{os.getpid()}', b_values_gas)
             # np.save(go_up(1) + f'/saved_data/a_gas_{os.getpid()}', a_values_gas)
             # np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
-            np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
-            np.save(
-                go_up(1) + f'/saved_data/estimates_{os.getpid()}', estimates)
+            # np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
+            # np.save(
+                # go_up(1) + f'/saved_data/estimates_{os.getpid()}', estimates)
             # np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
 
         if method == 'constant_speed':
@@ -386,7 +387,7 @@ if __name__ == '__main__':
             os.system('rm tmp/*')
             for p in processes:
                 p.start()
-                time.sleep(0.3)
+                time.sleep(0.5)
             for p in processes:
                 p.join()
             end = time.time()
@@ -396,12 +397,12 @@ if __name__ == '__main__':
             pidnums.sort()
             if args.gas:
                 # file_list = ['df_score_gas', 'beta_tensor', 'alpha_values', 'Q', 'b_gas', 'a_gas', 'dis_res', 'res', 'sgm_eq_gas']
-                file_list = ['df_score_gas', 'estimates']
+                file_list = ['df_score_gas']
             else:
                 # file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
                 file_list = ['df_score', 'beta_tensor', 'Q']
             logging.info('Merging files...')
-            file_name = 'ScoreData_ibrid60_0'
+            file_name = 'ScoreData_nobias60_0'
             file_merge(pidnums, file_list, file_name)
             logging.info('Removing splitted files...')
             remove_file(pidnums, file_list)

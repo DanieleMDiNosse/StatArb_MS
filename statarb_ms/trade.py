@@ -13,7 +13,7 @@ import telegram_send
 
 
 def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_so=1.25, s_bc=0.75, s_sc=0.5):
-    '''This function run a back test of a statistical arbitrage strategy (Avellaneda and Lee, 2010. DOI: 10.1080/14697680903124632).
+    '''This function run a back test of the replication of the statistical arbitrage strategy by Avellaneda Lee (Avellaneda and Lee, 2010. DOI: 10.1080/14697680903124632).
 
     Parameters
     ----------
@@ -59,7 +59,7 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
                 counter_no_trades += 1
                 continue
 
-            if df_score[stock][day] < -s_bo and (state[stock_idx] == 'c'):
+            if (df_score[stock][day] < -s_bo) and (state[stock_idx] == 'c'):
                 state[stock_idx] = 'l'
                 k = PnL[day] * fraction / (1 + (np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx])))
                 daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))

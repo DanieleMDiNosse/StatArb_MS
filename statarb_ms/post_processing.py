@@ -341,9 +341,9 @@ def file_merge(pidnums, file_list, file_name):
 
     for file in file_list:
         try:
-            df_score = [pd.read_csv(go_up(1) + f'/saved_data/{file}_{i}.csv') for i in pidnums]
+            df_score = [pd.read_pickle(go_up(1) + f'/saved_data/{file}_{i}.pkl') for i in pidnums]
             # name = input('Name for the Score csv file: ')
-            pd.concat(df_score, ignore_index=True).to_csv(go_up(1) + f'/saved_data/{file_name}.csv', index=False)
+            pd.concat(df_score, ignore_index=True).to_pickle(go_up(1) + f'/saved_data/{file_name}.pkl')
         except:
             splitted_files = [np.load(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
             name = input(f'Name for the {file} file: ')
