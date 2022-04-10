@@ -117,7 +117,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
         idxs = [df_returns.columns.get_loc(
             period.columns[i]) for i in range(period.shape[1])]
         # Adesso devo usare questi indici per assegnare i Qij.  Devo assegnare i Qij nella posizione giusta.
-        Q[i, :, idxs] = money_on_stock(period, eigenvectors) # questa cosa mi restituisce dei nan e inf. Devo ricontrollare se fin qui è fatto tutto bene e nel caso capire come assegnare bene le posizioni dei Qij
+        Q[i][:, idxs] = money_on_stock(period, eigenvectors) # questa cosa mi restituisce dei nan e inf. Devo ricontrollare se fin qui è fatto tutto bene e nel caso capire come assegnare bene le posizioni dei Qij
         print('Q: ', np.isnan(money_on_stock(period, eigenvectors)).sum())
         print('Q: ', np.isinf(money_on_stock(period, eigenvectors)).sum())
         time.sleep(5)
