@@ -58,7 +58,7 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
     end : str
         End time. Its format must be yyyy-mm-dd
     data_source : str(optional)
-        The data source ("iex", "fred", "ff"). Default = 'yahoo'
+        The data source ("iex", "fred"). Default = 'yahoo'
     export_csv : bool(optional)
         Choose whether to export to csv. Default = True
     Returns
@@ -68,13 +68,10 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
     '''
 
     prices = pd.DataFrame()
-    # volumes = pd.DataFrame(columns=tickers)
     for tick in tickers:
         try:
             prices[tick] = web.DataReader(
                 tick, data_source=data_source, start=start, end=end).Close
-            # prices[tick] = data['Close']
-            # volumes[tick] = data['Volume']
             print(
                 f'{list(tickers).index(tick) + 1}/{len(tickers)} Downloading price data of {tick}')
         except Exception:
@@ -117,7 +114,7 @@ def dividends_data(df_price, start, end, export_csv=True):
     return dividends
 
 
-def get_returns(dataframe, volume_integration=False, export_csv=True, m=1):
+def get_returns(dataframe, volume_integration=False, export=True, m=1):
     """
     Get day-by-day returns values for a company. The dataframe has companies as attributes
     and days as rows, the values are the close prices of each days.
@@ -150,6 +147,7 @@ def get_returns(dataframe, volume_integration=False, export_csv=True, m=1):
     df_ret = pd.DataFrame()
     for col in dataframe.columns:
         df_ret[col] = np.diff(dataframe[col]) / dataframe[col][:-m]
+    df_ret.index = dataframe.index[1:]
 
     if volume_integration:
         name = input('Name of volume dataframe')
@@ -169,7 +167,7 @@ def get_returns(dataframe, volume_integration=False, export_csv=True, m=1):
         ticks = ['HFC', 'MXIM', 'XLNX', 'KSU', 'RRD']
         df_ret = pd.DataFrame(df_vol * np.array(df_ret.drop(columns=ticks).iloc[9:]), columns=df_ret.columns)
 
-    if export_csv:
+    if export:
         if volume_integration:
             name = input(
                 'Name of the VOLUME INTEGRATED RETURNS file that will be saved: ')

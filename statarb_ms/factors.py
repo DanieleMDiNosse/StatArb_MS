@@ -126,7 +126,7 @@ def risk_factors(df_returns, Q, eigenvectors, export=False):
     n_days = df_returns.shape[0]
     n_stocks = df_returns.shape[1]
     n_factors = len(eigenvectors)
-    factors = np.zeros((n_days, n_factors))
+    factors = np.zeros(shape=(n_days, n_factors))
     dev_t = 1 / df_returns.std()
     returns = df_returns.values
 

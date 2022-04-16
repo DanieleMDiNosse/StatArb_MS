@@ -337,24 +337,30 @@ def LM_test_statistic(X, params):
 
     return pvalue
 
-def file_merge(pidnums, file_list, file_name):
+def file_merge(pidnums, file_list):
 
     for file in file_list:
         try:
-            df_score = [pd.read_pickle(go_up(1) + f'/saved_data/{file}_{i}.pkl') for i in pidnums]
-            # name = input('Name for the Score csv file: ')
-            pd.concat(df_score, ignore_index=True).to_pickle(go_up(1) + f'/saved_data/{file_name}.pkl')
+            df_score = [pd.read_pickle(f'/mnt/saved_data/{file}_{i}.pkl') for i in pidnums]
+            name = input('Name for the Score csv file: ')
+            pd.concat(df_score, ignore_index=True).to_pickle(f'/mnt/saved_data/{name}.pkl')
         except:
-            splitted_files = [np.load(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
+            splitted_files = [np.load(f'/mnt/saved_data/{file}_{i}.npy') for i in pidnums]
             name = input(f'Name for the {file} file: ')
-            np.save(go_up(1) + f'/saved_data/{name}', np.vstack(splitted_files))
+            np.save(f'/mnt/saved_data/{name}', np.vstack(splitted_files))
+
+        # for file in file_list:
+        #     try:
+        #         [os.remove(f'/mnt/saved_data/{file}_{i}.pkl') for i in pidnums]
+        #     except:
+        #         [os.remove(f'/mnt/saved_data/{file}_{i}.npy') for i in pidnums]
 
 def remove_file(pidnums, file_list):
     for file in file_list:
         try:
-            [os.remove(go_up(1) + f'/saved_data/{file}_{i}.csv') for i in pidnums]
+            [os.remove(f'/mnt/saved_data/{file}_{i}.pkl') for i in pidnums]
         except:
-            [os.remove(go_up(1) + f'/saved_data/{file}_{i}.npy') for i in pidnums]
+            [os.remove(f'/mnt/saved_data/{file}_{i}.npy') for i in pidnums]
 
 def sharpe_ratio(pnl, benchmark_pnl, period):
     sharpe_ratio = []

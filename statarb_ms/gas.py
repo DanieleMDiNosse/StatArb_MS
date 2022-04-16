@@ -128,62 +128,50 @@ def estimation(X, method='L-BFGS-B', targeting_estimation=False, verbose=False, 
     xi = np.zeros(shape=T)
     res_iter = np.zeros(shape=(2,5))
 
-    if targeting_estimation:
-        init_params0 = np.random.uniform(0, 1, size=2)
-        sgm = 1
-        res = minimize(loglikelihood.targeting_loglikelihood,
-                       init_params0, X, method=method, options={'eps': 1e-3})
+    # if targeting_estimation:
+    #     init_params0 = np.random.uniform(0, 1, size=2)
+    #     sgm = 1
+    #     res = minimize(loglikelihood.targeting_loglikelihood,
+    #                    init_params0, X, method=method, options={'eps': 1e-3})
+    #
+    #     while res.success == False:
+    #         init_params0 = np.random.uniform(0, 1, size=2)
+    #         res = minimize(loglikelihood.targeting_loglikelihood,
+    #                        init_params0, X, method=method, options={'eps': 1e-3})
+    #
+    #     omega, a = res.x
+    #     b_bar = omega
+    #     b[:2] = b_bar
+    #     init_params = np.random.uniform(0, 1, size=3)
+    #     res = minimize(loglikelihood.loglikelihood_after_targ, init_params, (X, b_bar),
+    #                    method=method, options={'eps': 1e-3})
+    #
+    #     while res.success == False:
+    #         init_params = np.random.uniform(0, 1, size=3)
+    #         res = minimize(loglikelihood.loglikelihood_after_targ,
+    #                        init_params, X, method=method, options={'eps': 1e-3})
+    #
+    #     a, alpha, beta = res.x[0], res.x[1], res.x[2]
+    #     omega = beta * (1 - b_bar)
+    #     res = [omega, a, alpha, beta]
+    #
+    # else:
+    for i in range(res_iter.shape[0]):
+        init_params = np.random.uniform(0, 1, size=4)
+        res = minimize(loglikelihood.loglikelihood, init_params, X, method='Nelder-Mead')
+        if np.isnan(res.fun) == False:
+            res_iter[i, :-1] = res.x
+            res_iter[i, -1] = res.fun
 
-        while res.success == False:
-            init_params0 = np.random.uniform(0, 1, size=2)
-            res = minimize(loglikelihood.targeting_loglikelihood,
-                           init_params0, X, method=method, options={'eps': 1e-3})
+    init_params = res_iter[np.where(res_iter[:,4] == res_iter[:,4].min())][0][:4]
 
-        omega, a = res.x
-        b_bar = omega
-        b[:2] = b_bar
-        init_params = np.random.uniform(0, 1, size=3)
-        res = minimize(loglikelihood.loglikelihood_after_targ, init_params, (X, b_bar),
-                       method=method, options={'eps': 1e-3})
+    res = minimize(loglikelihood.loglikelihood,
+                   init_params, X, method='Nelder-Mead')
+    res = minimize(loglikelihood.loglikelihood,
+                   res.x, X, method='BFGS', options={'maxiter': 1})
 
-        while res.success == False:
-            init_params = np.random.uniform(0, 1, size=3)
-            res = minimize(loglikelihood.loglikelihood_after_targ,
-                           init_params, X, method=method, options={'eps': 1e-3})
-
-        a, alpha, beta = res.x[0], res.x[1], res.x[2]
-        omega = beta * (1 - b_bar)
-        res = [omega, a, alpha, beta]
-
-    else:
-        # init_params = np.random.uniform(0, 1, size=4)
-        # res = minimize(loglikelihood.loglikelihood, init_params, X, method=method,
-        #                options={'eps': 1e-3})
-        #
-        # while res.success == False:
-        #     init_params = np.random.uniform(0, 1, size=4)
-        #     res = minimize(loglikelihood.loglikelihood,
-        #                    init_params, X, method=method, options={'eps': 1e-3})
-
-        for i in range(res_iter.shape[0]):
-            init_params = np.random.uniform(0, 1, size=4)
-            res = minimize(loglikelihood.loglikelihood, init_params, X, method='Nelder-Mead')
-            if np.isnan(res.fun) == False:
-                res_iter[i, :-1] = res.x
-                res_iter[i, -1] = res.fun
-
-        init_params = res_iter[np.where(res_iter[:,4] == res_iter[:,4].min())][0][:4]
-
-
-        # while res.success == False:
-        #     init_params = np.random.uniform(0, 1, size=4)
-        res = minimize(loglikelihood.loglikelihood,
-                       init_params, X, method='Nelder-Mead')
-        res = minimize(loglikelihood.loglikelihood,
-                       res.x, X, method='BFGS', options={'maxiter': 1})
-
-        omega, a, alpha, beta = res.x
-        sgm = 1
+    omega, a, alpha, beta = res.x
+    sgm = 1
 
     if verbose:
         print(f'Initial guess: \n {init_params}')
@@ -191,8 +179,10 @@ def estimation(X, method='L-BFGS-B', targeting_estimation=False, verbose=False, 
         time.sleep(2.5)
 
     for t in range(1, T - 1):
-        b[t + 1] = omega + alpha * xi[t] * X[t - 1] / sgm**2 + beta * b[t]
-        xi[t + 1] = (X[t + 1] - a - b[t + 1] * X[t])
+        b[2:] = omega + alpha * xi[1:-1] * X[:-2] / sgm**2 + beta * b[1:-1]
+        xi[2:] = X[:-2] - a - b[:-2] * X[1:-1]
+        # b[t + 1] = omega + alpha * xi[t] * X[t - 1] / sgm**2 + beta * b[t]
+        # xi[t + 1] = (X[t + 1] - a - b[t + 1] * X[t])
 
     if visualization:
         plt.figure(figsize=(12, 5), tight_layout=True)

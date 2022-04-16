@@ -24,7 +24,7 @@ from statsmodels.tsa.stattools import adfuller
 from tqdm import tqdm
 
 
-def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_for_factors=252, lookback_for_residual=60, export=True):
+def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_for_residual=60, export=True):
     '''This function uses an amount of days equal to lookback_for_factors to evaluate the PCA components and an amount equal to lookback_for_residual
     to evaluate the parameters of the Ornstein-Uhlenbeck process for the residuals. The output is composed by the dataframe of s_score for each stock
     and the beta factors.
@@ -34,10 +34,7 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
     df_returns : pandas.core.frame.DataFrame
         Dataframe of 1-day returns for each stock.
     n_factor : int
-        Number of principal components to keep in the PCA algorithm.
-    variable_n_factor : bool
-        to be set to True if the number of principal components is chosen through a fixed amount of explained variance, False if it is set by n_factor.
-        If it is True, n_factor can be any value: the PCA will not use it.
+        Number of principal components to keep in the PCA algorithm. The default is 15.
     lookback_for_factors : int
         Number of days used for the PCA. The default is 252 (one year of trade).
     lookback_for_residual : inf
@@ -60,186 +57,92 @@ def generate_data(df_returns, n_factor, method, targeting_estimation, lookback_f
     trading_days = df_returns.shape[0] - lookback_for_factors
     n_stocks = df_returns.shape[1]
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
-    alpha_values = np.zeros(shape=(trading_days, n_stocks))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
     dis_res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
     res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
-    sgm_eq = np.zeros(shape=(trading_days, n_stocks))
-    if targeting_estimation:
-        num_par = 3
-    else:
-        num_par = 4
-    estimates = np.zeros(shape=(trading_days, n_stocks, num_par))
 
-    # Il primo score corrisponderà al 252° giorno (indice 251)
-    score = np.zeros(shape=(trading_days, n_stocks))
-    b_values = np.zeros(shape=(trading_days, n_stocks, 3))
-    b_values_gas = np.zeros(
-        shape=(trading_days, n_stocks, lookback_for_residual))
-    a_values_gas = np.zeros(shape=(trading_days, n_stocks, 1))
-    R_squared = np.zeros(shape=(trading_days, n_stocks))
-    dis_res_reg = np.zeros(
-        shape=(trading_days, n_stocks, lookback_for_residual))
-    c = 0  # counter to track the number of negative bs comes from GAS model
-    # counter to track the number of k < lookback_for_factors / (0.5 * lookback_for_residual):
-    cc = 0
+    # I create some empy file named as the process PID, in order to use them to merge all the files (via file_merge function) that the different processes will create.
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
-    for i in tqdm(range(1), desc=f'{os.getpid()}'):
-        # Considero solo lo slice di 252 giorni
+    for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
+        # A time window of 252 days (one trading year) is shifted by 1 day at every iteration. Every time a PCA is
+        # done over such period and the risk factors are evaluated, together with the residual process.
+        # [0,252[, [1,253[, [2,254[ etc ->
+
+        # I consider the 252 days slice of both the costituents and returns dataframe
         oneyear = sp500cost.iloc[i:lookback_for_factors + i]
         period = df_returns[i:lookback_for_factors + i]
+
+        # Then I check for all the different lists of tickers in the slice in the costituents dataframe in the slice.
+        # I add all the tickers present in the aforementioned lists in alloneyearticks list.
+        # Since there will be a lot of repetitions, I consider only the unique tickers.
         oneyearticks = []
-        # Considero tutte le liste di ticker distinte nello slice in esame
         alloneyearticks = np.unique(oneyear['Tickers'])
-        # Aggiungo alla lista oneyearticks tutti i ticker presenti nelle liste in alloneyearticks
         for l_ticks in alloneyearticks:
             for tick in l_ticks:
                 oneyearticks.append(tick)
-        # Siccome si ripetono molte volte stessi ticker, non considero le ripetizioni
         oneyearticks = list(set(oneyearticks))
-        # Ora che ho la lista di tutti i ticker che compaiono nei 252 giorni in esame, interseco
-        # la lista dei ticker del dataframe dei ritorni con la lista dei suddetti ticker, in modo
-        # da avere solamente i ritorni delle compagnie che sono listate (o state listate) nello
-        # SP500 nei 252 giorni in esame
+
+        # Now that I have collected all the tickers that appear in the slice of 252 days, I have to select the columns in the slice
+        # of the returns dataframe whose tick is present in oneyearticks.
+        # Then I drop both the missing values and the all-zeros columns.
         period = period[period.columns.intersection(oneyearticks)]
-        # Droppo le colonne con missing values
         period = period.dropna(axis=1)
-        # Una finestra temporale di 252 giorni è traslata di 1 giorno. Ogni volta viene eseguita una PCA su tale periodo
-        # ed i fattori di rischio sono quindi valutati.
-        # [0,252[, [1,253[ ecc -> ogni period comprende un anno di trading (252 giorni)
+        period = period.loc[:, (period != 0).any(axis=0)]
+
+        # PCA on such period
         eigenvalues, eigenvectors = pca(period, n_components=n_factor)
-        # Ogni giorno so quanto investire su ogni compagnia all'interno di ognuno dei fattori.
-        # shape Q -> trading_days x n_factors x n_stocks.
-        # Ho bisogno di sapere gli indici delle compagnie che sto effettivamente considerando, in modo
-        # da assegnare le giuste posizioni all'ammontare da investire
+
+        # # (shape Q -> trading_days x n_factors x n_stocks)
+        # For each day out the 252 ones, I evaluate the amount that has to be invested in each company into each factors.
+        # In order to do so, I firstly need to know the indexes of the companies with respect to df_returns.columns, as I need to
+        # assign the right positions to the Qij, since it is created as a unique numpy array for the whole time horizon.
         idxs = [df_returns.columns.get_loc(
             period.columns[i]) for i in range(period.shape[1])]
-        # Adesso devo usare questi indici per assegnare i Qij.  Devo assegnare i Qij nella posizione giusta.
-        Q[i][:, idxs] = money_on_stock(period, eigenvectors) # questa cosa mi restituisce dei nan e inf. Devo ricontrollare se fin qui è fatto tutto bene e nel caso capire come assegnare bene le posizioni dei Qij
-        print('Q: ', np.isnan(money_on_stock(period, eigenvectors)).sum())
-        print('Q: ', np.isinf(money_on_stock(period, eigenvectors)).sum())
-        time.sleep(5)
-        # Ritorni dei fattori di rischio
-        factors = risk_factors(period, Q[i, :, idxs].T, eigenvectors)
-        # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
+        # money on stock shape -> n_factors, n_stocks
+        Q[i][:, idxs] = money_on_stock(period, eigenvectors)
+
+        # Risk factors returns.
+        factors = risk_factors(period, Q[i][:, idxs], eigenvectors)
+
+        # Finally the residual process can be estimated.
         for stock in period.columns:
-            stock_idx = period.columns.get_loc(stock)
+            stock_idx = df_returns.columns.get_loc(stock)
             beta0, betas, conf_inter, residuals, pred, _ = regression(
-                factors[-lookback_for_residual:], period[-lookback_for_residual:][stock]) #exog, endog
-            # Avoid estimation on non stationary residuals
-            p_value = adfuller(residuals)[1]
-            if p_value > 0.05:
-                pass
-            else:
-                alpha_values[i, stock_idx] = beta0 * lookback_for_factors
-                beta_tensor[i, stock_idx, :] = betas
-                res[i, stock_idx, :] = residuals
-                X = np.cumsum(residuals)
-                dis_res[i, stock_idx, :] = X
+                factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])  # regression(exog, endog) ovvero regression(X,Y)
 
-                if method == 'constant_speed':
-                    X = np.append(X, X[-1])
-                    parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(
-                        X)
-                    a, b = parameters[0], parameters[1]
-                    # Registro la dinamica di b nel tempo, memorizzando media e intervallo di confidenza. L'idea successiva è quella di modellizzare b
-                    # tramite un GAS model.
-                    # discrete_conf_int contains both the conf_int for a (0) and for b (1)
-                    b_values[i, stock_idx, 0], b_values[i,
-                                                        stock_idx, 1:] = b, discrete_conf_int[1, :]
-                    R_squared[i, stock_idx] = r2_score(
-                        X[:-1], np.array(discrete_pred))
-                    # Registro tutti i residui per i test sulla normalità ed "indipendenza" da fare successivamente
-                    dis_res_reg[i, stock_idx, :] = discrete_resid
+            # Tested multiple time if beta_tensor and Q are well matched. They are.
+            beta_tensor[i, stock_idx, :] = betas
+            res[i, stock_idx, :] = residuals
 
-                if method == 'gas_modelization':
-                    if targeting_estimation:
-                        init_params = np.random.uniform(0, 1, size=3)
-                        b, a, xi, est, std = estimation(
-                            loglikelihood_after_targ, X, init_params, targeting_estimation=targeting_estimation)
-                    else:
-                        # est -> omega, a, alpha, beta
-                        b, a, xi, est = estimation(X)
-                    estimates[i, stock_idx, :] = est.x
-                    b_values_gas[i, stock_idx, :] = b
-                    a_values_gas[i, stock_idx, :] = a
-                    b = b[-1]  # Mi serve solo l'ultimo valore per lo score
-                    if b < 0:  # se b è negativo, sostituiscilo con quello stimato supponendo sia costante nella finestra temporale
-                        X = np.append(X, X[-1])
-                        parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(
-                            X)
-                        a, b = parameters[0], parameters[1]
-                        c += 1
+            X = np.cumsum(residuals)
+            dis_res[i, stock_idx, :] = X
 
-                if b == 0.0:
-                    print(f'B NULLO PER {stock}')
-                    break
-
-                k = -np.log(b) * lookback_for_factors
-                if k < lookback_for_factors / (0.5 * lookback_for_residual):
-                    score[i, stock_idx] = 0
-                    cc += 1
-                else:
-                    m = a / (1 - b)
-                    if method == 'constant_speed':
-                        sgm_eq[i, stock_idx] = np.std(
-                            discrete_resid) * np.sqrt(1 / (1 - b * b))
-                    if method == 'gas_modelization':
-                        sgm_eq[i, stock_idx] = np.std(
-                            xi) * np.sqrt(1 / (1 - b * b))
-                    # naive method. Keep in mind that s-score depends on the risk factors
-                    score[i, stock_idx] = -m / sgm_eq[i, stock_idx] - \
-                        beta0 / (k * sgm_eq[i, stock_idx])
-
-    # with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
-    #     file.write(
-    #         f'Number of negative b values for process {os.getpid()}: {c} \n')
-    #     file.write(
-    #         f'Number of stock w mean reversion refused {os.getpid()}: {cc}')
-
-    df_score = pd.DataFrame(score, columns=df_returns.columns)
     if export:
-        if method == 'gas_modelization':
-            df_score.to_pickle(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.pkl')
-            # np.save(go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
-            # np.save(go_up(1) + f'/saved_data/alpha_values_{os.getpid()}', alpha_values)
-            # np.save(go_up(1) + f'/saved_data/sgm_eq_gas_{os.getpid()}', sgm_eq)
-            # np.save(go_up(1) + f'/saved_data/b_gas_{os.getpid()}', b_values_gas)
-            # np.save(go_up(1) + f'/saved_data/a_gas_{os.getpid()}', a_values_gas)
-            # np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
-            # np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
-            # np.save(
-                # go_up(1) + f'/saved_data/estimates_{os.getpid()}', estimates)
-            # np.save(go_up(1) + f'/saved_data/res_{os.getpid()}', res)
-
-        if method == 'constant_speed':
-            # df_score.to_csv(go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
-            # np.save(go_up(1) + f'/saved_data/dis_res_reg_{os.getpid()}', dis_res_reg)
-            # np.save(go_up(1) + f'/saved_data/b_values_{os.getpid()}', b_values)
-            # np.save(go_up(1) + f'/saved_data/R_squared_{os.getpid()}', R_squared)
-            np.save(
-                go_up(1) + f'/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
-            # np.save(go_up(1) + f'/saved_data/alpha_values_{os.getpid()}', alpha_values)
-            # np.save(go_up(1) + f'/saved_data/sgm_eq_{os.getpid()}', sgm_eq)
-            np.save(go_up(1) + f'/saved_data/Q_{os.getpid()}', Q)
-            # np.save(go_up(1) + f'/saved_data/dis_res_{os.getpid()}', dis_res)
+        np.save(
+            f'/mnt/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
+        np.save(f'/mnt/saved_data/Q_{os.getpid()}', Q)
+        np.save(f'/mnt/saved_data/dis_res_{os.getpid()}', dis_res)
+        np.save(f'/mnt/saved_data/res_{os.getpid()}', res)
 
 
 def only_scoring(dis_res, df_returns, method, lookback_for_factors, lookback_for_residual, targeting_estimation=False):
-    trading_days = df_returns.shape[0] - lookback_for_factors
-    n_stocks = df_returns.shape[1]
-    score = np.zeros(shape=(trading_days, n_stocks))
+
     if targeting_estimation:
         num_par = 3
     else:
         num_par = 4
-    estimates = np.zeros(shape=(trading_days, n_stocks, num_par))
-    c = 0
-    cc = 0
-    ccc = 0
 
+    trading_days = df_returns.shape[0] - lookback_for_factors
+    n_stocks = df_returns.shape[1]
+    score = np.zeros(shape=(trading_days, n_stocks))
+    estimates = np.zeros(shape=(trading_days, n_stocks, num_par))
+
+    # I initialize some counters.
+    c, cc, ccc = 0, 0, 0
+
+    # I create some empty file named as the process PID, in order to use them to merge all the files (via file_merge function) that the different processes will create.
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
@@ -247,6 +150,12 @@ def only_scoring(dis_res, df_returns, method, lookback_for_factors, lookback_for
         for stock in df_returns.columns:
             stock_idx = df_returns.columns.get_loc(stock)
             X = dis_res[i, stock_idx, :]
+
+            # Avoid estimation on zero residuals
+            if X.any(axis=0) == 0:
+                cc += 1
+                continue
+
             if method == 'constant_speed':
                 X = np.append(X, X[-1])
                 parameters, discrete_pred, xi, discrete_conf_int = auto_regression(
@@ -260,38 +169,39 @@ def only_scoring(dis_res, df_returns, method, lookback_for_factors, lookback_for
                 else:
                     b, a, xi, est = estimation(X)
                 estimates[i, stock_idx, :] = est.x
-
                 b = b[-1]
+
                 if b < 0:
                     X = np.append(X, X[-1])
-                    parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(X)
+                    parameters, discrete_pred, discrete_resid, discrete_conf_int = auto_regression(
+                        X)
                     a, b = parameters[0], parameters[1]
                     c += 1
-            if b == 0.0:
-                print(f'B NULLO PER {stock}')
-                break
 
+            # if b == 0.0:
+            #     cc += 1
+            #     continue
+            # else:
             k = -np.log(b) * lookback_for_factors
             if k < lookback_for_factors / (0.5 * lookback_for_residual):
                 score[i, stock_idx] = 0
-                cc += 1
+                ccc += 1
             else:
                 m = a / (1 - b)
                 sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b**2))
                 score[i, stock_idx] = -m / sgm_eq
 
-    with open(go_up(1) + f'/saved_data/negative_b_{os.getpid()}', 'w', encoding='utf-8') as file:
-        file.write(f'Number of negative b values for process {os.getpid()}: {c} \n')
-        file.write(f'Number of stock w mean reversion refused {os.getpid()}: {cc}')
-        file.write(f'Nan scores {os.getpid()}: {ccc}')
+    telegram_send.send(messages=[
+                       f'Number of negative b values for process {os.getpid()}: {c}', f'Number of stock with speed of mean reversion refused for process {os.getpid()}: {ccc}', f'Number of zero b for process {os.getpid()}: {cc} out of {n_stocks * trading_days}'])
 
     df_score = pd.DataFrame(score, columns=df_returns.columns)
+
     if method == 'gas_modelization':
-        df_score.to_csv(go_up(1) + f'/saved_data/df_score_gas_{os.getpid()}.csv', index=False)
-        np.save(go_up(1) + f'/saved_data/estimates_{os.getpid()}', estimates)
+        df_score.to_pickle(f'/mnt/saved_data/df_score_gas_{os.getpid()}.pkl')
+        np.save(f'/mnt/saved_data/estimates_{os.getpid()}', estimates)
+
     if method == 'constant_speed':
-        df_score.to_csv(
-            go_up(1) + f'/saved_data/df_score_{os.getpid()}.csv', index=False)
+        df_score.to_pickle(f'/mnt/saved_data/df_score_{os.getpid()}.pkl')
 
 
 def SPY_beta(df_returns, spy, lookback_for_factors=252, lookback_for_residual=60, export=True):
@@ -320,19 +230,16 @@ if __name__ == '__main__':
         description='Generator of historical price data')
     parser.add_argument("-l", "--log", default="info",
                         help=("Provide logging level. Example --log debug', default='info"))
-    parser.add_argument("-vn", "--variable_number", action='store_true',
-                        help=("Use a variable number of PCA components. Each time the explained variance is 0.55. The default is False"))
-    parser.add_argument('-n', '--n_components', type=int, default=15,
-                        help='Number of PCA components to keep. The default is 15.')
+    parser.add_argument("-s", "--scoring", action='store_true',
+                        help='If passed, compute only the s-scores, provided residuals are already been computed.')
     parser.add_argument("-g", "--gas", action='store_true',
                         help=("Use gas estimation for the mean reverting speed. The default is False."))
     parser.add_argument("-sp", "--spy", action='store_true',
                         help=("Scoring for SPY."))
     parser.add_argument('-r', '--range', action='store_true',
                         help='Select a specific time range between 1995-01-03 to 2020-12-31')
-    parser.add_argument('-s', '--save_outputs', action='store_false',
-                        help='Choose whether or not to save the outputs. The default is True')
     parser.add_argument("-t", "--targ_est", action='store_true')
+
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
               'error': logging.ERROR,
@@ -342,22 +249,18 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
     start = time.time()
 
-    # df_returns = pd.read_csv(go_up(1) +
-    #                          "/saved_data/ReturnsData.csv").drop(columns=['HFC', 'MXIM', 'XLNX', 'KSU', 'RRD'])[:4030]
-    df_returns = pd.read_pickle(go_up(1) +
-                                "/saved_data/ReturnsDataHuge.pkl")[:4030]
-    dis_res = np.load(go_up(1) + "/saved_data/dis_res60.npy")
+    df_returns = pd.read_pickle("/mnt/saved_data/ReturnsDataHugeCleaned.pkl")[:4030]
+    # df_returns = pd.read_pickle("/mnt/saved_data/ReturnsDataHugeCleaned.pkl")[:1643]
 
     if args.spy:
         spy = pd.read_csv(go_up(1) + "/saved_data/spy.csv")
         SPY_beta(df_returns, spy)
 
-    # df = [df_returns[:1510], df_returns[1258:2769], df_returns[2517:4028], df_returns[3776:5287], df_returns[5035:]]
-    # df = [df_returns[:1000], df_returns[748:1749], df_returns[1497:2498], df_returns[2246:3247], df_returns[2995:3996], df_returns[3744:4745], df_returns[4493:5494],df_returns[5242:]]
     df = [df_returns[:750], df_returns[498:1249], df_returns[997:1748], df_returns[1496:2247],
           df_returns[1995:2746], df_returns[2494:3245], df_returns[2993:3744], df_returns[3492:]]
-    dr = [dis_res[:750, :, :], dis_res[498:1249, :, :], dis_res[997:1748, :, :], dis_res[1496:2247, :, :],
-          dis_res[1995:2746, :, :], dis_res[2494:3245, :, :], dis_res[2993:3744, :, :], dis_res[3492:, :, :]]
+
+    # df = [df_returns[:425], df_returns[173:599], df_returns[347:773], df_returns[521:947],
+    #       df_returns[695:1121], df_returns[869:1295], df_returns[1043:1469], df_returns[1217:]]
 
     if args.gas == True:
         method = 'gas_modelization'
@@ -373,40 +276,60 @@ if __name__ == '__main__':
         print(start, end)
         df_returns = pd.read_csv(go_up(1) +
                                  "/saved_data/ReturnsData.csv")[start: end + 1]
-        generate_data(df_returns, args.n_components, method)
+        generate_data(df_returns, method)
         end = time.time()
 
     else:
-        for iter in range(1):
-            np.random.seed()
+        telegram_send.send(
+            messages=[f'========== {time.asctime()} =========='])
+        np.random.seed()
 
+        if args.scoring:
+            logging.info('Computing the s-scores...')
+            time.sleep(0.3)
+            name = input('Name of the dis_res file: ')
+            dis_res = np.load(f"/mnt/saved_data/{name}.npy")
+
+            dr = [dis_res[:750, :, :], dis_res[498:1249, :, :], dis_res[997:1748, :, :], dis_res[1496:2247, :, :],
+                  dis_res[1995:2746, :, :], dis_res[2494:3245, :, :], dis_res[2993:3744, :, :], dis_res[3492:, :, :]]
+
+            # dr = [dis_res[:425, :, :], dis_res[173:599, :, :], dis_res[347:773, :, :], dis_res[521:947, :, :],
+            #       dis_res[695:1121, :, :], dis_res[869:1295, :, :], dis_res[1043:1469, :, :], dis_res[1217:, :, :]]
+            time.sleep(1)
+            processes = [mp.Process(target=only_scoring, args=(
+                i, j, method, 252, 80)) for i, j in zip(dr, df)]
+
+        else:
+            logging.info('Estimating residual process...')
+            time.sleep(0.3)
             processes = [mp.Process(target=generate_data, args=(
-                i, args.n_components, method, args.targ_est, 252, 60, args.save_outputs)) for i in df]
-            # processes = [mp.Process(target=only_scoring, args=(
-            #     i, j, method, 252, 60)) for i, j in zip(dr, df)]
-            os.system('rm tmp/*')
-            for p in processes:
-                p.start()
-                time.sleep(0.5)
-            for p in processes:
-                p.join()
-            end = time.time()
+                i,15, 252, 80, True)) for i in df]
 
-            telegram_send.send(messages=[f'Iteration {iter} terminated'])
-            pidnums = [int(x) for x in os.listdir('tmp')]
-            pidnums.sort()
-            if args.gas:
-                # file_list = ['df_score_gas', 'beta_tensor', 'alpha_values', 'Q', 'b_gas', 'a_gas', 'dis_res', 'res', 'sgm_eq_gas']
-                file_list = ['df_score_gas']
+        os.system('rm tmp/*')
+        for p in processes:
+            p.start()
+            time.sleep(0.5)
+        for p in processes:
+            p.join()
+        end = time.time()
+
+        pidnums = [int(x) for x in os.listdir('tmp')]
+        pidnums.sort()
+        if args.gas:
+            if args.scoring:
+                file_list = ['df_score']
             else:
-                # file_list = ['beta_tensor', 'Q', 'dis_res', 'df_score', 'dis_res_reg', 'b_values', 'R_squared', 'sgm_eq']
-                file_list = ['df_score', 'beta_tensor', 'Q']
-            logging.info('Merging files...')
-            file_name = 'ScoreData_nobias60_0'
-            file_merge(pidnums, file_list, file_name)
-            logging.info('Removing splitted files...')
-            remove_file(pidnums, file_list)
-            os.system('rm tmp/*')
+                file_list = ['res', 'dis_res', 'Q', 'beta_tensor']
+        else:
+            if args.scoring:
+                file_list = ['df_score']
+            else:
+                file_list = ['res', 'dis_res', 'Q', 'beta_tensor']
+        logging.info('Merging files, then remove splitted ones...')
+        file_merge(pidnums, file_list)
+        remove_file(pidnums, file_list)
+        os.system('rm tmp/*')
+        telegram_send.send(messages=[f'==========================='])
 
     time_elapsed = (end - start)
     logging.info('Time required for generate s-scores: %.2f seconds' %
