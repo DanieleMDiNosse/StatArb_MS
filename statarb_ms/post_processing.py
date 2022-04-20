@@ -36,32 +36,24 @@ def plot_pnl(pnl, pnl_1, pnl_gas, pnl_gas1, pnl_gas2, pnl_gas3, pnl_gas4, pnl_ga
     plt.legend(fontsize=11, loc='upper left')
     plt.show()
 
-def plot_raw_pnl():
+def plot_raw_pnl(path):
     plt.style.use('seaborn')
-    pnl_names = [str.split('.')[0] for str in os.listdir('../saved_data/PnL')]
-    pnls = [np.load(go_up(1) + f'/saved_data/PnL/{name}.npy') for name in pnl_names]
+    pnl_names = [str.split('.')[0] for str in os.listdir(path)]
+    pnls = [np.load(f'/mnt/saved_data/PnL/{name}.npy') for name in pnl_names]
     pnl_names = [str.split('_')[1] for str in pnl_names]
     plt.figure(figsize=(12,8), tight_layout=True)
 
     for pnl, pnl_name in zip(pnls, pnl_names):
-        if (pnl_name.split('(')[1] == '60days') or (pnl_name.split('(')[1] == '60days)'):
-            plt.plot(pnl[:4030-252], 'k', linewidth=1, label=f'{pnl_name}', alpha=0.4)
-        if (pnl_name.split('(')[1] == '80days') or (pnl_name.split('(')[1] == '80days)'):
-            plt.plot(pnl[:4030-252], 'b', linewidth=1, label=f'{pnl_name}', alpha=0.4)
-        if (pnl_name.split('(')[1] == '100days') or (pnl_name.split('(')[1] == '100days)'):
-            plt.plot(pnl[:4030-252], 'gray', linewidth=1, label=f'{pnl_name}', alpha=0.6)
-        if pnl_name.split('(')[0] == 'AvellanedaLee':
-            plt.plot(pnl[:4030-252], 'purple', linewidth=2.5, label=f'{pnl_name}', alpha=1)
-        if pnl_name == 'FirstPrincipalComp()':
-            plt.plot(pnl[:4030-252], 'crimson', linewidth=1, label=f'{pnl_name}', alpha=1)
+        plt.plot(pnl[:4030-252], linewidth=1, label=f'{pnl_name}', alpha=1)
 
-    trading_days = np.array(pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date)[:4030+126]
+    df_returns = pd.read_pickle("/mnt/saved_data/ReturnsDataHugeCleaned.pkl")
+    trading_days = [str(x).split(' ')[0] for x in df_returns.index[:4030 + 125]]
     x_quantity = 126
     x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
     x_label_day = [trading_days[252 + i] for i in x_label_position]
     plt.xticks(x_label_position, x_label_day, fontsize=11,  rotation=90)
     plt.grid(True)
-    # plt.legend(fontsize=11, loc='upper left')
+    plt.legend(fontsize=11, loc='upper left')
     plt.show()
 
 def rejected_stocks():
@@ -349,11 +341,11 @@ def file_merge(pidnums, file_list):
             name = input(f'Name for the {file} file: ')
             np.save(f'/mnt/saved_data/{name}', np.vstack(splitted_files))
 
-        # for file in file_list:
-        #     try:
-        #         [os.remove(f'/mnt/saved_data/{file}_{i}.pkl') for i in pidnums]
-        #     except:
-        #         [os.remove(f'/mnt/saved_data/{file}_{i}.npy') for i in pidnums]
+    for file in file_list:
+        try:
+            [os.remove(f'/mnt/saved_data/{file}_{i}.pkl') for i in pidnums]
+        except:
+            [os.remove(f'/mnt/saved_data/{file}_{i}.npy') for i in pidnums]
 
 def remove_file(pidnums, file_list):
     for file in file_list:

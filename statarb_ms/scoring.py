@@ -191,8 +191,8 @@ def only_scoring(dis_res, df_returns, method, lookback_for_factors, lookback_for
                 sgm_eq = np.std(xi) * np.sqrt(1 / (1 - b**2))
                 score[i, stock_idx] = -m / sgm_eq
 
-    telegram_send.send(messages=[
-                       f'Number of negative b values for process {os.getpid()}: {c}', f'Number of stock with speed of mean reversion refused for process {os.getpid()}: {ccc}', f'Number of zero b for process {os.getpid()}: {cc} out of {n_stocks * trading_days}'])
+    # telegram_send.send(messages=[
+    #                    f'Number of negative b values for process {os.getpid()}: {c}', f'Number of stock with speed of mean reversion refused for process {os.getpid()}: {ccc}', f'Number of zero b for process {os.getpid()}: {cc} out of {n_stocks * trading_days}'])
 
     df_score = pd.DataFrame(score, columns=df_returns.columns)
 
@@ -280,8 +280,8 @@ if __name__ == '__main__':
         end = time.time()
 
     else:
-        telegram_send.send(
-            messages=[f'========== {time.asctime()} =========='])
+        # telegram_send.send(
+        #     messages=[f'========== {time.asctime()} =========='])
         np.random.seed()
 
         if args.scoring:
@@ -297,7 +297,7 @@ if __name__ == '__main__':
             #       dis_res[695:1121, :, :], dis_res[869:1295, :, :], dis_res[1043:1469, :, :], dis_res[1217:, :, :]]
             time.sleep(1)
             processes = [mp.Process(target=only_scoring, args=(
-                i, j, method, 252, 80)) for i, j in zip(dr, df)]
+                i, j, method, 252, 60)) for i, j in zip(dr, df)]
 
         else:
             logging.info('Estimating residual process...')
@@ -317,7 +317,7 @@ if __name__ == '__main__':
         pidnums.sort()
         if args.gas:
             if args.scoring:
-                file_list = ['df_score']
+                file_list = ['df_score_gas', 'estimates']
             else:
                 file_list = ['res', 'dis_res', 'Q', 'beta_tensor']
         else:
@@ -327,9 +327,8 @@ if __name__ == '__main__':
                 file_list = ['res', 'dis_res', 'Q', 'beta_tensor']
         logging.info('Merging files, then remove splitted ones...')
         file_merge(pidnums, file_list)
-        remove_file(pidnums, file_list)
         os.system('rm tmp/*')
-        telegram_send.send(messages=[f'==========================='])
+        # telegram_send.send(messages=[f'==========================='])
 
     time_elapsed = (end - start)
     logging.info('Time required for generate s-scores: %.2f seconds' %

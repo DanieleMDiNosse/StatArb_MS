@@ -12,6 +12,7 @@ import telegram_send
 from makedir import go_up
 from post_processing import file_merge, remove_file, sharpe_ratio
 from tqdm import tqdm
+from factors import pca, money_on_stock
 
 
 def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_so=1.25, s_bc=0.75, s_sc=0.5):
@@ -66,10 +67,7 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
             if (df_score[stock][day] == 0):
                 counter_no_trades += 1
                 continue
-# Beta tensor e Q hanno dei valori massimi che sono di gran lunga maggiori rispetto a quelli dei vecchi beta tensor e Q. Vedi un po' di capire perché sono valutati in questo modo
-# Forse il problema sta proprio qui, sebbene abbia controllato più e più volte e sembra che tutto sia fatto bene, almeno nella funzione generate_data.
 
-# Grafica i contributi dei fattori e delle stock giorno per giorno. L'idea è di capire cosa causa gli spike nel PnL fra i due. Grafica anche i costi di transazione.
             if (df_score[stock][day] < -s_bo) and (state[stock_idx] == 'c'):
                 state[stock_idx] = 'l'
 
@@ -191,18 +189,50 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
     return PnL, perc_positions, fact_cont, stock_cont, fees
 
 
-def spy_trading(df_returns, Q):
-    df_returns = np.array(df_returns[252:])
-    trading_days = df_returns.shape[0]
+def spy_trading():
+    lookback_for_factors = 252
+    n_factor = 15
+    sp500cost = pd.read_pickle(
+        go_up(1) + '/saved_data/SP500histcost_matched.pkl')
+    df_returns = pd.read_pickle('/mnt/saved_data/ReturnsDataHugeCleanedWM1.pkl')
+    trading_days = df_returns.shape[0] - lookback_for_factors
     n_stocks = df_returns.shape[1]
-    A = 1 / Q[0, 0, :].sum()
-    # normalized to one, that is the amount of money at time zero
-    Q = A * Q[0, 0, :]
     daily_PnL = np.ones(shape=trading_days)
-    for i in range(trading_days - 1):
-        daily_PnL[i + 1] = daily_PnL[i] + (Q * df_returns[i + 1]).sum()
+    cont = np.zeros(shape=trading_days)
+    qs = np.zeros(shape=trading_days)
+    Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
+    for i in tqdm(range(trading_days - 1)):
+        oneyear = sp500cost.iloc[i:lookback_for_factors + i]
+        period = df_returns[i:lookback_for_factors + i]
+        oneyearticks = []
+        alloneyearticks = np.unique(oneyear['Tickers'])
+        for l_ticks in alloneyearticks:
+            for tick in l_ticks:
+                oneyearticks.append(tick)
+        oneyearticks = list(set(oneyearticks))
+        period = period[period.columns.intersection(oneyearticks)]
+        period = period.dropna(axis=1)
+        period = period.loc[:, (period != 0).any(axis=0)]
+        eigenvalues, eigenvectors = pca(period, n_components=n_factor)
+        idxs = [df_returns.columns.get_loc(
+            period.columns[i]) for i in range(period.shape[1])]
+        Q[i][:, idxs] = money_on_stock(period, eigenvectors)
+        q = (1 / Q[i][:, idxs].sum() * Q[i][:, idxs]).sum(axis=0)
+        # c'è un problema dei q che esplodono
+        qs[i] = (q * df_returns[period.columns.intersection(period.columns)].iloc[lookback_for_factors + i]).sum(axis=0)
+        cont[i] = (df_returns[period.columns.intersection(period.columns)].iloc[lookback_for_factors + i]).sum(axis=0)
+        daily_PnL[i + 1] = daily_PnL[i] + (q * df_returns[period.columns.intersection(period.columns)].iloc[lookback_for_factors + i]).sum(axis=0)
 
-    return daily_PnL
+    plt.figure(figsize=(12,8))
+    ax0 = plt.subplot(3,1,1)
+    ax0.plot(cont)
+    ax1 = plt.subplot(3,1,2)
+    ax1.plot(qs)
+    ax2 = plt.subplot(3,1,3)
+    ax2.plot(daily_PnL)
+    plt.show()
+
+    return daily_PnL, cont, qs
 
 
 def grid_search(hyperparameters, score_data, name):
@@ -290,7 +320,7 @@ if __name__ == '__main__':
     if args.spy:
         logging.info('Starting spy trading... ')
         time.sleep(1)
-        returns = spy_trading(df_returns, Q)
+        returns = spy_trading()
         name = input('Name of the file that will be saved (spy): ')
         np.save(go_up(1) + f'/saved_data/{name}', returns)
 
@@ -298,18 +328,18 @@ if __name__ == '__main__':
         for i in range(1):
             pnl, perc_positions, fact_cont, stock_cont, fees = trading(
                 df_returns, df_score, Q, beta_tensor)
-            plt.figure(figsize=(12, 8))
-            ax0 = plt.subplot(4, 1, 1)
-            ax0.plot(fact_cont, 'k')
-            ax1 = plt.subplot(4, 1, 2)
-            ax1.plot(stock_cont, 'blue')
-            ax2 = plt.subplot(4, 1, 3)
-            ax2.plot(fees, 'red')
-            ax3 = plt.subplot(4, 1, 4)
-            ax3.plot(pnl, 'green')
-            plt.show()
-            # name = input('Name of the file that will be saved (strategy): ')
-            # np.save(go_up(1) + f'/saved_data/PnL/{name}', pnl)
+            # plt.figure(figsize=(12, 8))
+            # ax0 = plt.subplot(4, 1, 1)
+            # ax0.plot(fact_cont, 'k')
+            # ax1 = plt.subplot(4, 1, 2)
+            # ax1.plot(stock_cont, 'blue')
+            # ax2 = plt.subplot(4, 1, 3)
+            # ax2.plot(fees, 'red')
+            # ax3 = plt.subplot(4, 1, 4)
+            # ax3.plot(pnl, 'green')
+            # plt.show()
+            name = input('Name of the file that will be saved (strategy): ')
+            np.save(f'/mnt/saved_data/PnL/{name}', pnl)
         # name = input('Name of the file that will be saved (positions percentage): ')
         # np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
 

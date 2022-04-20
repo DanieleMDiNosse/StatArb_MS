@@ -71,50 +71,21 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
     for tick in tickers:
         try:
             prices[tick] = web.DataReader(
-                tick, data_source=data_source, start=start, end=end).Close
+                tick, data_source=data_source, start=start, end=end, api_key='MxXxW-CH1u4v57mxMKh6').Close
             print(
                 f'{list(tickers).index(tick) + 1}/{len(tickers)} Downloading price data of {tick}')
         except Exception:
             print(
                 f"{list(tickers).index(tick) + 1}/{len(tickers)} There is no price data for {tick}")
 
-    # prices = prices.dropna(axis=1)
-
     if export_csv:
         name = input('Name for the PRICE data file that will be saved: ')
         prices.to_pickle(go_up(1) + f'/saved_data/{name}.pkl')
-        # name = input('Name for the VOLUME data file that will be saved: ')
-        # volumes.to_csv(go_up(1) + f'/saved_data/{name}.csv', index=False)
 
     return prices
 
 
-def dividends_data(df_price, start, end, export_csv=True):
-
-    dividends = pd.DataFrame()
-    # Max request per hour is 500. I have to do this once I dropped some columns from data (without dropping there are 600+ companies)
-    for tick in df_price.columns[445:]:
-        try:
-            dividends[tick] = web.DataReader(
-                tick, data_source='tiingo', api_key='77db1f9b52ca2a404420fe0e850ddb042651f945', start=start, end=end).divCash
-            logging.info(
-                f'{df_price.columns[1:].to_list().index(tick) + 1}/{df_price.columns[1:].shape} Downloading dividend data of {tick}')
-        except Exception:
-            logging.info(
-                f'{df_price.columns[1:].to_list().index(tick) + 1}/{df_price.columns[1:].shape} There is no dividend data for {tick}')
-
-    # dividends = pd.DataFrame(dividends)
-    dividends = dividends.fillna(value=0.0)
-    # dividends = dividends.drop(columns=['symbol', 'date'])
-
-    if export_csv:
-        name = input('Name of the file that will be saved: ')
-        dividends.to_pickle(go_up(1) + f'/saved_data/{name}.pkl')
-
-    return dividends
-
-
-def get_returns(dataframe, volume_integration=False, export=True, m=1):
+def get_returns(dataframe, export=True, m=1):
     """
     Get day-by-day returns values for a company. The dataframe has companies as attributes
     and days as rows, the values are the close prices of each days.
@@ -149,59 +120,12 @@ def get_returns(dataframe, volume_integration=False, export=True, m=1):
         df_ret[col] = np.diff(dataframe[col]) / dataframe[col][:-m]
     df_ret.index = dataframe.index[1:]
 
-    if volume_integration:
-        name = input('Name of volume dataframe')
-        df_volume = pd.read_csv(go_up(1) + f'/saved_data/{name}.csv')
-        df_vol = pd.DataFrame(index=range(
-            df_volume.shape[0] - 10), columns=df_volume.columns)
-        for col in tqdm(df_volume.columns, desc='Volume integration'):
-            # diff_vol = np.diff(df_volume[col])
-            for i in range(df_volume.shape[0] - 10):
-                df_vol[col][i] = df_volume[col][i: i + 10].mean() / \
-                    df_volume[col][i + 9]
-        # Replace nan and inf values with 1. In this way these new returns will be equal to the simple returns
-        df_vol.replace([np.inf, -np.inf], 1, inplace=True)
-        df_vol = df_vol.fillna(value=1)
-
-        # there are some ticks whose volume data were not available. Have to drop them from returns dataframe
-        ticks = ['HFC', 'MXIM', 'XLNX', 'KSU', 'RRD']
-        df_ret = pd.DataFrame(df_vol * np.array(df_ret.drop(columns=ticks).iloc[9:]), columns=df_ret.columns)
-
     if export:
-        if volume_integration:
-            name = input(
-                'Name of the VOLUME INTEGRATED RETURNS file that will be saved: ')
-            df_ret.to_pickle(go_up(1) + f'/saved_data/{name}.pkl')
-        else:
-            name = input(
-                'Name of the SIMPLE RETURNS file that will be saved: ')
-            df_ret.to_pickle(go_up(1) + f'/saved_data/{name}.pkl')
+        name = input(
+            'Name of the SIMPLE RETURNS file that will be saved: ')
+        df_ret.to_pickle(go_up(1) + f'/saved_data/{name}.pkl')
 
     return df_ret
-
-
-def etf_assignment(df_returns, etf):
-    df = df_returns
-    tickers = df_returns.columns.to_list()
-    df_etf = [[pd.read_csv(
-        go_up(1) + f'/saved_data/etf/{i}.csv').Ticker.to_list()] for i in etf]
-    for tick in tickers:
-        for df_etf_columns in df_etf:
-            if tick in df_etf_columns[0]:
-                # print(tick, etf[df_etf.index(df_etf_columns)])
-                df = df.rename(
-                    columns={tick: tick + '_' + etf[df_etf.index(df_etf_columns)]})
-
-    file = open(go_up(1) + '/saved_data/no_etf_assignment.txt', 'w')
-    c = 0
-    for col in df.columns.to_list():
-        if '_' not in col:
-            c += 1
-            file.write(col + '\n')
-    file.write(f'Total: {c}')
-    file.close()
-
-    return df
 
 
 if __name__ == '__main__':
@@ -225,12 +149,13 @@ if __name__ == '__main__':
     # df_ret = get_returns(price, volume_integration=True)
 
 
-    SP500histcost = pd.read_pickle(go_up(1) + '/saved_data/SP500histcost.pkl')
+    SP500histcost = pd.read_pickle(go_up(1) + '/saved_data/SP500histcost_matched.pkl')
     unique_cost = np.unique(SP500histcost['Tickers'])
     allticks = []
     for costs in unique_cost:
         for tick in costs:
             allticks.append(tick)
     allticks = list(set(allticks))
-    # price = price_data(allticks, start='1995-01-01', end='2020-12-31', data_source='yahoo', export_csv=True)
-    returns = get_returns(price, volume_integration=False, export_csv=True, m=1)
+    # price = price_data(allticks, start='1995-01-01', end='2020-12-31', data_source='quandl', export_csv=True)
+    price = pd.read_pickle('/mnt/saved_data/PriceDataHuge1.pkl')
+    returns = get_returns(price, volume_integration=False, export=True, m=1)
