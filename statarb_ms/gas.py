@@ -6,85 +6,9 @@ import loglikelihood
 import matplotlib.pyplot as plt
 import numpy as np
 from makedir import go_up
-from numba import njit, prange
-from scipy import signal
 from scipy.optimize import minimize
-from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
-
-
-def likelihood_jac(params, X, b, model='autoregressive'):
-    a, omega, alpha, beta, sgm = params
-    num_par = params.shape[0]
-    T = X.shape[0]
-    XX = X[1:-1]
-    Xm1 = X[:-2]
-    Xp1 = X[2:]
-    b = b[1:-1]
-
-    dda = (-(2 * XX * Xm1 * alpha / sgm**2 - 2) * (-XX * b * beta - XX * omega + Xp1 - a -
-           alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2) / (2 * sgm**2)).sum()
-    ddw = (XX * (-XX * b * beta - XX * omega + Xp1 - a - alpha * (XX **
-           2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2) / sgm**2).sum()
-    ddal = ((XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) * (-XX * b * beta - XX * omega +
-            Xp1 - a - alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2) / sgm**4).sum()
-    ddb = (XX * b * (-XX * b * beta - XX * omega + Xp1 - a - alpha *
-           (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2) / sgm**2).sum()
-
-    if num_par == 5:
-        dds = (-2 * alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) * (-XX * b * beta - XX * omega + Xp1 - a - alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 *
-               a) / sgm**2) / sgm**5 - 1.0 / sgm + (-XX * b * beta - XX * omega + Xp1 - a - alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2)**2 / sgm**3).sum()
-        jac = - np.array([dda, ddw, ddal, ddb, dds])
-    if num_par == 4:
-        jac = - np.array([dda, ddw, ddal, ddb])
-
-    return jac
-
-
-def likelihood_hess(params, X, b, model='autoregressive'):
-    num_par = params.shape[0]
-    T = X.shape[0]
-    omega, a, alpha, beta, sgm = params
-    XX = X[1:-1]
-    Xm1 = X[:-2]
-    Xp1 = X[2:]
-    b = b[1:-1]
-
-    d2da2 = (-(XX * Xm1 * alpha / sgm**2 - 1) * (2 * XX *
-             Xm1 * alpha / sgm**2 - 2) / (2 * sgm**2)).sum()
-    d2dw2 = (-XX**2 / sgm**2).sum()
-    d2dal2 = (- (XX**2 * Xm1 - XX * Xm1**2 *
-              b - XX * Xm1 * a)**2 / sgm**6).sum()
-    d2db2 = (-XX**2 * b**2 / sgm**2).sum()
-    ddadw = (XX * (2 * XX * Xm1 * alpha / sgm**2 - 2) / (2 * sgm**2)).sum()
-    ddadal = (-XX * Xm1 * (-XX * b * beta - XX * omega + Xp1 - a - alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm **
-              2) / sgm**4 + (2 * XX * Xm1 * alpha / sgm**2 - 2) * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / (2 * sgm**4)).sum()
-    ddadb = (XX * b * (2 * XX * Xm1 * alpha / sgm**2 - 2) / (2 * sgm**2)).sum()
-    ddwdal = (-XX * (XX**2 * Xm1 - XX * Xm1**2 *
-              b - XX * Xm1 * a) / sgm**4).sum()
-    ddwdb = (-XX**2 * b / sgm**2).sum()
-    ddaldb = (-XX * b * (XX**2 * Xm1 - XX * Xm1 **
-              2 * b - XX * Xm1 * a) / sgm**4).sum()
-
-    if num_par == 5:
-        ddsdw = (2 * XX * alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**5 - 2 * XX * (-XX * b * beta -
-                 XX * omega + Xp1 - a - alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2) / sgm**3).sum()
-        ddsdal = (2 * alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a)**2 / sgm**7 - 4 * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a)
-                  * (-XX * b * beta - XX * omega + Xp1 - a - alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2) / sgm**5).sum()
-        ddsdb = (2 * XX * alpha * b * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**5 - 2 * XX * b * (-XX * b *
-                 beta - XX * omega + Xp1 - a - alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2) / sgm**3).sum()
-        ddsda = (2 * XX * Xm1 * alpha * (-XX * b * beta - XX * omega + Xp1 - a - alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2) / sgm**5 - alpha * (2 * XX * Xm1 * alpha / sgm**2 - 2) * (XX**2 * Xm1 -
-                 XX * Xm1**2 * b - XX * Xm1 * a) / sgm**5 + (2 * XX * Xm1 * alpha / sgm**2 - 2) * (-XX * b * beta - XX * omega + Xp1 - a - alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2) / sgm**3).sum()
-        d2ds2 = (-4 * alpha**2 * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a)**2 / sgm**8 + 14 * alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) * (-XX * b * beta - XX * omega + Xp1 - a - alpha * (XX**2 *
-                 Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2) / sgm**6 + 1.0 / sgm**2 - 3 * (-XX * b * beta - XX * omega + Xp1 - a - alpha * (XX**2 * Xm1 - XX * Xm1**2 * b - XX * Xm1 * a) / sgm**2)**2 / sgm**4).sum()
-
-        hess = - np.array([[d2da2, ddadw, ddadal, ddadb, ddsda], [ddadw, d2dw2, ddwdal, ddwdb, ddsdw], [ddadal, ddwdal,
-                                                                                                        d2dal2, ddaldb, ddsdal], [ddadb, ddwdb, ddaldb, d2db2, ddsdb], [ddsda, ddsdw, ddsdal, ddsdb, d2ds2]])
-    if num_par == 4:
-        hess = - np.array([[d2da2, ddadw, ddadal, ddadb], [ddadw, d2dw2, ddwdal, ddwdb], [ddadal, ddwdal,
-                                                                                          d2dal2, ddaldb], [ddadb, ddwdb, ddaldb, d2db2]])
-
-    return hess
+import pandas as pd
 
 
 def ML_errors(jac, hess_inv, params, X, specification):
@@ -121,57 +45,52 @@ def b_error(jac, hess_inv, deltas, X, specification):
     return std
 
 
-def estimation(X, method='L-BFGS-B', targeting_estimation=False, verbose=False, visualization=False):
+def estimation(X, n_iter, targeting_estimation=False, verbose=False, visualization=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
     b = np.zeros(shape=T)
     xi = np.zeros(shape=T)
-    res_iter = np.zeros(shape=(2,5))
 
-    # if targeting_estimation:
-    #     init_params0 = np.random.uniform(0, 1, size=2)
-    #     sgm = 1
-    #     res = minimize(loglikelihood.targeting_loglikelihood,
-    #                    init_params0, X, method=method, options={'eps': 1e-3})
-    #
-    #     while res.success == False:
-    #         init_params0 = np.random.uniform(0, 1, size=2)
-    #         res = minimize(loglikelihood.targeting_loglikelihood,
-    #                        init_params0, X, method=method, options={'eps': 1e-3})
-    #
-    #     omega, a = res.x
-    #     b_bar = omega
-    #     b[:2] = b_bar
-    #     init_params = np.random.uniform(0, 1, size=3)
-    #     res = minimize(loglikelihood.loglikelihood_after_targ, init_params, (X, b_bar),
-    #                    method=method, options={'eps': 1e-3})
-    #
-    #     while res.success == False:
-    #         init_params = np.random.uniform(0, 1, size=3)
-    #         res = minimize(loglikelihood.loglikelihood_after_targ,
-    #                        init_params, X, method=method, options={'eps': 1e-3})
-    #
-    #     a, alpha, beta = res.x[0], res.x[1], res.x[2]
-    #     omega = beta * (1 - b_bar)
-    #     res = [omega, a, alpha, beta]
-    #
-    # else:
-    for i in range(res_iter.shape[0]):
-        init_params = np.random.uniform(0, 1, size=4)
-        res = minimize(loglikelihood.loglikelihood, init_params, X, method='Nelder-Mead')
-        if np.isnan(res.fun) == False:
-            res_iter[i, :-1] = res.x
-            res_iter[i, -1] = res.fun
+    if targeting_estimation:
+        res_iter = np.zeros(shape=(n_iter,4))
+        for i in range(1):
+            init_params = np.random.uniform(0, 1, size=2)
+            res = minimize(loglikelihood.targeting_loglikelihood, init_params, X, method='Nelder-Mead')
 
-    init_params = res_iter[np.where(res_iter[:,4] == res_iter[:,4].min())][0][:4]
+        omega, a = res.x
+        b_bar = omega
+        b[:2] = b_bar
 
-    res = minimize(loglikelihood.loglikelihood,
-                   init_params, X, method='Nelder-Mead')
-    res = minimize(loglikelihood.loglikelihood,
-                   res.x, X, method='BFGS', options={'maxiter': 1})
+        for i in range(res_iter.shape[0]):
+             init_params = np.random.uniform(0, 1, size=3)
+             sgm = 1
+             res = minimize(loglikelihood.loglikelihood_after_targ, init_params, (X,b_bar),  method='Nelder-Mead')
+             if np.isnan(res.fun) == False:
+                 res_iter[i, :-1] = res.x
+                 res_iter[i, -1] = res.fun
 
-    omega, a, alpha, beta = res.x
-    sgm = 1
+        a, alpha, beta = res.x[0], res.x[1], res.x[2]
+        omega = beta * (1 - b_bar)
+        res = [omega, a, alpha, beta]
+
+    else:
+        res_iter = np.zeros(shape=(n_iter,5))
+        for i in range(res_iter.shape[0]):
+            init_params = np.random.uniform(0, 1, size=4)
+            res = minimize(loglikelihood.loglikelihood, init_params, X, method='Nelder-Mead')
+            if np.isnan(res.fun) == False:
+                res_iter[i, :-1] = res.x
+                res_iter[i, -1] = res.fun
+
+        init_params = res_iter[np.where(res_iter[:,4] == res_iter[:,4].min())][0][:4]
+
+        res = minimize(loglikelihood.loglikelihood,
+                       init_params, X, method='Nelder-Mead')
+        res = minimize(loglikelihood.loglikelihood,
+                       res.x, X, method='BFGS', options={'maxiter': 1})
+        omega, a, alpha, beta = res.x
+        res = [omega, a, alpha, beta]
+        sgm = 1
 
     if verbose:
         print(f'Initial guess: \n {init_params}')
@@ -181,14 +100,11 @@ def estimation(X, method='L-BFGS-B', targeting_estimation=False, verbose=False, 
     for t in range(1, T - 1):
         b[2:] = omega + alpha * xi[1:-1] * X[:-2] / sgm**2 + beta * b[1:-1]
         xi[2:] = X[:-2] - a - b[:-2] * X[1:-1]
-        # b[t + 1] = omega + alpha * xi[t] * X[t - 1] / sgm**2 + beta * b[t]
-        # xi[t + 1] = (X[t + 1] - a - b[t + 1] * X[t])
+
 
     if visualization:
         plt.figure(figsize=(12, 5), tight_layout=True)
         plt.plot(b, linewidth=1, label='Filtered Data')
-        # plt.fill_between(list(range(T)), b + std, b - std,
-        #                  color='crimson', label=r'$\sigma_b: {:.2f}$'.format(std), alpha=0.3)
         plt.legend()
         plt.grid(True)
         plt.title(r'$[\omega, a, \alpha, \beta]: {:.4f} , {:.4f} , {:.4f} , {:.4f} $'.format(
@@ -219,62 +135,43 @@ if __name__ == '__main__':
     if args.update == 1:
         update = 'logistic'
 
+    tickers = pd.read_pickle('/mnt/saved_data/ReturnsData.pkl').columns
+    name = input('Name of the file of residuals: ')
+    X = np.load(f'/mnt/saved_data/{name}.npy')
+
     if args.convergence:
         n_params = 4
-        N = 1000
-        NN = 1
-        X = np.load(go_up(1) + '/saved_data/dis_res60.npy')
+        N = 10000
         days = X.shape[0]
         n_stocks = X.shape[1]
-        b_sgm = np.empty(shape=NN)
-        day = np.random.randint(0, days, size=NN)
-        day = 118
-        stock = np.random.randint(0, n_stocks, size=NN)
-        stock = 345
-        for i in range(NN):
-            print(f'Day: {day}, Stock: {stock}')
-            x = X[day, stock, :]
-            results = np.empty(shape=(N, n_params))
-            for j in tqdm(range(N), desc='Covergence'):
-                b, a, xi, res = estimation(
-                    x, targeting_estimation=args.targ_est, verbose=args.verbose, visualization=args.visualization)
-                results[j] = res.x
-            # scaler = MinMaxScaler()
-            # b_val = scaler.fit_transform(b_val.reshape(-1, 1))
-            # b_sgm[i] = b_val.std()
-        # np.save(go_up(1) + f'/saved_data/convergence_day{day}_stock{stock}_NM', results)
-        omega, a, alpha, beta = results[:, 0], results[:, 1], results[:, 2], results[:, 3]
+        day = np.random.randint(0, days)
+        stock = np.random.randint(0, n_stocks)
+        day = 1592
+        stock = tickers.get_loc('JWN')
+        # print(f'Day: {day}, Stock: {tickers[stock]}')
+        x = X[day, stock, :]
+        results = np.empty(shape=(N, n_params))
+        for n_iter in [2, 7, 9, 14]:
+            for j in tqdm(range(N), desc=f'{n_iter}'):
+                b, a, xi, res = estimation(x, n_iter, targeting_estimation=args.targ_est)
+                results[j] = res
+                omega, a, alpha, beta = results[:, 0], results[:, 1], results[:, 2], results[:, 3]
 
-        plt.figure(figsize=(12, 8), tight_layout=True)
-        ax1 = plt.subplot(2, 2, 1)
-        ax1.hist(omega, bins=100, color='blue', alpha=0.6)
-        ax1.title.set_text(r'$\hat{\omega}$')
-        ax2 = plt.subplot(2, 2, 2)
-        ax2.hist(a, bins=100, color='blue', alpha=0.6)
-        ax2.title.set_text(r'$\hat{a}$')
-        ax3 = plt.subplot(2, 2, 3)
-        ax3.hist(alpha, bins=100, color='blue', alpha=0.6)
-        ax3.title.set_text(r'$\hat{\alpha}$')
-        ax4 = plt.subplot(2, 2, 4)
-        ax4.hist(beta, bins=100, color='blue', alpha=0.6)
-        ax4.title.set_text(r'$\hat{\beta}$')
+            plt.figure(figsize=(12, 8), tight_layout=True)
+            ax1 = plt.subplot(2, 2, 1)
+            ax1.hist(omega, bins=100, color='blue', alpha=0.6)
+            ax1.title.set_text(r'$\hat{\omega}$')
+            ax2 = plt.subplot(2, 2, 2)
+            ax2.hist(a, bins=100, color='blue', alpha=0.6)
+            ax2.title.set_text(r'$\hat{a}$')
+            ax3 = plt.subplot(2, 2, 3)
+            ax3.hist(alpha, bins=100, color='blue', alpha=0.6)
+            ax3.title.set_text(r'$\hat{\alpha}$')
+            ax4 = plt.subplot(2, 2, 4)
+            ax4.hist(beta, bins=100, color='blue', alpha=0.6)
+            ax4.title.set_text(r'$\hat{\beta}$')
+            plt.savefig(f'../../convergence/Day:_{day},_Stock:_JWM_,_Res:_dis_res80_{n_iter+1}NM.png')
         plt.show()
-
-        plt.figure(figsize=(12, 8), tight_layout=True)
-        ax1 = plt.subplot(2, 2, 1)
-        ax1.plot(omega, color='darkblue', alpha=0.6)
-        ax1.title.set_text(r'$\hat{\omega}$')
-        ax2 = plt.subplot(2, 2, 2)
-        ax2.plot(a, color='darkblue', alpha=0.6)
-        ax2.title.set_text(r'$\hat{a}$')
-        ax3 = plt.subplot(2, 2, 3)
-        ax3.plot(alpha, color='darkblue', alpha=0.6)
-        ax3.title.set_text(r'$\hat{\alpha}$')
-        ax4 = plt.subplot(2, 2, 4)
-        ax4.plot(beta, color='darkblue', alpha=0.6)
-        ax4.title.set_text(r'$\hat{\beta}$')
-        plt.show()
-        # plt.savefig(go_up(1) + 'b_1000res_100init_100days_targ.png')
 
         # plt.figure(figsize=(12, 8), tight_layout=True)
         # ax0 = plt.subplot(2, 3, 4)
@@ -317,7 +214,6 @@ if __name__ == '__main__':
         # plt.grid(True)
 
     else:
-        X = np.load(go_up(1) + '/saved_data/dis_res60.npy')
         days = X.shape[0]
         n_stocks = X.shape[1]
         # day = np.random.randint(days)

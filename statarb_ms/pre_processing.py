@@ -22,6 +22,7 @@ def data_cleaning(df_returns, limit=2):
     ret = ret.fillna(value=0.0)
 
     return ret
+
 def costituens_over_time(df_costituens, df_returns, lookback_for_factors=252):
     '''This function plots the number of costituents of S&P500 over the time horizon implied by the
     length of df_costituens/df_returns. Tracks both the total number of tickers, the ones of which
@@ -65,6 +66,8 @@ def costituens_over_time(df_costituens, df_returns, lookback_for_factors=252):
     plt.show()
 
     return None
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Generator of historical price data')

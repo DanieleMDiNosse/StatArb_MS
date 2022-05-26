@@ -13,6 +13,8 @@ import matplotlib.patches as mpatches
 from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
+import statsmodels.api as sm
+from scipy.stats import chi2
 import os
 import time
 from regression_parameters import auto_regression
@@ -262,20 +264,22 @@ def stationarity_check(name_residuals_file):
     the stationarity of the residuals of the regression of stocks on the risk factors. The function plot a heatmap illustrating the fraction of
     times that the null hypothesis is accepted (p-value > 0.05) or rejected (p-values < 0.05).'''
 
-    residuals = np.load(go_up(1) + f'/saved_data/{name_residuals_file}.npy')
+    residuals = np.load(f'/mnt/saved_data/{name_residuals_file}.npy')
+
     days = residuals.shape[0]
-    days = 500
     n_stocks = residuals.shape[1]
     p_values = np.zeros(shape=(days, n_stocks))
     bin_vec = np.vectorize(binary)
+
     for day in tqdm(range(days)):
         for stock in range(n_stocks):
             res = adfuller(residuals[day, stock, :])
             p_values[day, stock] = res[1]
+
     p_values = bin_vec(p_values)
     ones = p_values.flatten().sum()/p_values.flatten().shape[0]
     zeros = 1 - ones
-    ax = sns.heatmap(p_values.T, cmap=['darkred', 'darkorange'])
+    ax = sns.heatmap(p_values.T, cmap=['azure', 'black'])
     plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
     plt.yticks(y_label_position, y_label_day, fontsize=12)
     colorbar = ax.collections[0].colorbar
@@ -285,45 +289,52 @@ def stationarity_check(name_residuals_file):
     plt.show()
 
 def LM_test_statistic(X, params):
-    '''Lagrange Multiplier test. It tests the presence of instantaneous autocorellation in the score under the null
-    hypothesis of constant parameter. See "Iliyan Georgiev, David I. Harvey, Stephen J. Leybourne, A.M. Robert Taylor, Testing for parameter
+    '''Lagrange Multiplier test. It tests the presence of instantaneous autocorellation in the score under the null hypothesis of constant parameter. See "Iliyan Georgiev, David I. Harvey, Stephen J. Leybourne, A.M. Robert Taylor, Testing for parameter
     instability in predictive regression models, Journal of Econometrics, Volume 204, Issue 1, 2018."
 
     Parameters
     ----------
     X : numpy ndarray
-    Time series over which the estimation of the GAS model has been done.
+        Time series over which the estimation of the GAS model has been done.
     params: list or numpy ndarray
-    Maximum Likelihood estimates
+        Maximum Likelihood estimates.
 
     Returns
     -------
     pvalue: float
-    One side p-value.
+        One side p-value.
     '''
-    omega, a, sigma = params[0], params[1], params[2]
+    omega, a, sigma = params[0], params[1], params[-1]
 
     delta_w = X[1:-1] / sigma**2 * (X[2:] - a - omega * X[1:-1])
     scaled_score = delta_w * sigma / X[1:-1]
     delta_a = (X[2:] - a - X[1:-1] * omega) / sigma**2
     delta_al = delta_w / sigma**2 * (X[1:-1]**2 * X[:-2] - a * X[:-2] * X[1:-1] - omega * X[:-2]**2 * X[1:-1])
     delta_b = delta_w * omega * X[1:-1]
+
     if sigma == 1:
-        regressors = np.array([delta_a[1:], delta_al[1:], delta_b[1:], delta_w[1:], scaled_score[:-1] * delta_w[1:]]).T
+        # regressors = np.array([delta_a[1:], delta_al[1:], delta_b[1:], delta_w[1:], scaled_score[:-1] * delta_w[1:]]).T
+        regressors = np.array([delta_a[1:], delta_w[1:], scaled_score[:-1] * delta_w[1:]]).T
     else:
         delta_sgm = - 1/sigma + delta_w**2 * sigma
         regressors = np.array([delta_a[1:], delta_al[1:], delta_b[1:], delta_sgm[1:], delta_w[1:], scaled_score[:-1] * delta_w[1:]]).T
+        # regressors = np.array([delta_a[1:], delta_sgm[1:], delta_w[1:], scaled_score[:-1] * delta_w[1:]]).T
 
     response = np.ones_like(X[:-3]).T
     ones_est = np.zeros_like(response)
     model = sm.OLS(response, regressors)
     res = model.fit()
+
     if sigma == 1:
-        c_a, c_al, c_b, c_w, c_A = res.params
-        ones_est = c_a * regressors[:,0] + c_al * regressors[:,1] + c_b * regressors[:,2]  + c_w * regressors[:, 3] + c_A * regressors[:, 4]
+        # c_a, c_al, c_b, c_w, c_A = res.params
+        c_a, c_w, c_A = res.params
+        ones_est = c_a * regressors[:, 0] + c_w * regressors[:, 1] + c_A * regressors[:, 2]
     else:
         c_a, c_al, c_b, c_sgm, c_w, c_A = res.params
+        # c_a, c_w, c_sgm, c_A = res.params
         ones_est = c_a * regressors[:,0] + c_al * regressors[:,1] + c_b * regressors[:,2] + c_sgm * regressors[:,3] + c_w * regressors[:, 4] + c_A * regressors[:, 5]
+        # ones_est = c_a * regressors[:, 0] + c_sgm * regressors[:, 1] + c_w * regressors[:, 2] + c_A * regressors[:, 3]
+
     ESS = ((ones_est - response.mean())**2).sum()
     pvalue = 1 - chi2.cdf(ESS, df=1)
 
@@ -347,23 +358,18 @@ def file_merge(pidnums, file_list):
         except:
             [os.remove(f'/mnt/saved_data/{file}_{i}.npy') for i in pidnums]
 
-def remove_file(pidnums, file_list):
-    for file in file_list:
-        try:
-            [os.remove(f'/mnt/saved_data/{file}_{i}.pkl') for i in pidnums]
-        except:
-            [os.remove(f'/mnt/saved_data/{file}_{i}.npy') for i in pidnums]
-
 def sharpe_ratio(pnl, benchmark_pnl, period):
     sharpe_ratio = []
     pnl_ret = get_returns(pd.DataFrame(pnl), export_returns_csv=False, m=1)
     benchmark_pnl_ret = get_returns(pd.DataFrame(benchmark_pnl), export_returns_csv=False, m=1)
     # max() is used to let the function handle a period of length equal to the maximum available, pnl.shape[0]
+
     for i in range(max(1, pnl.shape[0] - period)):
         pnl_ret_period = pnl_ret[i:i+period]
         benchmark_pnl_ret_period = benchmark_pnl_ret[i:i+period]
         diff = pnl_ret_period - benchmark_pnl_ret_period
         sharpe_ratio.append(diff.mean()/diff.std())
+
     return np.array(sharpe_ratio)
 
 def yearly_returns():
@@ -371,11 +377,13 @@ def yearly_returns():
     pnls80 = np.array([np.load(f'../saved_data/PnL/pnl_LBFGSB(80days({i})).npy') for i in range(15)])
     plt.figure(figsize=(8,6), tight_layout=True)
     yearly_rets = np.zeros(shape=(pnls80.shape[0], 15))
+
     for k in range(pnls80.shape[0]):
         pnl = pnls80[k]
         for i, j in zip(range(0, 3528, 252), range(15)):
             yearly_rets[k, j] = (pnl[i + 252] - pnl[i]) / pnl[i] * 100
         yearly_rets[k, -1] = (pnl[-1] - pnl[-250])/pnl[-250] * 100 # last year is not totally complete
+
     yearly_rets_mean = yearly_rets.mean(axis=0)
     yearly_rets_std = yearly_rets.std(axis=0)
     plt.bar(np.arange(15), yearly_rets_mean, color='black', alpha=0.8)
@@ -389,11 +397,13 @@ def yearly_returns():
     pnls60 = np.array([np.load(f'../saved_data/PnL/pnl_LBFGSB(60days({i})).npy') for i in range(15)])
     plt.figure(figsize=(8,6), tight_layout=True)
     yearly_rets = np.zeros(shape=(pnls60.shape[0], 15))
+
     for k in range(pnls60.shape[0]):
         pnl = pnls60[k]
         for i, j in zip(range(0, 3528, 252), range(15)):
             yearly_rets[k, j] = (pnl[i + 252] - pnl[i]) / pnl[i] * 100
         yearly_rets[k, -1] = (pnl[-1] - pnl[-250])/pnl[-250] * 100 # last year is not totally complete
+
     yearly_rets_mean = yearly_rets.mean(axis=0)
     yearly_rets_std = yearly_rets.std(axis=0)
     plt.bar(np.arange(15), yearly_rets_mean, color='black', alpha=0.8)
@@ -407,8 +417,10 @@ def yearly_returns():
     pnlAL60 = np.load(f'../saved_data/PnL/pnl_AvellanedaLee(60days).npy')
     plt.figure(figsize=(8,6), tight_layout=True)
     yearly_rets = np.zeros(shape=15)
+
     for i, j in zip(range(0, 3528, 252), range(15)):
         yearly_rets[j] = (pnlAL60[i + 252] - pnlAL60[i]) / pnlAL60[i] * 100
+
     yearly_rets[-1] = (pnlAL60[-1] - pnlAL60[-250])/pnlAL60[-250] * 100 # last year is not totally complete
     plt.bar(np.arange(15), yearly_rets, color='black', alpha=0.8)
     xlabel = [str(1996 + i) for i in range(15)]
@@ -475,6 +487,7 @@ if __name__ == '__main__':
                         help='Bar plot for the percentage of stocks with mean reversion speed less than half period of estimation')
     parser.add_argument('-sr', '--sharpe_ratio', action='store_true',
                         help='Rolling sharpe ratio')
+    parser.add_argument("-lm", "--lmtest", action='store_true', help='LM test')
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -487,8 +500,8 @@ if __name__ == '__main__':
     IPython_default = plt.rcParams.copy()
     plt.style.use('seaborn')
     np.random.seed(666)
-    trading_days = np.array(pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date)[:4030 + 126]
-    tickers = pd.read_csv(go_up(1) + '/saved_data/ReturnsData.csv').columns.to_list()
+    trading_days = np.array(pd.read_pickle('/mnt/saved_data/PriceData.pkl').Date)[:4030 + 126]
+    tickers = pd.read_pickle('/mnt/saved_data/ReturnsData.pkl').columns.to_list()
 
     if args.plots:
         if args.pnl:
@@ -520,6 +533,7 @@ if __name__ == '__main__':
             x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
             x_label_day = [trading_days[252 + i] for i in x_label_position]
             plot_pnl(pnl, pnl_1, pnl_gas, pnl_gas1, pnl_gas2, pnl_gas3, pnl_gas4, pnl_gas5, pnl_gas6, pnl_gas7, pnl_gas8, spy_pnl)
+
         if args.ret:
             plot_returns(pnl, pnl_gas, spy_pnl)
             name1 = input('Name of the standard pnl file: ')
@@ -532,12 +546,14 @@ if __name__ == '__main__':
             x_quantity = int(input('Step of the labels on x-axis: '))
             x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
             x_label_day = [trading_days[252 + i] for i in x_label_position]
+
         if args.bvalues:
             name = input('Name of the b values file: ')
             x_quantity = int(input('Step of the labels on x-axis: '))
             x_label_position = np.arange(252, len(trading_days), x_quantity)
             x_label_day = [trading_days[i] for i in x_label_position]
             plot_bvalues(name, synthetic_check=True)
+
         if args.rsquared:
             name = input('Name of the R squared file: ')
             x_quantity = int(input('Step of the labels on x-axis: '))
@@ -547,6 +563,7 @@ if __name__ == '__main__':
             y_label_position = np.arange(0, len(tickers), y_quantity)
             y_label_day = [tickers[i] for i in y_label_position]
             normtest_discreteOU(name)
+
         if args.alphas:
             name1 = input('Name of the alpha values file: ')
             name2 = input('Name of the std_eq file: ')
@@ -554,6 +571,7 @@ if __name__ == '__main__':
             x_label_position = np.arange(252, len(trading_days), x_quantity)
             x_label_day = [trading_days[i] for i in x_label_position]
             plot_alphas(name1, name2)
+
         if args.sharpe_ratio:
             logging.info('Rolling Sharpe Ratios')
             period = 252
@@ -662,6 +680,39 @@ if __name__ == '__main__':
         y_label_day = [tickers[i] for i in y_label_position]
         stationarity_check(name)
 
+    if args.lmtest:
+        dis_res = input('Name of the residuals file: ')
+        estimates = input('Name of the estimates file: ')
+        X = np.load(f"/mnt/saved_data/{dis_res}.npy")
+        params = np.load(f"/mnt/saved_data/{estimates}.npy")
+        p_values = np.zeros(shape=(X.shape[0], X.shape[1]))
+        bin_vec = np.vectorize(binary)
+
+        for day in X.shape[0]:
+            for stock in X.shape[1]:
+                x = X[day, stock, :]
+                params = estimates[day, stock, :]
+                p_values[day, stock] = LM_test_statistic(x, params)
+
+        p_values = bin_vec(p_values)
+        ones = p_values.flatten().sum()/p_values.flatten().shape[0]
+        zeros = 1 - ones
+
+        x_quantity = int(input('Step of the labels on x-axis: '))
+        y_quantity = int(input('Step of the labels on y-axis: '))
+        x_label_position = np.arange(252, len(trading_days), x_quantity)
+        x_label_day = [trading_days[i] for i in x_label_position]
+        y_label_position = np.arange(0, len(tickers), y_quantity)
+        y_label_day = [tickers[i] for i in y_label_position]
+
+        ax = sns.heatmap(p_values.T, cmap=['darkred', 'darkorange'])
+        plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+        plt.yticks(y_label_position, y_label_day, fontsize=12)
+        colorbar = ax.collections[0].colorbar
+        colorbar.set_ticks(np.array([0,zeros,ones]))
+        colorbar.set_ticklabels(['Rejected','Accepted'])
+        plt.title(f'Accepted: {ones}, Rejected: {zeros}')
+        plt.show()
 
     if args.merge:
         num_processes = int(input('Enter the number of processes: '))

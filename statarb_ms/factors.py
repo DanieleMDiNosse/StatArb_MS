@@ -1,60 +1,62 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import logging
 import argparse
+import logging
+import os
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from makedir import go_up
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from makedir import go_up
 from tqdm import tqdm
-import os
+import seaborn as sns
 
 
 def pca(df_returns, n_components, verbose=False):
     '''
-    Compute the PCA decomposition of a dataset.
+    Compute the PCA decomposition of a dataset. This function relies on PCA module in sklearn.decomposition package.
+
     Parameters
     ----------
     df_returns : pandas.core.frame.DataFrame
         Dataframe of 1-day returns for each stock.
     n_components : int, bool
-        Number of components you want your dataframe be projected to.
-    variable_n_factor : bool
-        to be set to True if the number of principal components is chosen through a fixed amount of explained variance, False if it is set by n_components.
-        If it is True, n_components can be any value: the PCA will ignore and not use it.
-    threshold : float
-        Explained variance to keep. This parameter acts only when variable_n_factor is set to True.
+        Number of components you want your dataframe be projected into.
+    verbose : bool (optional)
+        If True, print information about variance explained by the n_components.
 
     Returns
     -------
     eigenvectors : ndarray of shape (n_components, n_stocks)
-
+        Principal components.
+    eigenvalues : ndarray of shape (n_components)
+        Eigenvalues of the empirical correlation matrix. They represent the explained variance along each principal components.
     '''
 
     scaler = StandardScaler()
     df_returns_norm = pd.DataFrame(scaler.fit_transform(
         df_returns), columns=df_returns.columns)
-    if n_components == 'False':
+    if n_components == 0:
         pca = PCA()
     else:
         pca = PCA(n_components=n_components)
     pca.fit(df_returns_norm.values)
     eigenvalues = pca.explained_variance_
     eigenvectors = pca.components_
+    explained_variance = pca.explained_variance_ratio_
 
     if verbose:
         logging.info(
-            f"Fraction of variance preserved with {len(eigenvectors)} components: {eigenvalues.sum()/df_returns.shape[1]:.2f}")
+            f"Fraction of variance preserved with {n_components} components: {explained_variance.sum()}")
 
-    return eigenvalues, -eigenvectors
+    return eigenvalues, -eigenvectors, explained_variance.sum()
 
 
 def eigenportfolios(df_returns, eigenvectors):
     '''
     Ordering of the components of the eigenvectors of the correlation matrix (principal components).
-    Example: the first principal component is v1 = (v11, v12, ... , v1N). Each component represent one company.
-    The first dictionary is then constructed ordering the vij and associating to each of them the corresponding
-    company tick.
+    Example: the first principal component is v1 = (v11, v12, ... , v1N). Each component vij represent the projection of the i-th stock on the j-th principal component.
+    This function creates a dictionary constructed ordering the vij and associating to each of them the corresponding company tick.
 
     Parameters
     ----------
@@ -76,9 +78,9 @@ def eigenportfolios(df_returns, eigenvectors):
 
     return eigenport
 
+
 def money_on_stock(df_returns, eigenvectors):
-    ''' This function will output a matrix of shape n_factors x n_stocks in which the i-j elements corresponds
-    to the amount of money to be invested in the company j relative to the risk factor i.
+    ''' This function will output a matrix of shape n_factors x n_stocks in which the (i,j) element corresponds to the weight of company j relative to the risk factor i.
 
     Parameters
     ----------
@@ -90,30 +92,28 @@ def money_on_stock(df_returns, eigenvectors):
     Returns
     -------
     q : numpy.ndarray of shape (n_factors, n_stocks)
-        The i-j element indicates the amount of money invested in
-        the company j in the factor i.
+        Weights of each company on each eigenvectors.
     '''
-
 
     dev_t = 1 / df_returns.std(axis=0)
     n_fact = eigenvectors.shape[0]
     n_stock = df_returns.shape[1]
     q = np.zeros(shape=(n_fact, n_stock))
     for i in range(n_fact):
-        q[i] = eigenvectors[i,:] * dev_t
+        q[i] = eigenvectors[i, :] * dev_t
 
     return q
 
 
-
 def risk_factors(df_returns, Q, eigenvectors, export=False):
-    '''This function evaluates the returns of the eigenportfolios. In the PCA
-    approach the returns of the eigenportolios are the factors
+    '''This function evaluates the returns of the eigenportfolios.
 
     Parameters
     ----------
     df_returns : pandas.core.frame.Dataframe
         Dataframe of 1 day returns for each stock.
+    Q : ndarray
+        Weights of each company on each eigenvectors.
     eigenvectors : numpy array
         Eigenvectors obtained from PCA.
     export : bool
@@ -135,19 +135,37 @@ def risk_factors(df_returns, Q, eigenvectors, export=False):
         factors[i] = np.matmul(Q, df_returns.iloc[i])
 
     if export:
-        name = input('Name of the file that will be saved: ')
+        name = input('Name of the factors file that will be saved: ')
         np.save(go_up(1) + f'/saved_data/{name}', factors)
 
     return factors
 
-def theoretical_eigenvalue_distribution(N, T, var, eigenvalues):
-    # eigenvalues = sorted(eigenvalues)
 
-    Q = T/N
-    lambda_max = var * (1 + 1/Q + 2*np.sqrt(1/Q))
-    lambda_min = var * (1 + 1/Q - 2*np.sqrt(1/Q))
-    print(eigenvalues)
-    rho = np.array([Q/(2*np.pi*var) * np.sqrt((lambda_max - lam)*(lam - lambda_min)) / lam for lam in eigenvalues])
+def theoretical_eigenvalue_distribution(N, T, var, eigenvalues):
+    ''' Following the results of Random Matrix Theory, this function returns the eigenvalues theoretical distribution of a purely random matrix with T rows and N columns.
+
+    Parameters
+    ----------
+    N : int
+        Number of features (columns)
+    T : int
+        Number of rows.
+    var : float
+        Variance of the elements of the matrix.
+    eigenvalues : ndarray of shape (N)
+        Eigenvalues of the sample correlation matrix.
+
+    Returns
+    -------
+    rho : ndarray of shape (N)
+        Theoretical distribution of the eigenvalues under the assumption that the matrix is random.
+    '''
+
+    Q = T / N
+    lambda_max = var * (1 + 1 / Q + 2 * np.sqrt(1 / Q))
+    lambda_min = var * (1 + 1 / Q - 2 * np.sqrt(1 / Q))
+    rho = np.array([Q / (2 * np.pi * var) * np.sqrt((lambda_max - lam)
+                   * (lam - lambda_min)) / lam for lam in eigenvalues])
 
     return rho
 
@@ -176,13 +194,36 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
     plt.style.use('seaborn')
 
-    df_returns = pd.read_csv(go_up(1) + "/saved_data/ReturnsData.csv")
+    df_returns = pd.read_pickle("/mnt/saved_data/ReturnsData.pkl")
+    eigenval, eigenvec, expvar = pca(df_returns[:252], n_components=15)
+    Q = money_on_stock(df_returns[:252], eigenvec)
+    factors = risk_factors(df_returns[:252], Q, eigenvec, export=False)
     N = df_returns.shape[1]
+    days = df_returns.shape[0]
     T = 252
-    import seaborn as sns
-    # window = np.exp(-np.linspace(-0.05,0.05,100)**2)
-    # plt.figure()
-    eigenvalues, eigenvectors = pca(df_returns[:T], n_components='False')
+
+
+    columns = [fr'${i}^°$' for i in range(1,16)]
+    df_eigenvec = pd.DataFrame(factors, columns=columns)
+    print(df_eigenvec.shape)
+    sns.heatmap(df_eigenvec.corr())
+    plt.show()
+    # var = np.zeros(shape=(days - T))
+    # first_var = np.zeros(shape=(days - T))
+    # for day in tqdm(range(days-T)):
+    #     eigenvalues, eigenvectors, explained_variance = pca(df_returns[day: day + T], n_components=15)
+    #     var[day] = explained_variance
+    #     eigenvalues, eigenvectors, explained_variance = pca(df_returns[day: day + T], n_components=1)
+    #     first_var[day] = explained_variance
+    # plt.figure(figsize=(12,8), tight_layout=True)
+    # plt.plot(var, 'k', linewidth=1.3, alpha=0.75, label=r'$\Sigma_r$ for 15 PCs')
+    # plt.plot(first_var, 'b', linewidth=1.3, alpha=0.75, label=r'$\Sigma_r$ for 1 PCs')
+    # plt.legend(prop={'size': 13})
+    # trading_days = pd.read_pickle('/mnt/saved_data/PriceData.pkl').Date
+    # x_label_position = np.arange(0, len(trading_days)-T, T)
+    # x_label_day = [trading_days[i] for i in x_label_position]
+    # plt.xticks(x_label_position, x_label_day, rotation=90)
+    # plt.show()
 
     # plt.plot(np.convolve(eigenvalues, window * 1. / sum(window), mode='same'))
     # eigenportfolio = eigenportfolios(df_returns, eigenvectors)
@@ -192,10 +233,10 @@ if __name__ == '__main__':
     # plt.scatter(first_ticks, first_components, s=1.5)
     # plt.show()
     if args.plots:
-        # trading_days = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date
-        # x_label_position = np.arange(0, len(trading_days)-252, 252)
-        # x_label_day = [trading_days[i] for i in x_label_position]
-        # plt.figure(figsize=(12,5), tight_layout=True)
+        trading_days = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date
+        x_label_position = np.arange(0, len(trading_days)-252, 252)
+        x_label_day = [trading_days[i] for i in x_label_position]
+        plt.figure(figsize=(12,5), tight_layout=True)
         # plt.bar(np.arange(len(eigenvalues)), eigenvalues,color='k', alpha=0.8)
         # plt.xlabel('Eigenvalues')
         # plt.ylabel('Explained Variance')
@@ -203,7 +244,8 @@ if __name__ == '__main__':
 
         plt.hist(eigenvalues, color='k', density=True, bins=300, alpha=0.8)
         # sns.displot(np.array(eigenvalues), kind='kde', bw_adjust=0.1)
-        plt.plot(eigenvalues, theoretical_eigenvalue_distribution(N, T, 0.7, eigenvalues), 'crimson', linewidth=2, label=r'$\sigma^2 = 0.7$')
+        plt.plot(eigenvalues, theoretical_eigenvalue_distribution(
+            N, T, 0.7, eigenvalues), 'crimson', linewidth=2, label=r'$\sigma^2 = 0.7$')
         plt.title('Density of states')
         # plt.legend()
         plt.show()

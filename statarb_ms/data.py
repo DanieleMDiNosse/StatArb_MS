@@ -15,13 +15,15 @@ from tqdm import tqdm
 
 def get_ticker():
     """
-    Get tickers of companies in S&P500 over all time from Wikipedia page
-    url = https://en.wikipedia.org/wiki/List_of_S%26P_500_companies#S&P_500_component_stocks
+    Get tickers of costituents of S&P500 over all time available from the Wikipedia page
+    'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies#S&P_500_component_stocks'
+
     Returns
-    ------
+    -------
     ticker : list
-        list of tickers
+        List of strings (tickers).
     """
+
     website_url = requests.get(
         'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies#S&P_500_component_stocks').text
     soup = BeautifulSoup(website_url, 'lxml')
@@ -48,23 +50,27 @@ def get_ticker():
     return ticker
 
 
-def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
+def price_data(tickers, start, end, data_source='yahoo', export=True):
     '''
-    Generate a pandas dataframe of historical close daily price.
+    Generate a pandas dataframe of historical close daily prices based on the pandas_datareader package.
+
     Parameters
     ----------
+    tickers: list
+        List of strings (tickers).
     start : str
-        Start time. Its format must be yyyy-mm-dd
+        Start time. Format must be yyyy-mm-dd
     end : str
-        End time. Its format must be yyyy-mm-dd
-    data_source : str(optional)
-        The data source ("iex", "fred"). Default = 'yahoo'
-    export_csv : bool(optional)
-        Choose whether to export to csv. Default = True
+        End time. Format must be yyyy-mm-dd
+    data_source : str (optional)
+        Data source. For all the possible options see pandas_datareader docs at 'https://pydata.github.io/pandas-datareader/remote_data.html'. Default is 'yahoo'.
+    export : bool (optional)
+        Choose whether to export to pandas pickle format. Default is True.
+
     Returns
     -------
-    data : pandas.core.frame.DataFrame
-        Pandas dataframe of historical close daily price
+    prices : pandas.core.frame.DataFrame
+        Pandas dataframe of historical close daily price.
     '''
 
     prices = pd.DataFrame()
@@ -87,27 +93,27 @@ def price_data(tickers, start, end, data_source='yahoo', export_csv=True):
 
 def get_returns(dataframe, export=True, m=1):
     """
-    Get day-by-day returns values for a company. The dataframe has companies as attributes
-    and days as rows, the values are the close prices of each days.
+    Generate m-period returns for all the companies in dataframe.columns. Dataframe has tickers as atributes and daily close prices as entries.
 
     Parameters
     ----------
     dataframe : pandas.core.frame.DataFrame
-        Input dataframe of prices.
-    export_csv : bool
-        Export dataframe in csv.
+        Input dataframe of daily close prices.
+    export : bool (optional)
+        Choose whether to export to pandas pickle format. Default is True.
     m : int (optional)
         Period over which returns are calculated. The default is 1.
 
     Returns
     -------
-    df : pandas.core.frame.DataFrame
+    df_ret : pandas.core.frame.DataFrame
         Dataframe of m-period returns.
     """
+
     try:
         if m < 0:
             raise ValueError(
-                "Ops! Invalid input, you can't go backward in time: m must be positive.")
+                "Ops! Invalid input: m must be positive.")
     except ValueError as ve:
         print(ve)
         sys.exit()
@@ -122,7 +128,7 @@ def get_returns(dataframe, export=True, m=1):
 
     if export:
         name = input(
-            'Name of the SIMPLE RETURNS file that will be saved: ')
+            'Name of the m-period returns file that will be saved: ')
         df_ret.to_pickle(go_up(1) + f'/saved_data/{name}.pkl')
 
     return df_ret
@@ -145,17 +151,15 @@ if __name__ == '__main__':
               'debug': logging.DEBUG}
 
     logging.basicConfig(level=levels[args.log])
-    price = pd.read_pickle(go_up(1) + '/saved_data/PriceDataHuge.pkl')
-    # df_ret = get_returns(price, volume_integration=True)
-
-
-    SP500histcost = pd.read_pickle(go_up(1) + '/saved_data/SP500histcost_matched.pkl')
-    unique_cost = np.unique(SP500histcost['Tickers'])
-    allticks = []
-    for costs in unique_cost:
-        for tick in costs:
-            allticks.append(tick)
-    allticks = list(set(allticks))
-    # price = price_data(allticks, start='1995-01-01', end='2020-12-31', data_source='quandl', export_csv=True)
-    price = pd.read_pickle('/mnt/saved_data/PriceDataHuge1.pkl')
-    returns = get_returns(price, volume_integration=False, export=True, m=1)
+    import matplotlib.pyplot as plt
+    plt.style.use('seaborn')
+    price = price_data(['PEP', 'KO'], '1995-12-11',
+                       '2005-10-11', export_csv=False)
+    price['PEP'] = price['PEP'] - price['PEP'][0] + 1
+    price['KO'] = price['KO'] - price['KO'][0] + 1
+    plt.figure(figsize=(12, 8), tight_layout=True)
+    plt.plot(price['PEP'], 'k', linewidth=1.5,
+             alpha=0.7, label='PepsiCo, Inc.')
+    plt.plot(price['KO'], 'b', linewidth=1.5, alpha=0.7, label='Coca-Cola Co')
+    plt.legend()
+    plt.show()

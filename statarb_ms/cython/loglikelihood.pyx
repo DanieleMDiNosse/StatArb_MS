@@ -29,7 +29,7 @@ cpdef float loglikelihood_after_targ(cnp.ndarray params, cnp.ndarray X, float b_
     for i in range(T - 1):
         sum += (- 0.5 * np.log(sigma**2) - 0.5 *
                       (X[i + 1] - a - b[i + 1] * X[i])**2 / sgm**2)
-    return - sum
+    return - sum / T
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -50,7 +50,7 @@ cpdef float targeting_loglikelihood(cnp.ndarray params, cnp.ndarray X):
     for i in range(T - 1):
         sum += (- 0.5 * np.log(sigma**2) - 0.5 *
                       (X[i + 1] - a - b[i + 1] * X[i])**2 / sigma**2)
-    return - sum
+    return - sum / T
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
