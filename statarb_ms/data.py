@@ -133,6 +133,45 @@ def get_returns(dataframe, export=True, m=1):
 
     return df_ret
 
+def volume_integration(df_volume, df_returns, lookback=10, export=True):
+
+    # clean volume data
+    df_volume = df_volume.dropna(axis=1)
+
+    # # Create a dataframe of daily volume differences
+    # vol_diff = pd.DataFrame(index=range(df_volume.shape[0]-1), columns=df_volume.columns)
+    # for col in df_volume.columns:
+    #     vol_diff[col] = np.diff(df_volume[col])
+
+    # create a dataframe of lookback averages of daily differences volume
+    vol_per_mean = pd.DataFrame(index=range(df_volume.shape[0]-lookback), columns=df_volume.columns)
+    for col in tqdm(df_volume.columns, desc='Average volume'):
+        for day in range(vol_per_mean.shape[0]):
+            vol_per = df_volume[col][day : day + lookback]
+            vol_per_mean[col][day] = vol_per.mean()
+
+    # Take the inverse and multiply it by the average daily volume over lookback days
+    df_volume = df_volume.apply(lambda x: 1/x)
+    # The first needed value of the dataframe of daily volume differences is the lookback-th
+    df_volume = df_volume[lookback:]
+    df_volume.index = range(vol_per_mean.shape[0])
+    vol_weights = df_volume * vol_per_mean
+    # if there is inf or -inf, replace it with 1. These entries will not contribute to the weighting procedure on the returns.
+    vol_weights = vol_weights.replace([np.inf, -np.inf], 1)
+    vol_weights = vol_weights.fillna(1)
+
+    df_ret = df_returns[lookback - 1:]
+    df_ret.index = range(df_ret.shape[0])
+    vol_int_ret = df_ret * vol_weights
+    # vol_int_ret = vol_int_ret[1:-1]
+
+    if export:
+        vol_int_ret.to_pickle('/mnt/saved_data/ReturnsVolData.pkl')
+        vol_weights.to_pickle('/mnt/saved_data/VolumeWeights.pkl')
+        vol_per_mean.to_pickle('/mnt/saved_data/VolPerMean.pkl')
+
+    return vol_int_ret
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -153,13 +192,8 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
     import matplotlib.pyplot as plt
     plt.style.use('seaborn')
-    price = price_data(['PEP', 'KO'], '1995-12-11',
-                       '2005-10-11', export_csv=False)
-    price['PEP'] = price['PEP'] - price['PEP'][0] + 1
-    price['KO'] = price['KO'] - price['KO'][0] + 1
-    plt.figure(figsize=(12, 8), tight_layout=True)
-    plt.plot(price['PEP'], 'k', linewidth=1.5,
-             alpha=0.7, label='PepsiCo, Inc.')
-    plt.plot(price['KO'], 'b', linewidth=1.5, alpha=0.7, label='Coca-Cola Co')
-    plt.legend()
-    plt.show()
+
+    df_volume = pd.read_pickle('/mnt/saved_data/VolumeData.pkl')
+    df_returns = pd.read_pickle('/mnt/saved_data/ReturnsData.pkl')[df_volume.columns.to_list()]
+
+    vol_int = volume_integration(df_volume, df_returns, export=True)

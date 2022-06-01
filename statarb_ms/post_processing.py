@@ -8,7 +8,7 @@ import logging
 import seaborn as sns
 from tqdm import tqdm
 from scipy.stats import skew
-from scipy.stats import ttest_1samp
+from scipy.stats import ttest_1samp, normaltest
 import matplotlib.patches as mpatches
 from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.stats.diagnostic import acorr_ljungbox
@@ -17,6 +17,7 @@ import statsmodels.api as sm
 from scipy.stats import chi2
 import os
 import time
+import random
 from regression_parameters import auto_regression
 
 def plot_pnl(pnl, pnl_1, pnl_gas, pnl_gas1, pnl_gas2, pnl_gas3, pnl_gas4, pnl_gas5, pnl_gas6, pnl_gas7, pnl_gas8, spy_pnl):
@@ -176,17 +177,17 @@ def plot_alphas(name1, name2):
     plt.show()
 
 def rsquared_statistics(name):
-    R_squared = np.load(go_up(1) + f'/saved_data/{name}.npy')
-    ax = sns.heatmap(R_squared.T, cmap='YlOrBr', cbar_kws={'label': 'Coefficient of determination'})
-    plt.xticks(x_label_position, x_label_day, fontsize=13, rotation=60)
-    plt.yticks(y_label_position, y_label_day, fontsize=13)
+    R_squared = np.load(f'/mnt/saved_data/{name}.npy')
+    ax = sns.heatmap(R_squared.T, cbar_kws={'label': 'Coefficient of determination'})
+    plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+    plt.yticks(y_label_position, y_label_day, fontsize=12)
     plt.show()
 
-    plt.figure(figsize=(12,8))
-    plt.hist(R_squared.flatten(), bins=20, color='k')
+    plt.figure(figsize=(12,8), tight_layout=True)
+    plt.hist(R_squared.flatten(), bins=20, color='blue', alpha=0.7)
     plt.xlabel('Coefficient of determination')
     plt.yscale('log')
-    plt.grid()
+    # plt.grid()
     plt.show()
 
 def binary(x, threshold=0.05):
@@ -196,48 +197,118 @@ def binary(x, threshold=0.05):
         x = 0
     return x
 
-def normtest_discreteOU(name):
+def normtest_discreteOU():
+    '''Perform D'Agostino and Pearson normality test'''
+
+    name = str(input('Name of residuals of AR(1) process: '))
+    dis_res = np.load(f'/mnt/saved_data/{name}.npy')
+    pvals = np.zeros(shape=(dis_res.shape[0], dis_res.shape[1]))
+
+    for stock in tqdm(range(dis_res.shape[1])):
+        for day in range(dis_res.shape[0]):
+            statistic, pvalue = normaltest(dis_res[day, stock, :])
+            pvals[day, stock] = pvalue
+
     bin_vec = np.vectorize(binary)
-    normtest = bin_vec(np.load(go_up(1) + f'/saved_data/{name}.npy'))
-    ax = sns.heatmap(normtest.T, cmap=['darkred', 'darkorange'])
+    normtest = bin_vec(pvals)
+    ax = sns.heatmap(pvals.T,  cmap=['azure', 'black'])
     colorbar = ax.collections[0].colorbar
-    ones = normtest.flatten().sum()/normtest.flatten().shape[0]
+    ones = pvals.flatten().sum()/pvals.flatten().shape[0]
     zeros = 1 - ones
-    colorbar.set_ticks(np.array([0,zeros,ones]))
-    colorbar.set_ticklabels(['Rejected','Accepted'])
-    plt.xticks(x_label_position, x_label_day, fontsize=13, rotation=60)
-    plt.yticks(y_label_position, y_label_day, fontsize=13)
+    colorbar.set_ticks(np.array([0, ones, zeros]))
+    colorbar.set_ticklabels(['Accepted', 'Rejected'])
+
+    trading_days = np.array(pd.read_pickle('/mnt/saved_data/PriceData.pkl').Date)[:4030 + 126]
+    tickers = pd.read_pickle('/mnt/saved_data/ReturnsData.pkl').columns.to_list()
+    x_quantity = int(input('Step of the labels on x-axis: '))
+    y_quantity = int(input('Step of the labels on y-axis: '))
+    x_label_position = np.arange(252, len(trading_days), x_quantity)
+    x_label_day = [trading_days[i] for i in x_label_position]
+    y_label_position = np.arange(0, len(tickers), y_quantity)
+    y_label_day = [tickers[i] for i in y_label_position]
+    plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+    plt.yticks(y_label_position, y_label_day, fontsize=12)
+    plt.title(f'{name} -- Accepted: {zeros}, Rejected: {ones}')
     plt.show()
 
     plt.figure(figsize=(12,8))
-    plt.hist(normtest.flatten(), bins=20, color='k')
+    plt.hist(pvals.flatten(), bins=20, color='k')
     plt.grid(True)
     plt.show()
 
-def ljung_box_test(name, order):
+def ljung_box_test():
 
-    if order == 1:
-        dis_res = np.load(go_up(1) + f'/saved_data/{name}.npy')
-    if order == 2:
-        dis_res = (np.load(go_up(1) + f'/saved_data/{name}.npy'))**2
+    name_list = ['AR_res50', 'AR_res60', 'AR_res70', 'AR_res80', 'AR_res90', 'AR_res100']
+    order_list = [1, 2]
+    for name in name_list:
+        for order in order_list:
+            logging.info(f'name: {name}, order: {order}')
+            if order == 1:
+                dis_res = np.load(f'/mnt/saved_data/{name}.npy')
+            if order == 2:
+                dis_res = (np.load(f'/mnt/saved_data/{name}.npy'))**2
 
-    lb_test = np.zeros(shape=(dis_res.shape[0], dis_res.shape[1]))
-    bin_vec = np.vectorize(binary)
-    for day in tqdm(range(dis_res.shape[0])):
-        for stock in range(dis_res.shape[1]):
-            lb_test[day, stock] = acorr_ljungbox(dis_res[day,stock,:], lags=2)[1][1] # p-values for lag=2
+            lb_test = np.zeros(shape=(dis_res.shape[0], dis_res.shape[1]))
+            bin_vec = np.vectorize(binary)
 
-    lb_test = bin_vec(lb_test)
-    ones = lb_test.flatten().sum()/lb_test.flatten().shape[0]
-    zeros = 1 - ones
-    ax = sns.heatmap(lb_test.T, cmap=['darkred', 'darkorange'])
-    plt.xticks(x_label_position, x_label_day, fontsize=13, rotation=90)
-    plt.yticks(y_label_position, y_label_day, fontsize=13)
-    colorbar = ax.collections[0].colorbar
-    colorbar.set_ticks(np.array([0,zeros,ones]))
-    colorbar.set_ticklabels(['Rejected','Accepted'])
-    plt.title(f'Accepted: {ones}, Rejected: {zeros}')
-    plt.show()
+            for day in tqdm(range(dis_res.shape[0])):
+                for stock in range(dis_res.shape[1]):
+                    lb_test[day, stock] = acorr_ljungbox(dis_res[day,stock,:], lags=2, model_df=1, return_df=True)['lb_pvalue'][2]
+
+            lb_test = bin_vec(lb_test)
+            ones = lb_test.flatten().sum()/lb_test.flatten().shape[0]
+            zeros = 1 - ones
+
+            plt.figure(figsize=(10,8), tight_layout=True)
+            ax = sns.heatmap(lb_test.T,  cmap=['azure', 'black'])
+            plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+            plt.yticks(y_label_position, y_label_day, fontsize=12)
+            colorbar = ax.collections[0].colorbar
+            colorbar.set_ticks(np.array([0,zeros,ones]))
+            colorbar.set_ticklabels(['Rejected','Accepted'])
+            plt.title(f'{name} -- Accepted: {ones}, Rejected: {zeros}')
+            plt.savefig(f'../../{name}_{order}.png')
+            # plt.show()
+
+def crosscorr(x, y, max_lag, bootstrap_test=False):
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    cross_corr = []
+    for d in range(max_lag):
+        cc = 0
+        for i in range(len(x)-d):
+            cc += (x[i] - x_mean) * (y[i+d] - y_mean)
+        cc = cc / np.sqrt(np.sum((x - x_mean)**2) * np.sum((y - y_mean)**2))
+        cross_corr.append(cc)
+    plt.plot(cross_corr,'k')
+    plt.title('Cross-correlation function')
+    plt.xlabel('Lags')
+
+
+    if bootstrap_test:
+        cross_corr_s = []
+        for i in range(100):
+            xs, ys = x, y
+            np.random.shuffle(xs)
+            np.random.shuffle(ys)
+            xs_mean = np.mean(xs)
+            ys_mean = np.mean(ys)
+            cross_corr_s_i = []
+            for d in range(max_lag):
+                cc = 0
+                for i in range(len(x)-d):
+                    cc += (xs[i] - xs_mean) * (ys[i+d] - ys_mean)
+                cc = cc / np.sqrt(np.sum((xs - xs_mean)**2) * np.sum((ys- ys_mean)**2))
+                cross_corr_s_i.append(cc)
+            cross_corr_s.append(cross_corr_s_i)
+        meancc = np.mean(np.array(cross_corr_s), axis=0)
+        stdcc = np.std(np.array(cross_corr_s), axis=0)
+        plt.plot(meancc - 3*stdcc, 'crimson', lw=0.5)
+        plt.plot(meancc, 'crimson', lw=0.5)
+        plt.plot(meancc + 3*stdcc, 'crimson', lw=0.5)
+        plt.fill_between(np.arange(0, max_lag), meancc + 3*stdcc, meancc - 3*stdcc, color='crimson', alpha=0.6)
+    plt.grid()
+    return cross_corr
 
 def onesample_ttest(name):
     dis_res = np.load(go_up(1) + f'/saved_data/{name}.npy')
@@ -250,7 +321,7 @@ def onesample_ttest(name):
     t_test = bin_vec(t_test)
     ones = t_test.flatten().sum()/t_test.flatten().shape[0]
     zeros = 1 - ones
-    ax = sns.heatmap(t_test.T, cmap=['darkred', 'darkorange'])
+    ax = sns.heatmap(t_test.T,  cmap=['azure', 'black'])
     plt.xticks(x_label_position, x_label_day, fontsize=11, rotation=90)
     plt.yticks(y_label_position, y_label_day, fontsize=11)
     colorbar = ax.collections[0].colorbar
@@ -280,6 +351,7 @@ def stationarity_check(name_residuals_file):
     ones = p_values.flatten().sum()/p_values.flatten().shape[0]
     zeros = 1 - ones
     ax = sns.heatmap(p_values.T, cmap=['azure', 'black'])
+
     plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
     plt.yticks(y_label_position, y_label_day, fontsize=12)
     colorbar = ax.collections[0].colorbar
@@ -345,11 +417,11 @@ def file_merge(pidnums, file_list):
     for file in file_list:
         try:
             df_score = [pd.read_pickle(f'/mnt/saved_data/{file}_{i}.pkl') for i in pidnums]
-            name = input('Name for the Score csv file: ')
+            name = input(f'Name for the {file} pkl file: ')
             pd.concat(df_score, ignore_index=True).to_pickle(f'/mnt/saved_data/{name}.pkl')
         except:
             splitted_files = [np.load(f'/mnt/saved_data/{file}_{i}.npy') for i in pidnums]
-            name = input(f'Name for the {file} file: ')
+            name = input(f'Name for the {file} npy file: ')
             np.save(f'/mnt/saved_data/{name}', np.vstack(splitted_files))
 
     for file in file_list:
@@ -360,8 +432,8 @@ def file_merge(pidnums, file_list):
 
 def sharpe_ratio(pnl, benchmark_pnl, period):
     sharpe_ratio = []
-    pnl_ret = get_returns(pd.DataFrame(pnl), export_returns_csv=False, m=1)
-    benchmark_pnl_ret = get_returns(pd.DataFrame(benchmark_pnl), export_returns_csv=False, m=1)
+    pnl_ret = get_returns(pd.DataFrame(pnl), export=False, m=1)
+    benchmark_pnl_ret = get_returns(pd.DataFrame(benchmark_pnl), export=False, m=1)
     # max() is used to let the function handle a period of length equal to the maximum available, pnl.shape[0]
 
     for i in range(max(1, pnl.shape[0] - period)):
@@ -452,6 +524,55 @@ def yearly_returns():
     plt.xticks(np.arange(15), xlabel, rotation=90)
     plt.ylabel('%')
     plt.title('Yearly returns (100 days)')
+    plt.show()
+
+def drift_vs_sgm():
+
+    alpha_name = str(input('Name of the alphas file: '))
+    sgm_eq_name = str(input('Name of the sgm_eq file: '))
+    alphas = np.load(f'/mnt/saved_data/{alpha_name}.npy')
+    sgm_eq = np.load(f'/mnt/saved_data/{sgm_eq_name}.npy')
+
+    n_stocks = alphas.shape[1]
+
+    stock_idx = random.randint(0, n_stocks)
+    print(stock_idx)
+
+    plt.style.use('seaborn')
+    plt.figure(figsize=(10,5), tight_layout=True)
+    trading_days = np.array(pd.read_pickle('/mnt/saved_data/PriceData.pkl').Date)[:4030 + 252]
+    tickers = pd.read_pickle('/mnt/saved_data/ReturnsData.pkl').columns.to_list()
+    x_quantity = 126
+    x_label_position = np.arange(252, len(trading_days), x_quantity)
+    x_label_day = [trading_days[i] for i in x_label_position]
+    plt.xticks(np.arange(0, len(trading_days)-x_quantity*3, x_quantity), x_label_day[:-1], fontsize=12, rotation=90)
+    plt.plot(alphas[:, stock_idx]/252, 'red', linewidth=1.2, alpha=0.8, label=r'Drift $\alpha$')
+    plt.plot(sgm_eq[:, stock_idx], 'green', linewidth=1.2, alpha=0.8, label=r'Std $\tilde{\sigma}^{eq}$')
+    plt.legend()
+    plt.show()
+
+def beta():
+
+    name = str(input('Name of strategy PnL: '))
+    lookback = int(input('Lookback for beta computation: '))
+    pnl_strat = np.load(f'/mnt/saved_data/PnL/{name}.npy')
+    ret_strat = np.diff(pnl_strat)
+    ret_first_comp = np.diff(np.load('/mnt/saved_data/PnL/pnl_firstcomp.npy'))
+
+    betas = np.zeros(shape=pnl_strat.shape[0]- (lookback + 1))
+
+    for i in range(betas.shape[0]):
+        betas[i] = np.cov(ret_strat[i:i+lookback], ret_first_comp[i:i+lookback])[0][1] / np.var(ret_first_comp[i:i+lookback])
+
+    plt.style.use('seaborn')
+    plt.figure(figsize=(12,8), tight_layout=True)
+    trading_days = np.array(pd.read_pickle('/mnt/saved_data/PriceData.pkl').Date)[lookback:4030 + 126]
+    tickers = pd.read_pickle('/mnt/saved_data/ReturnsData.pkl').columns.to_list()
+    x_quantity = 126
+    x_label_position = np.arange(252, len(trading_days), x_quantity)
+    x_label_day = [trading_days[i] for i in x_label_position]
+    plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
+    plt.plot(betas, linewidth=1.2, alpha=0.8)
     plt.show()
 
 if __name__ == '__main__':
@@ -562,7 +683,7 @@ if __name__ == '__main__':
             x_label_day = [trading_days[i] for i in x_label_position]
             y_label_position = np.arange(0, len(tickers), y_quantity)
             y_label_day = [tickers[i] for i in y_label_position]
-            normtest_discreteOU(name)
+            rsquared_statistics(name)
 
         if args.alphas:
             name1 = input('Name of the alpha values file: ')
@@ -650,15 +771,18 @@ if __name__ == '__main__':
         normtest_discreteOU(name)
 
     if args.ljungbox_test:
-        name = input('Name of the residuals file: ')
-        order = int(input('Simple autocorrelation (1) or autocorellation of the squares (2)?:'))
-        x_quantity = int(input('Step of the labels on x-axis: '))
-        y_quantity = int(input('Step of the labels on y-axis: '))
+        # name = input('Name of the residuals file: ')
+        # order = int(input('Simple autocorrelation (1) or autocorellation of the squares (2)?:'))
+        # x_quantity = int(input('Step of the labels on x-axis: '))
+        # y_quantity = int(input('Step of the labels on y-axis: '))
+        x_quantity = 252
+        y_quantity = 30
         x_label_position = np.arange(252, len(trading_days), x_quantity)
         x_label_day = [trading_days[i] for i in x_label_position]
         y_label_position = np.arange(0, len(tickers), y_quantity)
         y_label_day = [tickers[i] for i in y_label_position]
-        ljung_box_test(name, order)
+        # ljung_box_test(name, order)
+        ljung_box_test()
 
     if args.ttest:
         name = input('Name of the residuals file: ')

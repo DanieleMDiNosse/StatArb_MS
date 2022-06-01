@@ -42,7 +42,7 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
 
     PnL = np.zeros(df_score.shape[0])
     PnL[0] = 1.00
-    fraction = 0.02
+    fraction = 0.01
     lookback_for_factors = 252
     daily_PnL = np.zeros(shape=df_returns.shape)
     state = np.array(['c' for i in range(df_returns.shape[1])])
@@ -109,70 +109,41 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
     return PnL, perc_positions, fact_cont, stock_cont, fees
 
 
-def spy_trading():
-    lookback_for_factors = 252
-    n_factor = 15
-    sp500cost = pd.read_pickle(
-        go_up(1) + '/saved_data/SP500histcost_matched.pkl')
-    df_returns = pd.read_pickle('/mnt/saved_data/ReturnsDataHugeCleanedWM1.pkl')
-    trading_days = df_returns.shape[0] - lookback_for_factors
+def spy_trading(df_returns, Q):
+
+    df_returns = np.array(df_returns[252:])
+    trading_days = df_returns.shape[0]
     n_stocks = df_returns.shape[1]
+
+    A = 1 / Q[0,0,:].sum()
+    Q = A*Q[0,0,:] # normalized to one, that is the amount of money at time zero
     daily_PnL = np.ones(shape=trading_days)
-    cont = np.zeros(shape=trading_days)
-    qs = np.zeros(shape=trading_days)
-    Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
+
     for i in tqdm(range(trading_days - 1)):
-        oneyear = sp500cost.iloc[i:lookback_for_factors + i]
-        period = df_returns[i:lookback_for_factors + i]
-        oneyearticks = []
-        alloneyearticks = np.unique(oneyear['Tickers'])
-        for l_ticks in alloneyearticks:
-            for tick in l_ticks:
-                oneyearticks.append(tick)
-        oneyearticks = list(set(oneyearticks))
-        period = period[period.columns.intersection(oneyearticks)]
-        period = period.dropna(axis=1)
-        period = period.loc[:, (period != 0).any(axis=0)]
-        eigenvalues, eigenvectors = pca(period, n_components=n_factor)
-        idxs = [df_returns.columns.get_loc(
-            period.columns[i]) for i in range(period.shape[1])]
-        Q[i][:, idxs] = money_on_stock(period, eigenvectors)
-        q = (1 / Q[i][:, idxs].sum() * Q[i][:, idxs]).sum(axis=0)
-        # c'è un problema dei q che esplodono
-        qs[i] = (q * df_returns[period.columns.intersection(period.columns)].iloc[lookback_for_factors + i]).sum(axis=0)
-        cont[i] = (df_returns[period.columns.intersection(period.columns)].iloc[lookback_for_factors + i]).sum(axis=0)
-        daily_PnL[i + 1] = daily_PnL[i] + (q * df_returns[period.columns.intersection(period.columns)].iloc[lookback_for_factors + i]).sum(axis=0)
+        daily_PnL[i+1] = daily_PnL[i] + (Q*df_returns[i+1]).sum()
 
-    plt.figure(figsize=(12,8))
-    ax0 = plt.subplot(3,1,1)
-    ax0.plot(cont)
-    ax1 = plt.subplot(3,1,2)
-    ax1.plot(qs)
-    ax2 = plt.subplot(3,1,3)
-    ax2.plot(daily_PnL)
-    plt.show()
-
-    return daily_PnL, cont, qs
+    return daily_PnL
 
 
-def grid_search(hyperparameters, score_data, name):
+def grid_search(hyperparameters, score_data):
+
     results = pd.DataFrame(index=range(len(hyperparameters)), columns=[
                            'Hyperparameters', 'SharpeRatio'])
+
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
-    for hyper in tqdm(hyperparameters, desc=f'{os.getpid()}'):
+
+    for hyper in hyperparameters:
         idx = hyperparameters.index(hyper)
         s_bo, s_so, s_bc, s_sc = hyper
-        pnl, perc_positions = trading(
+        pnl, perc_positions, fact_cont, stock_cont, fees = trading(
             df_returns, df_score, Q, beta_tensor, s_bo=hyper[0], s_so=hyper[1], s_bc=hyper[2], s_sc=hyper[3])
-        spy = np.load(
-            go_up(1) + '/saved_data/PnL/pnl_FirstPrincipalComp().npy')[:pnl.shape[0]]
+        spy = np.load('/mnt/saved_data/PnL/pnl_firstcomp.npy')[:pnl.shape[0]]
         s_ratio = sharpe_ratio(pnl, spy, period=pnl.shape[0])[0]
-        print(s_ratio[0], type(s_ratio))
+        # print(s_ratio[0], type(s_ratio))
         results['Hyperparameters'][idx] = hyper
-        results['SharpeRatio'][idx] = [s_bo, s_so, s_bc, s_sc]
-    results.to_csv(
-        go_up(1) + f'/saved_data/{name}_{os.getpid()}.csv', index=False)
+        results['SharpeRatio'][idx] = s_ratio
+    results.to_pickle(f'/mnt/saved_data/gridsearch_{os.getpid()}.pkl')
 
 
 if __name__ == '__main__':
@@ -182,6 +153,7 @@ if __name__ == '__main__':
                         help=("Provide logging level. Example --log debug', default='info"))
     parser.add_argument('-s', '--spy', action='store_true',
                         help='Generate PnL for the Buy and Hold strategy of the first principal component')
+    parser.add_argument('-vi', '--vol_int', action='store_true', help='Use return dataframe weighted  with volume information')
     parser.add_argument('-g', '--grid_search', action='store_true',
                         help='Grid search for model hyperparameters selection')
 
@@ -194,15 +166,33 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     start = time.time()
-    # df_returns = pd.read_pickle("/mnt/saved_data/ReturnsDataHugeCleanedWM.pkl")
-    df_returns = pd.read_pickle("/mnt/saved_data/ReturnsData.pkl")
-    # Q = np.load('/mnt/saved_data/Q_nobias.npy')
-    Q = np.load('/mnt/saved_data/Q.npy')
-    length = int(input('Lenght of estimation window for AR(1) parameters: '))
-    # beta_tensor = np.load(f'/mnt/saved_data/beta_tensor{length}_nobias.npy')
-    beta_tensor = np.load(f'/mnt/saved_data/beta_tensor{length}.npy')
-    name = input('Name of the s-score data file: ')
-    df_score = pd.read_pickle(f'/mnt/saved_data/{name}.pkl')[:4030]
+
+    if args.vol_int:
+        # Le quantità Q, beta_tensor e df_score sono state generate tramite il dataframe pesato con i volumi. Il primo valore di tale dataframe utilizza le informazioni dei ritorni semplici indicizzati da 9 e le informazioni dei volumi relativi al 10° giorno. Il 9° valore del dataframe dei ritorni corrisponde alla quantità (R(10) - R(9)) / R(9), quindi al ritorno che leggo a chiusura del 10° giorno. A tale chiusura leggo anche il valore del volume al 10° giorno.
+
+        # Di conseguenza, il df_returns qui di seguito deve partire dal 9° valore. Q, beta_tensor e df_score devono finire invece al -10, siccome sono stati generati dal dataframe pesato coi volumi che in realtà parte dalle infor a chiusura del 10° giorno e sfora sempre di 10 giorni la fine di df_returns.
+
+        logging.info('I am using scores obtained from modified returns')
+        time.sleep(0.3)
+        df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[9:]
+        df_returns.index = range(df_returns.shape[0]) # This dataframe has shape ReturnsData.shape[0] - 10
+        Q = np.load('/mnt/saved_data/Qs/Q_volint.npy')[:-10,:,:]
+        length = int(input('Lenght of estimation window for AR(1) parameters: '))
+        name = input('Name of the s-score data file: ')
+        beta_tensor = np.load(f'/mnt/saved_data/beta_tensor{length}_volint.npy')[:-10,:,:]
+
+        df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')[:-10]
+        df_score.index = range(df_score.shape[0])
+
+    else:
+        logging.info('I am using scores obtained from simple returns')
+        time.sleep(0.3)
+        df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[:4030]
+        Q = np.load('/mnt/saved_data/Qs/Q.npy')
+        length = int(input('Lenght of estimation window for AR(1) parameters: '))
+        name = input('Name of the s-score data file: ')
+        beta_tensor = np.load(f'/mnt/saved_data/betas/beta_tensor{length}.npy')
+        df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')
 
     if args.grid_search:
         close_range = np.arange(0.5, 0.85, 0.05)
@@ -216,11 +206,12 @@ if __name__ == '__main__':
                 hyperparameters.append([o[0], o[1], c[0], c[1]])
         hyperparameters = [hyperparameters[i: i + 63]
                            for i in range(0, len(hyperparameters), 63)]
-        print(hyperparameters[0], len(hyperparameters))
 
         processes = [mp.Process(target=grid_search, args=(
-            hyperparam, df_score, name)) for hyperparam in hyperparameters]
+            hyperparam, df_score)) for hyperparam in hyperparameters]
+
         os.system('rm tmp/*')
+
         for p in processes:
             p.start()
         for p in processes:
@@ -230,33 +221,27 @@ if __name__ == '__main__':
         telegram_send.send(messages=[f'GridSearch on {name} terminated'])
         pidnums = [int(x) for x in os.listdir('tmp')]
         pidnums.sort()
-        print('AGGIUSTA IL CODICE')
         logging.info('Merging files, then remove the splitted ones...')
-        file_merge(pidnums, [name], f'GridSearch_{name}')
+        file_merge(pidnums, ['gridsearch'])
         os.system('rm tmp/*')
+
+        gs = pd.read_pickle(f'/mnt/saved_data/gridsearch_{name}.pkl')
+        idxs = np.where(gs.values[:,1] == gs['SharpeRatio'].max())
+        gs = gs.iloc[idxs]
+        gs.to_pickle(f'/mnt/saved_data/gridsearch_{name}.pkl')
         exit()
 
     if args.spy:
         logging.info('Starting spy trading... ')
         time.sleep(1)
-        returns = spy_trading()
+        spy_pnl = spy_trading(df_returns, Q)
         name = input('Name of the file that will be saved (spy): ')
-        np.save(go_up(1) + f'/saved_data/{name}', returns)
+        np.save(f'/mnt/saved_data/PnL/{name}', spy_pnl)
 
     else:
         for i in range(1):
             pnl, perc_positions, fact_cont, stock_cont, fees = trading(
                 df_returns, df_score, Q, beta_tensor)
-            # plt.figure(figsize=(12, 8))
-            # ax0 = plt.subplot(4, 1, 1)
-            # ax0.plot(fact_cont, 'k')
-            # ax1 = plt.subplot(4, 1, 2)
-            # ax1.plot(stock_cont, 'blue')
-            # ax2 = plt.subplot(4, 1, 3)
-            # ax2.plot(fees, 'red')
-            # ax3 = plt.subplot(4, 1, 4)
-            # ax3.plot(pnl, 'green')
-            # plt.show()
             name = input('Name of the file that will be saved (strategy): ')
             np.save(f'/mnt/saved_data/PnL/{name}', pnl)
         # name = input('Name of the file that will be saved (positions percentage): ')
