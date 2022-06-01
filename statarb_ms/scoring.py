@@ -18,6 +18,7 @@ from makedir import go_up
 from post_processing import LM_test_statistic, file_merge
 from regression_parameters import auto_regression, regression
 from scipy.stats import normaltest
+from statsmodels.stats.diagnostic import acorr_ljungbox
 from sklearn.metrics import r2_score
 from statsmodels.tsa.stattools import adfuller
 from tqdm import tqdm
@@ -80,10 +81,10 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
                 factors[-lookback_for_residual:], period[-lookback_for_residual:][stock])
 
             # Avoid estimation of non stationary residuals
-            # p_value = adfuller(residuals)[1]
-            # if p_value > 0.05:
-            #     pass
-            # else:
+            p_value = adfuller(residuals)[1]
+            if p_value > 0.05:
+                continue
+
             alphas[i, stock_idx] = beta0 * lookback_for_factors
             beta_tensor[i, stock_idx, :] = betas
             res[i, stock_idx, :] = residuals
@@ -137,6 +138,14 @@ def only_scoring(dis_res, df_returns, method, n_iter, lookback_for_factors, look
                 X = np.append(X, X[-1])
                 parameters, discrete_pred, xi, discrete_conf_int = auto_regression(X)
                 a, b = parameters[0], parameters[1]
+
+                # Avoid estimation on residuals that do not satisfy condition on normality and absence of serial correlation
+                statistic, norm_pvalue = normaltest(xi)
+                lb_pvalue = acorr_ljungbox(xi, lags=2, model_df=1, return_df=True)['lb_pvalue'][2]
+                lb_pvalue2 = acorr_ljungbox(xi**2, lags=2, model_df=1, return_df=True)['lb_pvalue'][2]
+                if (norm_pvalues > 0.05) or (lb_pvalue > 0.05) or (lb_pvalue2 > 0.05):
+                    continue
+
                 r2[i, stock_idx] = r2_score(X[:-1], np.array(discrete_pred))
                 const_AR_par[i, stock_idx, :] = parameters
                 AR_res[i, stock_idx, :] = xi

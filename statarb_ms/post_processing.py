@@ -49,7 +49,7 @@ def plot_raw_pnl(path):
     for pnl, pnl_name in zip(pnls, pnl_names):
         plt.plot(pnl[:4030-252], linewidth=1, label=f'{pnl_name}', alpha=1)
 
-    df_returns = pd.read_pickle("/mnt/saved_data/ReturnsDataHugeCleaned.pkl")
+    df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")
     trading_days = [str(x).split(' ')[0] for x in df_returns.index[:4030 + 125]]
     x_quantity = 126
     x_label_position = np.arange(0, len(trading_days) - 252, x_quantity)
@@ -201,12 +201,12 @@ def normtest_discreteOU():
     '''Perform D'Agostino and Pearson normality test'''
 
     name = str(input('Name of residuals of AR(1) process: '))
-    dis_res = np.load(f'/mnt/saved_data/{name}.npy')
-    pvals = np.zeros(shape=(dis_res.shape[0], dis_res.shape[1]))
+    xi = np.load(f'/mnt/saved_data/{name}.npy')
+    pvals = np.zeros(shape=(xi.shape[0], xi.shape[1]))
 
-    for stock in tqdm(range(dis_res.shape[1])):
-        for day in range(dis_res.shape[0]):
-            statistic, pvalue = normaltest(dis_res[day, stock, :])
+    for stock in tqdm(range(xi.shape[1])):
+        for day in range(xi.shape[0]):
+            statistic, pvalue = normaltest(xi[day, stock, :])
             pvals[day, stock] = pvalue
 
     bin_vec = np.vectorize(binary)
@@ -244,16 +244,16 @@ def ljung_box_test():
         for order in order_list:
             logging.info(f'name: {name}, order: {order}')
             if order == 1:
-                dis_res = np.load(f'/mnt/saved_data/{name}.npy')
+                xi = np.load(f'/mnt/saved_data/{name}.npy')
             if order == 2:
-                dis_res = (np.load(f'/mnt/saved_data/{name}.npy'))**2
+                xi = (np.load(f'/mnt/saved_data/{name}.npy'))**2
 
-            lb_test = np.zeros(shape=(dis_res.shape[0], dis_res.shape[1]))
+            lb_test = np.zeros(shape=(xi.shape[0], xi.shape[1]))
             bin_vec = np.vectorize(binary)
 
-            for day in tqdm(range(dis_res.shape[0])):
-                for stock in range(dis_res.shape[1]):
-                    lb_test[day, stock] = acorr_ljungbox(dis_res[day,stock,:], lags=2, model_df=1, return_df=True)['lb_pvalue'][2]
+            for day in tqdm(range(xi.shape[0])):
+                for stock in range(xi.shape[1]):
+                    lb_test[day, stock] = acorr_ljungbox(xi[day,stock,:], lags=2, model_df=1, return_df=True)['lb_pvalue'][2]
 
             lb_test = bin_vec(lb_test)
             ones = lb_test.flatten().sum()/lb_test.flatten().shape[0]
