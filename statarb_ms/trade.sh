@@ -1,37 +1,25 @@
 #!/bin/bash
 
-python trade.py -g <<EOF
+python trade.py <<EOF
 50
 ScoreData50
-gridsearch_ScoreData50
+pnl_AvellanedaLee(50days)OPT
 EOF
 
-python trade.py -g <<EOF
+python trade.py <<EOF
 60
 ScoreData60
-gridsearch_ScoreData60
+pnl_AvellanedaLee(60days)OPT
 EOF
 
-python trade.py -g <<EOF
+python trade.py <<EOF
 70
 ScoreData70
-gridsearch_ScoreData70
+pnl_AvellanedaLee(70days)OPT
 EOF
 
-python trade.py -g <<EOF
+python trade.py <<EOF
 80
 ScoreData80
-gridsearch_ScoreData80
-EOF
-
-python trade.py -g <<EOF
-90
-ScoreData90
-gridsearch_ScoreData90
-EOF
-
-python trade.py -g <<EOF
-100
-ScoreData100
-gridsearch_ScoreData100
+pnl_AvellanedaLee(80days)OPT
 EOF
