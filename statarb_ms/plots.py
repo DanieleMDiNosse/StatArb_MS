@@ -4,9 +4,9 @@ from tqdm import tqdm
 plt.style.use('seaborn')
 
 plt.figure(figsize=(12,8), tight_layout=True)
-for len in [50,60,70,80,90,100]:
+for len in [50,60,70,80]:
     pnl = np.load(f'/home/danielemdn/Documents/saved_data/PnL/pnl_AvellanedaLee({len}days).npy')
-    pnl_mod = np.load(f'/home/danielemdn/Documents/saved_data/PnL/pnl_AvellanedaLee({len}days)MOD.npy')
+    pnl_mod = np.load(f'/home/danielemdn/Documents/saved_data/PnL/pnl_AvellanedaLee({len}days)OPT.npy')
     plt.plot((pnl_mod-pnl)/pnl, linewidth=1.2, label=f'{len}')
 plt.legend()
 

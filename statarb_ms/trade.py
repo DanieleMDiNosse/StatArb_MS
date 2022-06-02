@@ -15,7 +15,7 @@ from tqdm import tqdm
 from factors import pca, money_on_stock
 
 
-def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_so=1.25, s_bc=0.75, s_sc=0.5):
+def trading(df_returns, df_score, Q, beta_tensor, lookback_for_residual, epsilon=0.0005):
     '''This function run a back test of the replication of the statistical arbitrage strategy by Avellaneda Lee (Avellaneda and Lee, 2010. DOI: 10.1080/14697680903124632).
 
     Parameters
@@ -56,6 +56,21 @@ def trading(df_returns, df_score, Q, beta_tensor, epsilon=0.0005, s_bo=1.25, s_s
     fact_cont = np.zeros(shape=df_score.shape[0] - 1)
     stock_cont = np.zeros(shape=df_score.shape[0] - 1)
     fees = np.zeros(shape=df_score.shape[0] - 1)
+
+
+    if lookback_for_residual == 50:
+        s_bo, s_so, s_bc, s_sc = 1.25, 1.25, 0.75, 0.5
+    elif lookback_for_residual == 60:
+        s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.80, 0.70
+    elif lookback_for_residual == 70:
+        s_bo, s_so, s_bc, s_sc = 1.10, 1.20, 0.80, 0.75
+    elif lookback_for_residual == 80:
+        s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.75, 0.55
+    elif lookback_for_residual == 90:
+        s_bo, s_so, s_bc, s_sc = 1.25, 1.25, 0.75, 0.5
+    elif lookback_for_residual == 100:
+        s_bo, s_so, s_bc, s_sc = 1.25, 1.25, 0.75, 0.5
+
 
     for day in tqdm(range(df_score.shape[0] - 1)):
         counter_no_trades = 0
@@ -187,12 +202,12 @@ if __name__ == '__main__':
     else:
         logging.info('I am using scores obtained from simple returns')
         time.sleep(0.3)
-        df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[:4030]
-        Q = np.load('/mnt/saved_data/Qs/Q.npy')
+        df_returns = pd.read_pickle("/home/danielemdn/Documents/saved_data/returns/ReturnsData.pkl")[:4030]
+        Q = np.load('/home/danielemdn/Documents/saved_data/Qs/Q.npy')
         length = int(input('Lenght of estimation window for AR(1) parameters: '))
         name = input('Name of the s-score data file: ')
-        beta_tensor = np.load(f'/mnt/saved_data/betas/beta_tensor{length}.npy')
-        df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')
+        beta_tensor = np.load(f'/home/danielemdn/Documents/saved_data/betas/beta_tensor{length}.npy')
+        df_score = pd.read_pickle(f'/home/danielemdn/Documents/saved_data/scores/{name}.pkl')
 
     if args.grid_search:
         close_range = np.arange(0.5, 0.85, 0.05)
@@ -241,9 +256,9 @@ if __name__ == '__main__':
     else:
         for i in range(1):
             pnl, perc_positions, fact_cont, stock_cont, fees = trading(
-                df_returns, df_score, Q, beta_tensor)
+                df_returns, df_score, Q, beta_tensor, lookback_for_residual=length)
             name = input('Name of the file that will be saved (strategy): ')
-            np.save(f'/mnt/saved_data/PnL/{name}', pnl)
+            np.save(f'/home/danielemdn/Documents/saved_data/PnL/{name}', pnl)
         # name = input('Name of the file that will be saved (positions percentage): ')
         # np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
 
