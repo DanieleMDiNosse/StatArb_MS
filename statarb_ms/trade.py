@@ -59,7 +59,7 @@ def trading(df_returns, df_score, Q, beta_tensor, lookback_for_residual, epsilon
 
 
     if lookback_for_residual == 50:
-        s_bo, s_so, s_bc, s_sc = 1.25, 1.25, 0.75, 0.5
+        s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.75, 0.8
     elif lookback_for_residual == 60:
         s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.80, 0.70
     elif lookback_for_residual == 70:
@@ -67,9 +67,9 @@ def trading(df_returns, df_score, Q, beta_tensor, lookback_for_residual, epsilon
     elif lookback_for_residual == 80:
         s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.75, 0.55
     elif lookback_for_residual == 90:
-        s_bo, s_so, s_bc, s_sc = 1.25, 1.25, 0.75, 0.5
+        s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.80, 0.65
     elif lookback_for_residual == 100:
-        s_bo, s_so, s_bc, s_sc = 1.25, 1.25, 0.75, 0.5
+        s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.75, 0.80
 
 
     for day in tqdm(range(df_score.shape[0] - 1)):
