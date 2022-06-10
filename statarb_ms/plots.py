@@ -5,18 +5,24 @@ import pandas as pd
 plt.style.use('seaborn')
 
 plt.figure(figsize=(12,8), tight_layout=True)
-for l in [50,60,70,80,90,100]:
-    # pnl = np.load(f'/home/danielemdn/Documents/saved_data/PnL/pnl_AvellanedaLee({l}days).npy')
-    pnl_opt = np.load(f'/home/danielemdn/Documents/saved_data/PnL/pnl_AvellanedaLee({l}days)OPT.npy')
-    plt.plot(pnl_opt, linewidth=1.2, label=f'{l}')
+for l in [70]:
+    pnl = np.load(f'/mnt/saved_data/PnL/pnl_AvellanedaLee({l}days)VOLOPT_TEST.npy')
+    # pnl_vol = np.load(f'/mnt/saved_data/PnL/pnl_AvellanedaLee({l}days)VOLOPT_TESTx3.npy')
+    plt.plot(pnl, 'red', linewidth=1.2, label=fr'$\tilde{{T}}$={l}, $\Lambda$=3%')
+    # plt.plot(pnl, 'darkred', linewidth=1.2, label=fr'$\tilde{{T}}$={l}, $\Lambda$=2.5%', alpha=0.3)
 
-plt.plot(np.load(f'/home/danielemdn/Documents/saved_data/PnL/pnl_firstcomp.npy'), 'k', linewidth=1.2, label='First PC')
-trading_days = np.array(pd.read_pickle('/home/danielemdn/Documents/saved_data/PriceData.pkl').Date)[:4030 + 252]
-tickers = pd.read_pickle('/home/danielemdn/Documents/saved_data/returns/ReturnsData.pkl').columns.to_list()
-x_quantity = 126
-x_label_position = np.arange(252, len(trading_days), x_quantity)
-x_label_day = [trading_days[i] for i in x_label_position]
-plt.xticks(np.arange(0, len(trading_days)-x_quantity*3, x_quantity), x_label_day[:-1], fontsize=12, rotation=90)
+plt.plot(np.load(f'/mnt/saved_data/PnL/pnl_spy_test.npy'), 'k', linewidth=1.2, label='First PC')
+trading_days = np.array(pd.read_pickle('/mnt/saved_data/PriceData.pkl').Date)[4029+9:]
+print(len(trading_days)-252)
+print([trading_days[i] for i in np.arange(251, len(trading_days), 61)])
+# print(len(trading_days))
+# tickers = pd.read_pickle('/mnt/saved_data/returns/ReturnsData.pkl').columns.to_list()
+# x_quantity = 61
+# x_label_position = np.arange(252, len(trading_days)+191, x_quantity)
+# print(x_label_position)
+# x_label_day = [trading_days[i] for i in x_label_position]
+# print(x_label_day)
+plt.xticks(np.arange(0, len(trading_days)-251, 61), [trading_days[i] for i in np.arange(251, len(trading_days), 61)], fontsize=12, rotation=90)
 plt.legend()
 
 

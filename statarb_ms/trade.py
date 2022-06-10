@@ -15,7 +15,7 @@ from tqdm import tqdm
 from factors import pca, money_on_stock
 
 
-def trading(df_returns, df_score, Q, beta_tensor, lookback_for_residual, epsilon=0.0005):
+def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookback_for_residual, epsilon=0.0005):
     '''This function run a back test of the replication of the statistical arbitrage strategy by Avellaneda Lee (Avellaneda and Lee, 2010. DOI: 10.1080/14697680903124632).
 
     Parameters
@@ -42,7 +42,7 @@ def trading(df_returns, df_score, Q, beta_tensor, lookback_for_residual, epsilon
 
     PnL = np.zeros(df_score.shape[0])
     PnL[0] = 1.00
-    fraction = 0.01
+    fraction = 0.025
     lookback_for_factors = 252
     daily_PnL = np.zeros(shape=df_returns.shape)
     state = np.array(['c' for i in range(df_returns.shape[1])])
@@ -56,21 +56,6 @@ def trading(df_returns, df_score, Q, beta_tensor, lookback_for_residual, epsilon
     fact_cont = np.zeros(shape=df_score.shape[0] - 1)
     stock_cont = np.zeros(shape=df_score.shape[0] - 1)
     fees = np.zeros(shape=df_score.shape[0] - 1)
-
-
-    if lookback_for_residual == 50:
-        s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.75, 0.8
-    elif lookback_for_residual == 60:
-        s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.80, 0.70
-    elif lookback_for_residual == 70:
-        s_bo, s_so, s_bc, s_sc = 1.10, 1.20, 0.80, 0.75
-    elif lookback_for_residual == 80:
-        s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.75, 0.55
-    elif lookback_for_residual == 90:
-        s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.80, 0.65
-    elif lookback_for_residual == 100:
-        s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.75, 0.80
-
 
     for day in tqdm(range(df_score.shape[0] - 1)):
         counter_no_trades = 0
@@ -152,7 +137,7 @@ def grid_search(hyperparameters, score_data):
         idx = hyperparameters.index(hyper)
         s_bo, s_so, s_bc, s_sc = hyper
         pnl, perc_positions, fact_cont, stock_cont, fees = trading(
-            df_returns, df_score, Q, beta_tensor, s_bo=hyper[0], s_so=hyper[1], s_bc=hyper[2], s_sc=hyper[3])
+            df_returns, df_score, Q, beta_tensor, s_bo=hyper[0], s_so=hyper[1], s_bc=hyper[2], s_sc=hyper[3], lookback_for_residual=length)
         spy = np.load('/mnt/saved_data/PnL/pnl_firstcomp.npy')[:pnl.shape[0]]
         s_ratio = sharpe_ratio(pnl, spy, period=pnl.shape[0])[0]
         # print(s_ratio[0], type(s_ratio))
@@ -171,6 +156,7 @@ if __name__ == '__main__':
     parser.add_argument('-vi', '--vol_int', action='store_true', help='Use return dataframe weighted  with volume information')
     parser.add_argument('-g', '--grid_search', action='store_true',
                         help='Grid search for model hyperparameters selection')
+    parser.add_argument('-t', '--test_set', action='store_true', help='Use test set with the hyperparameters tuned on the validation set')
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -189,25 +175,59 @@ if __name__ == '__main__':
 
         logging.info('I am using scores obtained from modified returns')
         time.sleep(0.3)
-        df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[9:]
-        df_returns.index = range(df_returns.shape[0]) # This dataframe has shape ReturnsData.shape[0] - 10
-        Q = np.load('/mnt/saved_data/Qs/Q_volint.npy')[:-10,:,:]
         length = int(input('Lenght of estimation window for AR(1) parameters: '))
         name = input('Name of the s-score data file: ')
-        beta_tensor = np.load(f'/mnt/saved_data/beta_tensor{length}_volint.npy')[:-10,:,:]
 
-        df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')[:-10]
-        df_score.index = range(df_score.shape[0])
+        if length == 50:
+            s_bo, s_so, s_bc, s_sc = 1.20, 1.30, 0.55, 0.75
+        elif length == 60:
+            s_bo, s_so, s_bc, s_sc = 1.20, 1.15, 0.80, 0.65
+        elif length == 70:
+            s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.70, 0.80
+        elif length == 80:
+            s_bo, s_so, s_bc, s_sc = 1.10, 1.25, 0.55, 0.50
+        elif length == 90:
+            s_bo, s_so, s_bc, s_sc = 1.10, 1.25, 0.60, 0.7
+        elif length == 100:
+            s_bo, s_so, s_bc, s_sc = 1.25, 1.15, 0.50, 0.55
+
+        if args.test_set:
+            df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[4029+9:]
+            df_returns.index = range(df_returns.shape[0]) # This dataframe has shape ReturnsData.shape[0] - 10
+            Q = np.load('/mnt/saved_data/Qs/Q_volint_test.npy')
+            beta_tensor = np.load(f'/mnt/saved_data/betas/beta_tensor{length}_volint_test.npy')
+            df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')
+            df_score.index = range(df_score.shape[0])
+        else:
+            df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[9:]
+            df_returns.index = range(df_returns.shape[0]) # This dataframe has shape ReturnsData.shape[0] - 10
+            Q = np.load('/mnt/saved_data/Qs/Q_volint.npy')[:-10,:,:]
+            beta_tensor = np.load(f'/mnt/saved_data/betas/beta_tensor{length}_volint.npy')[:-10,:,:]
+            df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')[:-10]
+            df_score.index = range(df_score.shape[0])
 
     else:
         logging.info('I am using scores obtained from simple returns')
         time.sleep(0.3)
-        df_returns = pd.read_pickle("/home/danielemdn/Documents/saved_data/returns/ReturnsData.pkl")[:4030]
-        Q = np.load('/home/danielemdn/Documents/saved_data/Qs/Q.npy')
+        df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[:4030]
+        Q = np.load('/mnt/saved_data/Qs/Q.npy')
         length = int(input('Lenght of estimation window for AR(1) parameters: '))
         name = input('Name of the s-score data file: ')
-        beta_tensor = np.load(f'/home/danielemdn/Documents/saved_data/betas/beta_tensor{length}.npy')
-        df_score = pd.read_pickle(f'/home/danielemdn/Documents/saved_data/scores/{name}.pkl')
+        beta_tensor = np.load(f'/mnt/saved_data/betas/beta_tensor{length}.npy')
+        df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')
+
+        if length == 50:
+            s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.75, 0.8
+        elif length == 60:
+            s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.80, 0.70
+        elif length == 70:
+            s_bo, s_so, s_bc, s_sc = 1.10, 1.20, 0.80, 0.75
+        elif length == 80:
+            s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.75, 0.55
+        elif length == 90:
+            s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.80, 0.65
+        elif length == 100:
+            s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.75, 0.80
 
     if args.grid_search:
         close_range = np.arange(0.5, 0.85, 0.05)
@@ -219,8 +239,8 @@ if __name__ == '__main__':
         for o in opens:
             for c in closes:
                 hyperparameters.append([o[0], o[1], c[0], c[1]])
-        hyperparameters = [hyperparameters[i: i + 63]
-                           for i in range(0, len(hyperparameters), 63)]
+        hyperparameters = [hyperparameters[i: i + 105]
+                           for i in range(0, len(hyperparameters), 105)]
 
         processes = [mp.Process(target=grid_search, args=(
             hyperparam, df_score)) for hyperparam in hyperparameters]
@@ -248,17 +268,16 @@ if __name__ == '__main__':
 
     if args.spy:
         logging.info('Starting spy trading... ')
-        time.sleep(1)
+        time.sleep(0.3)
         spy_pnl = spy_trading(df_returns, Q)
         name = input('Name of the file that will be saved (spy): ')
         np.save(f'/mnt/saved_data/PnL/{name}', spy_pnl)
 
     else:
-        for i in range(1):
-            pnl, perc_positions, fact_cont, stock_cont, fees = trading(
-                df_returns, df_score, Q, beta_tensor, lookback_for_residual=length)
-            name = input('Name of the file that will be saved (strategy): ')
-            np.save(f'/home/danielemdn/Documents/saved_data/PnL/{name}', pnl)
+        pnl, perc_positions, fact_cont, stock_cont, fees = trading(
+            df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookback_for_residual=length)
+        name = input('Name of the file that will be saved (strategy): ')
+        np.save(f'/mnt/saved_data/PnL/{name}', pnl)
         # name = input('Name of the file that will be saved (positions percentage): ')
         # np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
 

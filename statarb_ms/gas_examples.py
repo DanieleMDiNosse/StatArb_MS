@@ -66,7 +66,7 @@ def synt_data(model, *args, dynamics, size):
                 b[t + 1] = omega + alpha * \
                     (X[t] - np.exp(b[t])) * (np.exp(b[t])) + beta * b[t]
             if dynamics == 'sin':
-                b[t + 1] = 0.5 + 0.5 * np.sin(np.pi * (t + 1) / int(size / 5))
+                b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / int(size / 10))
             if dynamics == 'step':
                 if t < 300:
                     b[t + 1] = 0.1
@@ -156,7 +156,7 @@ def model_estimation(X, model, specification):
         num_par = 5
     if model == 'poisson':
         num_par = 3
-    res_iter = np.zeros(shape=(4, num_par + 1))
+    res_iter = np.zeros(shape=(9, num_par + 1))
 
     for i in range(res_iter.shape[0]):
         init_params = np.random.uniform(0, 1, size=num_par)
@@ -175,7 +175,36 @@ def model_estimation(X, model, specification):
 
     estimates = res.x
     std_err = ML_errors(res.jac, res.hess_inv, estimates, X, specification)
+#======================= Errors on filtered parameter ======================
+    M = 5000
+    res_for_errors = np.zeros(shape=M)
+    T = X.shape[0]
+    b = np.zeros(shape=(M,T))
+    J = np.outer(res.jac, res.jac)
 
+    for m in range(M):
+        if model == 'autoregressive':
+            if specification == 'correct':
+                a, omega, alpha, beta, sgm = np.random.multivariate_normal(estimates, res.hess_inv/T)
+                b[m, 2:] = omega + alpha * X[:-2] * \
+                    (X[1:-1] - a - b[m, 1:-1] * X[:-2]) / sgm**2 + beta * b[m, 1:-1]
+            else:
+                a, omega, alpha, beta, sgm = np.random.multivariate_normal(estimates, np.dot(np.dot(res.hess_inv, J), res.hess_inv)/T)
+                b[m, 2:] = omega + alpha * X[:-2] * \
+                    (X[1:-1] - a - b[m, 1:-1] * X[:-2]) / sgm**2 + beta * b[m, 1:-1]
+
+        if model == 'poisson':
+            if specification == 'correct':
+                alpha, beta, omega = np.random.multivariate_normal(estimates, res.hess_inv/T)
+                b[m, 1:] = omega + alpha * \
+                    (X[:-1] - np.exp(b[m, :-1])) * (np.exp(b[m, :-1])) + beta * b[m, :-1]
+            else:
+                alpha, beta, omega = np.random.multivariate_normal(estimates, np.dot(np.dot(res.hess_inv, J), res.hess_inv)/T)
+                b[m, 1:] = omega + alpha * \
+                    (X[:-1] - np.exp(b[m, :-1])) * (np.exp(b[m, :-1])) + beta * b[m, :-1]
+
+    std_b = b.std(axis=0)
+#===========================================================================
     T = X.shape[0]
     b = np.zeros_like(X)
     dbda, dbdw, dbdal, dbdb, dbds, dfidb = np.zeros_like(X), np.zeros_like(
@@ -188,29 +217,28 @@ def model_estimation(X, model, specification):
             b[t + 1] = omega + alpha * X[t - 1] * \
                 (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
             # b[t + 1] = omega + alpha * X[t - 1] * np.exp(-b[t]) / (sgm**2 * (1 + np.exp(-b[t]))**2) * (X[t] - X[t - 1] / (1 + np.exp(-b[t]))) + beta * b[t]
-            dbda[t + 1] = - alpha * X[t - 1] / \
-                sgm**2 * (1 + X[t - 1] * dbda[t]) + beta * dbda[t]
-            dbdw[t + 1] = 1 - alpha / sgm**2 * \
-                X[t - 1]**2 * dbdw[t] + beta * dbdw[t]
-            dbdal[t + 1] = X[t - 1] / sgm**2 * \
-                (X[t] - a - b[t] * X[t - 1] - alpha *
-                 X[t - 1] * dbdal[t]) + beta * dbdal[t]
-            dbdb[t + 1] = b[t] - alpha / sgm**2 * \
-                X[t - 1]**2 * dbdb[t] + beta * dbdb[t]
-            dbds[t + 1] = alpha * X[t - 1] / sgm**2 * \
-                (2 / (sgm) * (b[t] * X[t - 1] - X[t] + a) -
-                 X[t - 1] * dbds[t]) + beta * dbds[t]
-
-        delta_a = beta * dbda[-1] - alpha / sgm**2 * X[-2]
-        delta_w = beta * dbdw[-1] + 1
-        delta_al = beta * dbdal[-1] + 1 / sgm**2 * \
-            (X[-1] - a - b[-1] * X[-2]) * X[-2]
-        delta_b = beta * dbdb[-1] + b[-1]
-        delta_s = beta * dbds[-1] - 2 * alpha / \
-            (sgm**3) * (X[-1] - a - b[-1] * X[-2]) * X[-2]
-
-        deltas = np.array([delta_a, delta_w, delta_al, delta_b, delta_s])
-        # deltas = np.zeros(shape=5)
+        #     dbda[t + 1] = - alpha * X[t - 1] / \
+        #         sgm**2 * (1 + X[t - 1] * dbda[t]) + beta * dbda[t]
+        #     dbdw[t + 1] = 1 - alpha / sgm**2 * \
+        #         X[t - 1]**2 * dbdw[t] + beta * dbdw[t]
+        #     dbdal[t + 1] = X[t - 1] / sgm**2 * \
+        #         (X[t] - a - b[t] * X[t - 1] - alpha *
+        #          X[t - 1] * dbdal[t]) + beta * dbdal[t]
+        #     dbdb[t + 1] = b[t] - alpha / sgm**2 * \
+        #         X[t - 1]**2 * dbdb[t] + beta * dbdb[t]
+        #     dbds[t + 1] = alpha * X[t - 1] / sgm**2 * \
+        #         (2 / (sgm) * (b[t] * X[t - 1] - X[t] + a) -
+        #          X[t - 1] * dbds[t]) + beta * dbds[t]
+        #
+        # delta_a = beta * dbda[-1] - alpha / sgm**2 * X[-2]
+        # delta_w = beta * dbdw[-1] + 1
+        # delta_al = beta * dbdal[-1] + 1 / sgm**2 * \
+        #     (X[-1] - a - b[-1] * X[-2]) * X[-2]
+        # delta_b = beta * dbdb[-1] + b[-1]
+        # delta_s = beta * dbds[-1] - 2 * alpha / \
+        #     (sgm**3) * (X[-1] - a - b[-1] * X[-2]) * X[-2]
+        #
+        # deltas = np.array([delta_a, delta_w, delta_al, delta_b, delta_s])
 
     if model == 'poisson':
         alpha, beta, omega = estimates
@@ -219,21 +247,22 @@ def model_estimation(X, model, specification):
             b[t + 1] = omega + alpha * \
                 (X[t] - np.exp(b[t])) * (np.exp(b[t])) + beta * b[t]
 
-            dfidb[t + 1] = beta + alpha * \
-                np.exp(b[t]) * (X[t] - 2 * np.exp(b[t]))
-            dbdw[t + 1] = dbdw[t] * (alpha * X[t - 1] * np.exp(b[t - 1]) -
-                                     2 * alpha * np.exp(2 * b[t - 1]) + beta) + 1
-            dbdal[t + 1] = dbdal[t] * (alpha * X[t - 1] * np.exp(b[t - 1]) - 2 * alpha * np.exp(
-                b[t - 1]) + beta) + np.exp(b[t - 1]) * (X[t - 1] - np.exp(b[t - 1]))
-            dbdb[t + 1] = dbdb[t] * (alpha * X[t - 1] * np.exp(b[t - 1]) -
-                                     2 * alpha * np.exp(2 * b[t - 1]) + beta) + b[t - 1]
+            # dfidb[t + 1] = beta + alpha * \
+        #     #     np.exp(b[t]) * (X[t] - 2 * np.exp(b[t]))
+        #     dbdw[t + 1] = dbdw[t] * (alpha * X[t] * np.exp(b[t]) -
+        #                              2 * alpha * np.exp(2 * b[t]) + beta) + 1
+        #     dbdal[t + 1] = dbdal[t] * (alpha * X[t] * np.exp(b[t]) - 2 * alpha * np.exp(
+        #         b[t]) + beta) + np.exp(b[t]) * (X[t] - np.exp(b[t]))
+        #     dbdb[t + 1] = dbdb[t] * (alpha * X[t] * np.exp(b[t]) -
+        #                              2 * alpha * np.exp(2 * b[t]) + beta) + b[t]
+        #
+        # dfidb = beta + alpha * np.exp(b) * (X - 2 * np.exp(b))
+        # delta_w = dfidb * dbdw + 1
+        # delta_al = dfidb * dbdal + (X - np.exp(b)) * np.exp(b)
+        # delta_b = dfidb * dbdb + b
+        # deltas = np.array([delta_w[-1], delta_al[-1], delta_b[-1]])
 
-        delta_w = dfidb * dbdw + 1
-        delta_al = dfidb * dbdal + (X - np.exp(b)) * np.exp(b)
-        delta_b = dfidb * dbdb + b
-        deltas = np.array([delta_w[-1], delta_al[-1], delta_b[-1]])
-
-    std_b = b_error(res.jac, res.hess_inv, deltas, X, specification)
+    # std_b = b_error(res.jac, res.hess_inv, deltas, X, specification)
 
     return b, res, std_err, std_b, init_params
 
@@ -279,6 +308,23 @@ if __name__ == '__main__':
     logging.info(f' Specification: {specification}')
     time.sleep(1)
 
+    # B_err = np.zeros(shape=150)
+    # for n in tqdm(range(50, 200)):
+    #     np.random.seed()
+    #     omega = 0.05
+    #     alpha = 0.08
+    #     beta = 0.06
+    #     sgm = 0.1
+    #     a = 0.1
+    #     X, b = synt_data(model, a, omega, alpha,
+    #                      beta, sgm, dynamics=dynamics, size=n)
+    #     B, res, std_err, std_b, init_params = model_estimation(
+    #         X, model, specification)
+    #     B_err[n-50] = std_b
+    # plt.plot(B_err)
+    # plt.show()
+    # exit()
+
     n = 1000
     if model == 'autoregressive':
         omega = 0.05
@@ -288,47 +334,45 @@ if __name__ == '__main__':
         a = 0.1
         X, b = synt_data(model, a, omega, alpha,
                          beta, sgm, dynamics=dynamics, size=n)
+
     if model == 'poisson':
         alpha = 0.081
         beta = -0.395
         omega = 0.183
         X, b = synt_data(model, alpha, beta, omega, dynamics=dynamics, size=n)
 
-    else:
-        np.random.seed()
-        fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))
-        axs[0].plot(X[:n], 'k', label='Real', linewidth=1)
-        axs[1].plot(b[:n], 'k', label='Real', linewidth=1)
-        axs[0].set_ylabel('X')
-        axs[1].set_ylabel('b')
+    np.random.seed()
+    fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))
+    axs[0].plot(X[:n], 'k', label='Real', linewidth=1)
+    axs[1].plot(b[:n], 'k', label='Real', linewidth=1)
+    axs[0].set_ylabel('X')
+    axs[1].set_ylabel('b')
 
-        B, res, std_err, std_b, init_params = model_estimation(
-            X, model, specification)
-        print(res)
+    B, res, std_err, std_b, init_params = model_estimation(
+        X, model, specification)
+    MSE = mean_squared_error(b, B)
 
-        # MSE = mean_squared_error(b, B)
-        # print(f'MSE: {MSE}')
-        ### Targeting estimation ###
-        # b_bar = w / (1 - beta) -> (1 - beta) * b_bar = w
-
-        if model == 'autoregressive':
+    if model == 'autoregressive':
+        if specification == 'correct':
             print('True values: ', [a, omega, alpha, beta, sgm])
-        if model == 'poisson':
+    if model == 'poisson':
+        if specification == 'correct':
             print('True values: ', [alpha, beta, omega])
-        print('Initial values: ', init_params)
-        print('Estimated values: ', res.x)
-        print('Standard errors: ', std_err)
-        print('Error on b: ', std_b)
+    print('Estimated values: ', res.x)
+    print('Standard errors (params): ', std_err)
+    print('Standard errors (b(T)): ', std_b[-1])
+    print(f'MSE: {MSE}')
 
-        axs[1].plot(B[:n], 'crimson', label='Filtered', linewidth=1)
-        axs[1].hlines(B[:n].mean(), 0, n, 'crimson', label='Filtered mean: {:.2f}'.format(
-            B.mean()), linestyle='dashed', linewidth=1)
-        axs[1].fill_between(list(range(n)), B[:n] + 2 * std_b,
-                            B[:n] - 2 * std_b, color='crimson', label=r'$2\sigma_b: {:.2f}$'.format(2 * std_b), alpha=0.4)
+    axs[1].plot(B[:n], 'crimson', label='Filtered', linewidth=1)
+    axs[1].hlines(B[:n].mean(), 0, n, 'crimson', label='Filtered mean: {:.2f}'.format(
+        B.mean()), linestyle='dashed', linewidth=1)
+    axs[1].fill_between(list(range(n)), B[:n] + 1.96 * std_b,
+                        B[:n] - 1.96 * std_b, color='crimson', alpha=0.4, label='95% conf int')
 
-        axs[0].legend()
-        axs[1].legend()
-        plt.show()
+    axs[0].legend()
+    axs[1].legend()
+    # plt.savefig(f'{model}_{dynamics}.png')
+    plt.show()
 
     if args.lmtest:
         params = [res.x[0], res.x[1], res.x[4]]

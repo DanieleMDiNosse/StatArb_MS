@@ -14,7 +14,7 @@ import pandas as pd
 def ML_errors(jac, hess_inv, params, X, specification):
     T = X.shape[0]
     num_par = params.shape[0]
-    J = np.outer(jac, jac)
+    J = np.outer(jac, jac)/T
 
     if specification == 'mis':
         var = np.dot(np.dot(hess_inv, J), hess_inv)

@@ -219,7 +219,7 @@ def normtest_discreteOU():
     colorbar.set_ticklabels(['Accepted', 'Rejected'])
 
     trading_days = np.array(pd.read_pickle('/mnt/saved_data/PriceData.pkl').Date)[:4030 + 126]
-    tickers = pd.read_pickle('/mnt/saved_data/ReturnsData.pkl').columns.to_list()
+    tickers = pd.read_pickle('/mnt/saved_data/returns/ReturnsData.pkl').columns.to_list()
     x_quantity = int(input('Step of the labels on x-axis: '))
     y_quantity = int(input('Step of the labels on y-axis: '))
     x_label_position = np.arange(252, len(trading_days), x_quantity)
@@ -567,12 +567,12 @@ def beta():
     plt.style.use('seaborn')
     plt.figure(figsize=(12,8), tight_layout=True)
     trading_days = np.array(pd.read_pickle('/mnt/saved_data/PriceData.pkl').Date)[lookback:4030 + 126]
-    tickers = pd.read_pickle('/mnt/saved_data/ReturnsData.pkl').columns.to_list()
+    tickers = pd.read_pickle('/mnt/saved_data/returns/ReturnsData.pkl').columns.to_list()
     x_quantity = 126
     x_label_position = np.arange(252, len(trading_days), x_quantity)
     x_label_day = [trading_days[i] for i in x_label_position]
-    plt.xticks(x_label_position, x_label_day, fontsize=12, rotation=90)
-    plt.plot(betas, linewidth=1.2, alpha=0.8)
+    plt.xticks(np.arange(0, len(trading_days)-x_quantity*3, x_quantity), x_label_day[:-1], fontsize=12, rotation=90)
+    plt.plot(betas, 'k', linewidth=1.2, alpha=0.8)
     plt.show()
 
 if __name__ == '__main__':

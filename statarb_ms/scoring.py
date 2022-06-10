@@ -92,12 +92,12 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
             dis_res[i, stock_idx, :] = X
 
     if export:
-        # np.save(
-            # f'/mnt/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
+        np.save(
+            f'/mnt/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
         np.save(f'/mnt/saved_data/alphas_{os.getpid()}', alphas)
-        # np.save(f'/mnt/saved_data/Q_{os.getpid()}', Q)
-        # np.save(f'/mnt/saved_data/dis_res_{os.getpid()}', dis_res)
-        # np.save(f'/mnt/saved_data/res_{os.getpid()}', res)
+        np.save(f'/mnt/saved_data/Q_{os.getpid()}', Q)
+        np.save(f'/mnt/saved_data/dis_res_{os.getpid()}', dis_res)
+        np.save(f'/mnt/saved_data/res_{os.getpid()}', res)
 
 def only_scoring(dis_res, df_returns, method, n_iter, lookback_for_factors, lookback_for_residual, targeting_estimation=False):
 
@@ -140,11 +140,12 @@ def only_scoring(dis_res, df_returns, method, n_iter, lookback_for_factors, look
                 a, b = parameters[0], parameters[1]
 
                 # Avoid estimation on residuals that do not satisfy condition on normality and absence of serial correlation
-                statistic, norm_pvalue = normaltest(xi)
-                lb_pvalue = acorr_ljungbox(xi, lags=2, model_df=1, return_df=True)['lb_pvalue'][2]
-                lb_pvalue2 = acorr_ljungbox(xi**2, lags=2, model_df=1, return_df=True)['lb_pvalue'][2]
-                if (norm_pvalues > 0.05) or (lb_pvalue > 0.05) or (lb_pvalue2 > 0.05):
-                    continue
+                # statistic, norm_pvalue = normaltest(xi)
+                # lb_pvalue = acorr_ljungbox(xi, lags=2, model_df=1, return_df=True)['lb_pvalue'][2]
+                # lb_pvalue2 = acorr_ljungbox(xi**2, lags=2, model_df=1, return_df=True)['lb_pvalue'][2]
+                #
+                # if (norm_pvalue > 0.05) or (lb_pvalue < 0.05) or (lb_pvalue2 < 0.05):
+                #     continue
 
                 r2[i, stock_idx] = r2_score(X[:-1], np.array(discrete_pred))
                 const_AR_par[i, stock_idx, :] = parameters
@@ -200,11 +201,11 @@ def only_scoring(dis_res, df_returns, method, n_iter, lookback_for_factors, look
 
     if method == 'constant_speed':
         logging.info('Saving files...')
-        # df_score.to_pickle(f'/mnt/saved_data/df_score_{os.getpid()}.pkl')
-        # np.save(f'/mnt/saved_data/r2_{os.getpid()}', r2)
-        # np.save(f'/mnt/saved_data/const_AR_par_{os.getpid()}', const_AR_par)
-        # np.save(f'/mnt/saved_data/sgm_eq_{os.getpid()}', sgm_eq)
-        # np.save(f'/mnt/saved_data/AR_res_{os.getpid()}', AR_res)
+        df_score.to_pickle(f'/mnt/saved_data/df_score_{os.getpid()}.pkl')
+        np.save(f'/mnt/saved_data/r2_{os.getpid()}', r2)
+        np.save(f'/mnt/saved_data/const_AR_par_{os.getpid()}', const_AR_par)
+        np.save(f'/mnt/saved_data/sgm_eq_{os.getpid()}', sgm_eq)
+        np.save(f'/mnt/saved_data/AR_res_{os.getpid()}', AR_res)
         np.save(f'/mnt/saved_data/kappas_{os.getpid()}', kappas)
 
 
@@ -240,10 +241,10 @@ if __name__ == '__main__':
     parser.add_argument("-g", "--gas", action='store_true',
                         help=("Use gas estimation for the mean reverting speed. The default is False."))
     parser.add_argument('-vi', '--vol_int', action='store_true', help='Use return dataframe weighted  with volume information')
+    parser.add_argument('-t', '--test_set', action='store_true', help='Use test set with the hyperparameters tuned on the validation set')
     parser.add_argument("-sp", "--spy", action='store_true',
                         help=("Scoring for SPY."))
     parser.add_argument("-nit", "--n_iter", type=int, help='Number of Nelder-Mead optimization (minus 1) before the final BFGS optimization.', default=2)
-    parser.add_argument("-t", "--targ_est", action='store_true')
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -254,35 +255,37 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
     plt.style.use('seaborn')
     start = time.time()
-
-    if args.vol_int:
-        logging.info('I am computing scores from the modified returns')
-        df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsVolData.pkl")[:4030]
-    else:
-        logging.info('I am computing scores from the simple returns')
-        df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[:4030]
-
-    if args.spy:
-        spy = pd.read_csv(go_up(1) + "/saved_data/spy.csv")
-        SPY_beta(df_returns, spy)
-
-    df = [df_returns[:750], df_returns[498:1249], df_returns[997:1748], df_returns[1496:2247],
-          df_returns[1995:2746], df_returns[2494:3245], df_returns[2993:3744], df_returns[3492:]]
+    np.random.seed()
 
     if args.gas == True:
         method = 'gas_modelization'
     else:
         method = 'constant_speed'
 
+    if args.vol_int:
+        logging.info('I am computing scores from the modified returns')
 
-    try:
-        telegram_send.send(
-            messages=[f'========== {time.asctime()} =========='])
-    except Exception:
-        logging.warning('Unable to send infos to Telegram bot, probably due to no internet connection')
-        logging.info(f'========== {time.asctime()} ==========')
+        if args.test_set:
+            logging.info('Using test set')
+            df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsVolData.pkl")[4029:]
+        else:
+            df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsVolData.pkl")[:4030]
 
-    np.random.seed()
+    else:
+        logging.info('I am computing scores from the simple returns')
+
+        if args.test_set:
+            logging.info('Using test set')
+            df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[4029:]
+        else:
+            df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[:4030]
+
+    if args.test_set:
+        df = [df_returns[:565], df_returns[313:879], df_returns[627:1193], df_returns[941:1507],
+            df_returns[1255:1821], df_returns[1569:2135], df_returns[1883:2449], df_returns[2197:]]
+    else:
+        df = [df_returns[:750], df_returns[498:1249], df_returns[997:1748], df_returns[1496:2247],
+            df_returns[1995:2746], df_returns[2494:3245], df_returns[2993:3744], df_returns[3492:]]
 
     if args.scoring:
         logging.info('Computing the s-scores...')
@@ -292,8 +295,18 @@ if __name__ == '__main__':
         logging.info(f'{name}, {length}')
         dis_res = np.load(f"/mnt/saved_data/dis_res/{name}.npy")
 
-        dr = [dis_res[:750, :, :], dis_res[498:1249, :, :], dis_res[997:1748, :, :], dis_res[1496:2247, :, :],
-              dis_res[1995:2746, :, :], dis_res[2494:3245, :, :], dis_res[2993:3744, :, :], dis_res[3492:, :, :]]
+        try:
+            telegram_send.send(
+                messages=[f'========== Start Scoring, Length: {length}, {time.asctime()} =========='])
+        except Exception:
+            logging.warning('Unable to send infos to Telegram bot, probably due to no internet connection')
+
+        if args.test_set:
+            dr = [dis_res[:565, :, :], dis_res[313:879, :, :], dis_res[627:1193, :, :], dis_res[941:1507, :, :],
+                dis_res[1255:1821, :, :], dis_res[1569:2135, :, :], dis_res[1883:2449, :, :], dis_res[2197:, :, :]]
+        else:
+            dr = [dis_res[:750, :, :], dis_res[498:1249, :, :], dis_res[997:1748, :, :], dis_res[1496:2247, :, :],
+                dis_res[1995:2746, :, :], dis_res[2494:3245, :, :], dis_res[2993:3744, :, :], dis_res[3492:, :, :]]
 
         processes = [mp.Process(target=only_scoring, args=(
             i, j, method, args.n_iter, 252, length)) for i, j in zip(dr, df)]
@@ -312,18 +325,16 @@ if __name__ == '__main__':
         if args.gas:
             file_list = ['df_score_gas', 'estimates_gas', 'bs']
         else:
-            file_list = ['kappas']
+            file_list = ['kappas', 'AR_res', 'sgm_eq', 'const_AR_par', 'r2', 'df_score']
 
         logging.info('Merging files, then remove splitted ones...')
         file_merge(pidnums, file_list)
         os.system('rm tmp/*')
 
         try:
-            telegram_send.send(messages=['==========================='])
+            telegram_send.send(messages=[f'============= End Scoring for {length} =============='])
         except Exception:
             print('Unable to send infos to Telegram bot, probably due to no internet connection')
-            logging.info('===========================')
-        time.sleep(10)
 
     else:
         logging.info('Estimating residual process...')
@@ -331,6 +342,12 @@ if __name__ == '__main__':
         length = int(input('Lenght of the estimation window for the residuals: '))
         processes = [mp.Process(target=generate_data, args=(
             i, 15, 252, length, True)) for i in df]
+
+        try:
+            telegram_send.send(
+                messages=[f'==========  Start Residuals, Length: {length}, {time.asctime()} =========='])
+        except Exception:
+            logging.warning('Unable to send infos to Telegram bot, probably due to no internet connection')
 
         os.system('rm tmp/*')
         for p in processes:
@@ -342,17 +359,20 @@ if __name__ == '__main__':
 
         pidnums = [int(x) for x in os.listdir('tmp')]
         pidnums.sort()
-        # file_list = ['res', 'dis_res', 'Q', 'beta_tensor']
-        file_list = ['alphas']
+        file_list = ['res', 'dis_res', 'beta_tensor', 'alphas', 'Q']
 
         logging.info('Merging files, then remove splitted ones...')
         file_merge(pidnums, file_list)
         os.system('rm tmp/*')
+
         try:
-            telegram_send.send(messages=['==========================='])
+            telegram_send.send(messages=[f'============= End Residuals for {length} =============='])
         except Exception:
             print('Unable to send infos to Telegram bot, probably due to no internet connection')
-            logging.info('===========================')
+
+    if args.spy:
+        spy = pd.read_csv(go_up(1) + "/saved_data/spy.csv")
+        SPY_beta(df_returns, spy)
 
     time_elapsed = (end - start)
     logging.info('Time required for generate s-scores: %.2f seconds' %
