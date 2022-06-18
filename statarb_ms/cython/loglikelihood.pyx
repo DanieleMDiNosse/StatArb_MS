@@ -70,11 +70,17 @@ cpdef float loglikelihood(cnp.ndarray params, cnp.ndarray X):
 
     cdef int i
     for i in range(1, T - 1):
-        b[i + 1] = omega + alpha * (X[i] - a - b[i] * X[i - 1]) * X[i-1] + beta * b[i]
+        b[i + 1] = omega + alpha * (X[i] - a - 1 / (1 + np.exp(-b[i])) * \
+                  X[i - 1]) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] + beta * b[i]
+
+        #b[i + 1] = omega + alpha * (X[i] - a - b[i] * X[i - 1]) * X[i-1] + beta * b[i]
 
     sum = 0
     for i in range(T - 1):
-        sum += - 0.5 * (X[i + 1] - a - b[i + 1] * X[i]) * (X[i + 1] - a - b[i + 1] * X[i])
+        sum += - 0.5 * (X[i + 1] - a - 1 / (1 + np.exp(-b[i + 1])) * X[i])**2
+
+        #sum += - 0.5 * (X[i + 1] - a - b[i + 1] * X[i]) * (X[i + 1] - a - b[i + 1] * X[i])
+
     return - sum / T
 
 @cython.boundscheck(False)

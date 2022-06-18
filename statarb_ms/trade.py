@@ -9,10 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import telegram_send
-from makedir import go_up
+from factors import money_on_stock, pca
 from post_processing import file_merge, sharpe_ratio
 from tqdm import tqdm
-from factors import pca, money_on_stock
 
 
 def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookback_for_residual, epsilon=0.0005):
@@ -42,7 +41,7 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
 
     PnL = np.zeros(df_score.shape[0])
     PnL[0] = 1.00
-    fraction = 0.025
+    fraction = 0.05
     lookback_for_factors = 252
     daily_PnL = np.zeros(shape=df_returns.shape)
     state = np.array(['c' for i in range(df_returns.shape[1])])
@@ -61,50 +60,77 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
         counter_no_trades = 0
         factor_contribution = []
         stock_contribution = []
+
         for stock in df_score.columns:
             stock_idx = df_returns.columns.get_loc(stock)
+
             if df_score[stock][day] == 0:
                 counter_no_trades += 1
                 continue
+
             if df_score[stock][day] < -s_bo and (state[stock_idx] == 'c'):
                 state[stock_idx] = 'l'
-                k = PnL[day] * fraction / (1 + (np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx])))
-                daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
-                invest_amount[day+1] = np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx])
+                k = PnL[day] * fraction / \
+                    (1 +
+                     (np.dot(beta_tensor[day, stock_idx, :], Q[day, :, stock_idx])))
+                daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(
+                    beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
+                invest_amount[day + 1] = np.dot(
+                    beta_tensor[day, stock_idx, :], Q[day, :, stock_idx])
                 continue
+
             if (day > 0) and (df_score[stock][day] < -s_sc) and (state[stock_idx] == 'l'):
                 day_counter_long[stock_idx] += 1
-                k = PnL[day - day_counter_long[stock_idx]] * fraction / (1 + (np.dot(beta_tensor[day - day_counter_long[stock_idx], stock_idx, :], Q[day - day_counter_long[stock_idx],:,stock_idx])))
-                daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(beta_tensor[day - day_counter_long[stock_idx], stock_idx, :], np.matmul(Q[day - day_counter_long[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
+                k = PnL[day - day_counter_long[stock_idx]] * fraction / (1 + (np.dot(
+                    beta_tensor[day - day_counter_long[stock_idx], stock_idx, :], Q[day - day_counter_long[stock_idx], :, stock_idx])))
+                daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(beta_tensor[day - day_counter_long[stock_idx],
+                                                 stock_idx, :], np.matmul(Q[day - day_counter_long[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
                 continue
+
             if df_score[stock][day] > s_so and (state[stock_idx] == 'c'):
                 state[stock_idx] = 's'
-                k = PnL[day] * fraction / (1 + np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx]))
-                daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
-                invest_amount[day+1] = np.dot(beta_tensor[day, stock_idx, :], Q[day,:,stock_idx])
+                k = PnL[day] * fraction / \
+                    (1 + np.dot(beta_tensor[day,
+                     stock_idx, :], Q[day, :, stock_idx]))
+                daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(
+                    beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
+                invest_amount[day + 1] = np.dot(
+                    beta_tensor[day, stock_idx, :], Q[day, :, stock_idx])
                 continue
+
             if (day > 0) and (df_score[stock][day] > s_bc) and (state[stock_idx] == 's'):
                 day_counter_short[stock_idx] += 1
-                k = PnL[day - day_counter_short[stock_idx]] * fraction / (1 + np.dot(beta_tensor[day - day_counter_short[stock_idx], stock_idx, :], Q[day - day_counter_short[stock_idx],:,stock_idx]))
-                daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(beta_tensor[day - day_counter_short[stock_idx], stock_idx, :], np.matmul(Q[day - day_counter_short[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
+                k = PnL[day - day_counter_short[stock_idx]] * fraction / (1 + np.dot(
+                    beta_tensor[day - day_counter_short[stock_idx], stock_idx, :], Q[day - day_counter_short[stock_idx], :, stock_idx]))
+                daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(beta_tensor[day - day_counter_short[stock_idx],
+                                                 stock_idx, :], np.matmul(Q[day - day_counter_short[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
                 continue
+
             if (day > 0) and (df_score[stock][day] > -s_sc) and (state[stock_idx] == 'l'):
                 day_counter_long[stock_idx] = 0
                 state[stock_idx] = 'c'
                 daily_PnL[day, stock_idx] = 0.0
                 continue
+
             if (day > 0) and (df_score[stock][day] < s_bc) and (state[stock_idx] == 's'):
                 day_counter_short[stock_idx] = 0
                 state[stock_idx] = 'c'
                 daily_PnL[day, stock_idx] = 0.0
                 continue
+
             else:
                 counter_no_trades += 1
                 continue
-        perc_positions[day,0] = np.count_nonzero(state == 'l')/df_score.shape[1]
-        perc_positions[day,1] = np.count_nonzero(state == 's')/df_score.shape[1]
-        perc_positions[day,2] = np.count_nonzero(state == 'c')/df_score.shape[1]
-        PnL[day + 1] = PnL[day] + daily_PnL[day,:].sum() - (np.abs((invest_amount[day+1] - invest_amount[day]))).sum() * epsilon
+
+        perc_positions[day, 0] = np.count_nonzero(
+            state == 'l') / df_score.shape[1]
+        perc_positions[day, 1] = np.count_nonzero(
+            state == 's') / df_score.shape[1]
+        perc_positions[day, 2] = np.count_nonzero(
+            state == 'c') / df_score.shape[1]
+        PnL[day + 1] = PnL[day] + daily_PnL[day, :].sum() - \
+            (np.abs((invest_amount[day + 1] -
+             invest_amount[day]))).sum() * epsilon
 
     return PnL, perc_positions, fact_cont, stock_cont, fees
 
@@ -115,12 +141,13 @@ def spy_trading(df_returns, Q):
     trading_days = df_returns.shape[0]
     n_stocks = df_returns.shape[1]
 
-    A = 1 / Q[0,0,:].sum()
-    Q = A*Q[0,0,:] # normalized to one, that is the amount of money at time zero
+    A = 1 / Q[0, 0, :].sum()
+    # normalized to one, that is the amount of money at time zero
+    Q = A * Q[0, 0, :]
     daily_PnL = np.ones(shape=trading_days)
 
     for i in tqdm(range(trading_days - 1)):
-        daily_PnL[i+1] = daily_PnL[i] + (Q*df_returns[i+1]).sum()
+        daily_PnL[i + 1] = daily_PnL[i] + (Q * df_returns[i + 1]).sum()
 
     return daily_PnL
 
@@ -140,7 +167,7 @@ def grid_search(hyperparameters, score_data):
             df_returns, df_score, Q, beta_tensor, s_bo=hyper[0], s_so=hyper[1], s_bc=hyper[2], s_sc=hyper[3], lookback_for_residual=length)
         spy = np.load('/mnt/saved_data/PnL/pnl_firstcomp.npy')[:pnl.shape[0]]
         s_ratio = sharpe_ratio(pnl, spy, period=pnl.shape[0])[0]
-        # print(s_ratio[0], type(s_ratio))
+        print(s_ratio)
         results['Hyperparameters'][idx] = hyper
         results['SharpeRatio'][idx] = s_ratio
     results.to_pickle(f'/mnt/saved_data/gridsearch_{os.getpid()}.pkl')
@@ -152,11 +179,15 @@ if __name__ == '__main__':
     parser.add_argument("-l", "--log", default="info",
                         help=("Provide logging level. Example --log debug', default='info"))
     parser.add_argument('-s', '--spy', action='store_true',
-                        help='Generate PnL for the Buy and Hold strategy of the first principal component')
-    parser.add_argument('-vi', '--vol_int', action='store_true', help='Use return dataframe weighted  with volume information')
-    parser.add_argument('-g', '--grid_search', action='store_true',
-                        help='Grid search for model hyperparameters selection')
-    parser.add_argument('-t', '--test_set', action='store_true', help='Use test set with the hyperparameters tuned on the validation set')
+                        help='Generate PnL for the Buy and Hold strategy of the first principal component.')
+    parser.add_argument('-vi', '--vol_int', action='store_true',
+                        help='Use return dataframe weighted  with volume information.')
+    parser.add_argument('-gs', '--grid_search', action='store_true',
+                        help='Grid search for model hyperparameters selection.')
+    parser.add_argument('-g', '--gas', action='store_true',
+                        help='Use optimized thresholds for the GAS case.')
+    parser.add_argument('-t', '--test_set', action='store_true',
+                        help='Use test set with the hyperparameters tuned on the validation set.')
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -175,43 +206,70 @@ if __name__ == '__main__':
 
         logging.info('I am using scores obtained from modified returns')
         time.sleep(0.3)
-        length = int(input('Lenght of estimation window for AR(1) parameters: '))
+        if args.gas:
+            logging.info('GAS case')
+        time.sleep(0.3)
+        length = int(
+            input('Lenght of estimation window for AR(1) parameters: '))
         name = input('Name of the s-score data file: ')
 
         if length == 50:
             s_bo, s_so, s_bc, s_sc = 1.20, 1.30, 0.55, 0.75
+
         elif length == 60:
             s_bo, s_so, s_bc, s_sc = 1.20, 1.15, 0.80, 0.65
+
         elif length == 70:
-            s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.70, 0.80
+            if args.gas:
+                s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.80, 0.50
+            else:
+                s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.70, 0.80
+
         elif length == 80:
-            s_bo, s_so, s_bc, s_sc = 1.10, 1.25, 0.55, 0.50
+            if args.gas:
+                s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.60, 0.65
+            else:
+                s_bo, s_so, s_bc, s_sc = 1.10, 1.25, 0.55, 0.50
+
         elif length == 90:
-            s_bo, s_so, s_bc, s_sc = 1.10, 1.25, 0.60, 0.7
+            if args.gas:
+                s_bo, s_so, s_bc, s_sc = 1.15, 1.10, 0.80, 0.55
+            else:
+                s_bo, s_so, s_bc, s_sc = 1.10, 1.25, 0.60, 0.70
+
         elif length == 100:
             s_bo, s_so, s_bc, s_sc = 1.25, 1.15, 0.50, 0.55
 
         if args.test_set:
-            df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[4029+9:]
-            df_returns.index = range(df_returns.shape[0]) # This dataframe has shape ReturnsData.shape[0] - 10
+            df_returns = pd.read_pickle(
+                "/mnt/saved_data/returns/ReturnsData.pkl")[4029 + 9:]
+            # This dataframe has shape ReturnsData.shape[0] - 10
+            df_returns.index = range(df_returns.shape[0])
             Q = np.load('/mnt/saved_data/Qs/Q_volint_test.npy')
-            beta_tensor = np.load(f'/mnt/saved_data/betas/beta_tensor{length}_volint_test.npy')
+            beta_tensor = np.load(
+                f'/mnt/saved_data/betas/beta_tensor{length}_volint_test.npy')
             df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')
             df_score.index = range(df_score.shape[0])
         else:
-            df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[9:]
-            df_returns.index = range(df_returns.shape[0]) # This dataframe has shape ReturnsData.shape[0] - 10
-            Q = np.load('/mnt/saved_data/Qs/Q_volint.npy')[:-10,:,:]
-            beta_tensor = np.load(f'/mnt/saved_data/betas/beta_tensor{length}_volint.npy')[:-10,:,:]
-            df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')[:-10]
+            df_returns = pd.read_pickle(
+                "/mnt/saved_data/returns/ReturnsData.pkl")[9:]
+            # This dataframe has shape ReturnsData.shape[0] - 10
+            df_returns.index = range(df_returns.shape[0])
+            Q = np.load('/mnt/saved_data/Qs/Q_volint.npy')[:-10, :, :]
+            beta_tensor = np.load(
+                f'/mnt/saved_data/betas/beta_tensor{length}_volint.npy')[:-10, :, :]
+            df_score = pd.read_pickle(
+                f'/mnt/saved_data/scores/{name}.pkl')[:-10]
             df_score.index = range(df_score.shape[0])
 
     else:
         logging.info('I am using scores obtained from simple returns')
         time.sleep(0.3)
-        df_returns = pd.read_pickle("/mnt/saved_data/returns/ReturnsData.pkl")[:4030]
+        df_returns = pd.read_pickle(
+            "/mnt/saved_data/returns/ReturnsData.pkl")[:4030]
         Q = np.load('/mnt/saved_data/Qs/Q.npy')
-        length = int(input('Lenght of estimation window for AR(1) parameters: '))
+        length = int(
+            input('Lenght of estimation window for AR(1) parameters: '))
         name = input('Name of the s-score data file: ')
         beta_tensor = np.load(f'/mnt/saved_data/betas/beta_tensor{length}.npy')
         df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')
@@ -261,7 +319,7 @@ if __name__ == '__main__':
         os.system('rm tmp/*')
 
         gs = pd.read_pickle(f'/mnt/saved_data/gridsearch_{name}.pkl')
-        idxs = np.where(gs.values[:,1] == gs['SharpeRatio'].max())
+        idxs = np.where(gs.values[:, 1] == gs['SharpeRatio'].max())
         gs = gs.iloc[idxs]
         gs.to_pickle(f'/mnt/saved_data/gridsearch_{name}.pkl')
         exit()
@@ -277,7 +335,8 @@ if __name__ == '__main__':
         pnl, perc_positions, fact_cont, stock_cont, fees = trading(
             df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookback_for_residual=length)
         name = input('Name of the file that will be saved (strategy): ')
-        np.save(f'/mnt/saved_data/PnL/{name}', pnl)
+        path = input('Path of the file that will be saved (strategy): ')
+        np.save(f'{path}{name}', pnl)
         # name = input('Name of the file that will be saved (positions percentage): ')
         # np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
 

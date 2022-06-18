@@ -5,11 +5,10 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from makedir import go_up
+import seaborn as sns
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
-import seaborn as sns
 
 
 def pca(df_returns, n_components, verbose=False):
@@ -202,8 +201,7 @@ if __name__ == '__main__':
     days = df_returns.shape[0]
     T = 252
 
-
-    columns = [fr'${i}^°$' for i in range(1,16)]
+    columns = [fr'${i}^°$' for i in range(1, 16)]
     df_eigenvec = pd.DataFrame(factors, columns=columns)
     print(df_eigenvec.shape)
     sns.heatmap(df_eigenvec.corr())
@@ -234,9 +232,9 @@ if __name__ == '__main__':
     # plt.show()
     if args.plots:
         trading_days = pd.read_csv(go_up(1) + '/saved_data/PriceData.csv').Date
-        x_label_position = np.arange(0, len(trading_days)-252, 252)
+        x_label_position = np.arange(0, len(trading_days) - 252, 252)
         x_label_day = [trading_days[i] for i in x_label_position]
-        plt.figure(figsize=(12,5), tight_layout=True)
+        plt.figure(figsize=(12, 5), tight_layout=True)
         # plt.bar(np.arange(len(eigenvalues)), eigenvalues,color='k', alpha=0.8)
         # plt.xlabel('Eigenvalues')
         # plt.ylabel('Explained Variance')

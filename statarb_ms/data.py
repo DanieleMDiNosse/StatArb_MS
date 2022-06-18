@@ -9,7 +9,6 @@ import pandas as pd
 import pandas_datareader as web
 import requests
 from bs4 import BeautifulSoup
-from makedir import go_up
 from tqdm import tqdm
 
 
@@ -133,25 +132,40 @@ def get_returns(dataframe, export=True, m=1):
 
     return df_ret
 
+
 def volume_integration(df_volume, df_returns, lookback=10, export=True):
+    '''This function transforms the dataframe of returns df_returns into a new one in which the (i,j) element is the return of stock j at day i wheighted by the ratio between the average daily volume changes over lookback days and the last daily volume change.
+
+    Paramters
+    ---------
+    df_volume : pandas.core.frame.DataFrame
+        Dataframe of daily volume traded.
+    df_returns : pandas.core.frame.DataFrame
+        Dataframe of returns.
+    lookback : int (optional)
+        Period over which the average daily volume traded is computed. The default is 10.
+    export : bool (optional)
+        Choose if the outcome dataframe is saved (True) or not (False). The default is True.
+
+    Returns
+    -------
+    vol_int_ret : pandas.core.frame.DataFrame
+        Volume weighted dataframe.
+    '''
 
     # clean volume data
     df_volume = df_volume.dropna(axis=1)
 
-    # # Create a dataframe of daily volume differences
-    # vol_diff = pd.DataFrame(index=range(df_volume.shape[0]-1), columns=df_volume.columns)
-    # for col in df_volume.columns:
-    #     vol_diff[col] = np.diff(df_volume[col])
-
     # create a dataframe of lookback averages of daily differences volume
-    vol_per_mean = pd.DataFrame(index=range(df_volume.shape[0]-lookback), columns=df_volume.columns)
+    vol_per_mean = pd.DataFrame(index=range(
+        df_volume.shape[0] - lookback), columns=df_volume.columns)
     for col in tqdm(df_volume.columns, desc='Average volume'):
         for day in range(vol_per_mean.shape[0]):
-            vol_per = df_volume[col][day : day + lookback]
+            vol_per = df_volume[col][day: day + lookback]
             vol_per_mean[col][day] = vol_per.mean()
 
     # Take the inverse and multiply it by the average daily volume over lookback days
-    df_volume = df_volume.apply(lambda x: 1/x)
+    df_volume = df_volume.apply(lambda x: 1 / x)
     # The first needed value of the dataframe of daily volume differences is the lookback-th
     df_volume = df_volume[lookback:]
     df_volume.index = range(vol_per_mean.shape[0])
@@ -194,6 +208,7 @@ if __name__ == '__main__':
     plt.style.use('seaborn')
 
     df_volume = pd.read_pickle('/mnt/saved_data/VolumeData.pkl')
-    df_returns = pd.read_pickle('/mnt/saved_data/ReturnsData.pkl')[df_volume.columns.to_list()]
+    df_returns = pd.read_pickle(
+        '/mnt/saved_data/ReturnsData.pkl')[df_volume.columns.to_list()]
 
     vol_int = volume_integration(df_volume, df_returns, export=True)

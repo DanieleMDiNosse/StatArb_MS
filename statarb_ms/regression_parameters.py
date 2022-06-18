@@ -1,12 +1,13 @@
-from sklearn import linear_model
-import statsmodels.api as sm
-from factors import pca, risk_factors
-import numpy as np
 import argparse
 import logging
-import matplotlib.pyplot as plt
-import pandas as pd
 import time
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+from factors import pca, risk_factors
+from sklearn import linear_model
 from statsmodels.tsa.ar_model import AutoReg
 
 
@@ -24,7 +25,7 @@ def regression(X, Y, const=True):
 
     if const:
         X = sm.add_constant(X)
-    model = sm.OLS(Y,X)
+    model = sm.OLS(Y, X)
     res = model.fit()
     beta0 = np.array(res.params[0])
     betas = np.array(res.params[1:])
@@ -34,6 +35,7 @@ def regression(X, Y, const=True):
     rsquared = res.rsquared
 
     return beta0, betas, conf_intervals, residuals, predictions, rsquared
+
 
 def auto_regression(X):
     mod = AutoReg(X, lags=1, old_names=False)
@@ -69,14 +71,13 @@ if __name__ == '__main__':
     #     df_returns[:252], n_components=args.n_components, variable_number=args.variable_number)
     # factors = risk_factors(df_returns, eigenvectors)
 
-
     # beta0, betas, residuals, conf_intervals = regression(factors, df_returns.AN)
-    a, b, predictions, residuals, conf_intervals = auto_regression(df_returns.AN)
+    a, b, predictions, residuals, conf_intervals = auto_regression(
+        df_returns.AN)
     print(a, b)
     plt.figure()
     plt.hist(residuals, bins=500)
     plt.show()
-
 
     # plt.figure()
     # plt.plot(df_returns.AAPL-1, label='Apple')
