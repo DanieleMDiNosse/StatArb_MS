@@ -9,7 +9,7 @@ from gas import ML_errors, b_error
 from post_processing import LM_test_statistic
 from regression_parameters import regression
 from scipy.optimize import minimize
-from scipy.stats import chi2, norm, normaltest, poisson
+from scipy.stats import chi2, norm, normaltest, poisson, t
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
@@ -52,6 +52,8 @@ def synt_data(model, dynamics, link_fun, *args, size):
                 if link_fun == 'logistic':
                     b[t + 1] = omega + alpha * (X[t] - 1 / (1 + np.exp(-b[t])) *
                                                 X[t - 1]) * np.exp(-b[t]) / (1 + np.exp(-b[t]))**2 * X[t - 1] / sgm**2 + beta * b[t]
+                if link_fun == 'identity_student':
+                    b[t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[t] * X[t - 1])  / (lam + (X[t] - a - b[t] * X[t - 1])**2) + beta * b[t]
 
             if dynamics == 'sin':
                 b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / int(size / 10))
@@ -70,6 +72,9 @@ def synt_data(model, dynamics, link_fun, *args, size):
 
             if link_fun == 'identity':
                 X[t + 1] = a + b[t + 1] * X[t] + np.random.normal(0, sgm)
+
+            if link_fun == 'identity_student':
+                X[t + 1] = a + b[t + 1] * X[t] + t.rvs(lam)
 
     if model == 'poisson':
         X[0] = np.random.poisson(b[0])
@@ -90,7 +95,7 @@ def synt_data(model, dynamics, link_fun, *args, size):
     return X, b
 
 
-def model_loglikelihood(params, X, model):
+def model_loglikelihood(params, X, model, link_fun):
     '''This function computes the total loglikelihood of the AR(1) model with GAS(1,1) filter on the autoregressive/poisson parameter. In the autoregressive case, the innovation is assumer to be normal distributed.
 
     Parameters
@@ -113,10 +118,14 @@ def model_loglikelihood(params, X, model):
     if model == 'autoregressive':
         a, omega, alpha, beta, sgm = params
         for i in range(1, T - 1):
-            # b[i + 1] = omega + alpha * \
-            #     (X[i] - a - b[i] * X[i - 1]) * X[i - 1] / sgm**2 + beta * b[i]
-            b[i + 1] = omega + alpha * (X[i] - a - 1 / (1 + np.exp(-b[i])) *
-                                        X[i - 1]) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sgm**2 + beta * b[i]
+
+            if link_fun == 'identity':
+                b[i + 1] = omega + alpha * \
+                    (X[i] - a - b[i] * X[i - 1]) * X[i - 1] / sgm**2 + beta * b[i]
+
+            if link_fun == 'logistic':
+                b[i + 1] = omega + alpha * (X[i] - a - 1 / (1 + np.exp(-b[i])) *
+                                            X[i - 1]) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sgm**2 + beta * b[i]
 
         sum = 0
         for i in range(T - 1):
@@ -183,7 +192,7 @@ def model_estimation(X, model, link_fun, specification):
     for i in range(res_iter.shape[0]):
         init_params = np.random.uniform(0, 1, size=num_par)
         res = minimize(model_loglikelihood, init_params,
-                       (X, model), method='Nelder-Mead')
+                       (X, model, link_fun), method='Nelder-Mead')
         if np.isnan(res.fun) == False:
             res_iter[i, :-1] = res.x
             res_iter[i, -1] = res.fun
