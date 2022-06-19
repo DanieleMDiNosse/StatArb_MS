@@ -11,12 +11,11 @@ import numpy as np
 import pandas as pd
 import telegram_send
 from data import price_data
-from factors import money_on_stock, pca, risk_factors
-from gas import estimation
-from loglikelihood import (loglikelihood, loglikelihood_after_targ,
-                           targeting_loglikelihood)
-from post_processing import LM_test_statistic, file_merge
-from regression_parameters import auto_regression, regression
+from StatArb_MS.statarb_ms.factors import money_on_stock, pca, risk_factors
+from StatArb_MS.statarb_ms.gas import estimation
+from StatArb_MS.statarb_ms.loglikelihood import loglikelihood
+from StatArb_MS.statarb_ms.post_processing import LM_test_statistic, file_merge
+from StatArb_MS.statarb_ms.regression_parameters import auto_regression, regression
 from scipy.stats import normaltest
 from sklearn.metrics import r2_score
 from statsmodels.stats.diagnostic import acorr_ljungbox
@@ -100,7 +99,7 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
         np.save(f'/mnt/saved_data/res_{os.getpid()}', res)
 
 
-def only_scoring(dis_res, df_returns, method, n_iter, lookback_for_factors, lookback_for_residual, targeting_estimation=False):
+def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_factors, lookback_for_residual, targeting_estimation=False):
 
     if targeting_estimation:
         num_par = 3
@@ -152,7 +151,7 @@ def only_scoring(dis_res, df_returns, method, n_iter, lookback_for_factors, look
                     b, a, xi, est, std = estimation(
                         X, n_iter, targeting_estimation=targeting_estimation)
                 else:
-                    b, a, xi, est = estimation(X, n_iter)
+                    b, a, xi, est = estimation(X, n_iter, link_fun)
                 AR_res_gas[i, stock_idx, :] = xi
                 estimates[i, stock_idx, :-1] = est
                 estimates[i, stock_idx, -1] = 1  # sigma = 1 by assumption
@@ -219,6 +218,7 @@ if __name__ == '__main__':
                         help='If passed, compute only the s-scores, provided residuals are already been computed.')
     parser.add_argument("-g", "--gas", action='store_true',
                         help=("Use gas estimation for the mean reverting speed. The default is False."))
+    parser.add_argument('-lf', '--link_fun', type=int, help='In GAS filtering, choose what type of link function/distribution is adopted. 0 -> Identity link function with N(0,1) distribution; 1-> Logistic link function with N(0,1) distribution; 2-> Identity link function with Student t distribution.')
     parser.add_argument('-vi', '--vol_int', action='store_true',
                         help='Use return dataframe weighted  with volume information')
     parser.add_argument('-t', '--test_set', action='store_true',
@@ -240,6 +240,14 @@ if __name__ == '__main__':
 
     if args.gas == True:
         method = 'gas_modelization'
+
+        if args.link_fun == 0:
+            link_fun = 'identity'
+        if args.link_fun == 1:
+            link_fun = 'logistic'
+        if args.link_fun == 2:
+            link_fun = 'identity_student'
+
     else:
         method = 'constant_speed'
 
@@ -299,7 +307,7 @@ if __name__ == '__main__':
                   dis_res[1995:2746, :, :], dis_res[2494:3245, :, :], dis_res[2993:3744, :, :], dis_res[3492:, :, :]]
 
         processes = [mp.Process(target=only_scoring, args=(
-            i, j, method, args.n_iter, 252, length)) for i, j in zip(dr, df)]
+            i, j, method, link_fun, args.n_iter, 252, length)) for i, j in zip(dr, df)]
 
         os.system('rm tmp/*')
         for p in processes:

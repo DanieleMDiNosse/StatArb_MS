@@ -5,11 +5,12 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import statsmodels.api as sm
-from gas import ML_errors, b_error
-from post_processing import LM_test_statistic
-from regression_parameters import regression
+from StatArb_MS.statarb_ms.gas import ML_errors, b_error
+from StatArb_MS.statarb_ms.post_processing import LM_test_statistic
+from StatArb_MS.statarb_ms.regression_parameters import regression
 from scipy.optimize import minimize
-from scipy.stats import chi2, norm, normaltest, poisson, t
+from scipy.stats import chi2, norm, normaltest, poisson
+from scipy.stats import t as t_student
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
@@ -44,19 +45,24 @@ def synt_data(model, dynamics, link_fun, *args, size):
 
     if model == 'autoregressive':
         X[1] = np.random.normal(0, sgm)
+
         for t in range(1, size - 1):
             if dynamics == 'gas':
+
                 if link_fun == 'identity':
                     b[t + 1] = omega + alpha * X[t - 1] * \
                         (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
+
                 if link_fun == 'logistic':
                     b[t + 1] = omega + alpha * (X[t] - 1 / (1 + np.exp(-b[t])) *
                                                 X[t - 1]) * np.exp(-b[t]) / (1 + np.exp(-b[t]))**2 * X[t - 1] / sgm**2 + beta * b[t]
+
                 if link_fun == 'identity_student':
                     b[t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[t] * X[t - 1])  / (lam + (X[t] - a - b[t] * X[t - 1])**2) + beta * b[t]
 
             if dynamics == 'sin':
                 b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / int(size / 10))
+
             if dynamics == 'step':
                 b[:2] = 0.1
                 if (t < 300):
@@ -74,16 +80,20 @@ def synt_data(model, dynamics, link_fun, *args, size):
                 X[t + 1] = a + b[t + 1] * X[t] + np.random.normal(0, sgm)
 
             if link_fun == 'identity_student':
-                X[t + 1] = a + b[t + 1] * X[t] + t.rvs(lam)
+                X[t + 1] = a + b[t + 1] * X[t] + t_student.rvs(lam)
 
     if model == 'poisson':
         X[0] = np.random.poisson(b[0])
+
         for t in range(size - 1):
+
             if dynamics == 'gas':
                 b[t + 1] = omega + alpha * \
                     (X[t] - np.exp(b[t])) * (np.exp(b[t])) + beta * b[t]
+
             if dynamics == 'sin':
                 b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / int(size / 10))
+
             if dynamics == 'step':
                 if t < 300:
                     b[t + 1] = 0.1
@@ -91,7 +101,9 @@ def synt_data(model, dynamics, link_fun, *args, size):
                     b[t + 1] = 0.5
                 if t >= 600:
                     b[t + 1] = 0.1
+
             X[t + 1] = np.random.poisson(np.exp(b[t + 1]))
+
     return X, b
 
 
@@ -115,25 +127,33 @@ def model_loglikelihood(params, X, model, link_fun):
 
     T = X.shape[0]
     b = np.zeros_like(X)
+
     if model == 'autoregressive':
         a, omega, alpha, beta, sgm = params
-        for i in range(1, T - 1):
-
+        for t in range(1, T - 1):
             if link_fun == 'identity':
-                b[i + 1] = omega + alpha * \
-                    (X[i] - a - b[i] * X[i - 1]) * X[i - 1] / sgm**2 + beta * b[i]
+                b[t + 1] = omega + alpha * \
+                    (X[t] - a - b[t] * X[t - 1]) * X[t - 1] / sgm**2 + beta * b[t]
 
             if link_fun == 'logistic':
-                b[i + 1] = omega + alpha * (X[i] - a - 1 / (1 + np.exp(-b[i])) *
-                                            X[i - 1]) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sgm**2 + beta * b[i]
+                b[t + 1] = omega + alpha * (X[t] - a - 1 / (1 + np.exp(-b[t])) *
+                                            X[t - 1]) * np.exp(-b[i]) / (1 + np.exp(-b[t]))**2 * X[t - 1] / sgm**2 + beta * b[t]
 
             if link_fun == 'identity_student':
                 b[t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[t] * X[t - 1])  / (lam + (X[t] - a - b[t] * X[t - 1])**2) + beta * b[t]
 
         sum = 0
         for i in range(T - 1):
-            sum += - 0.5 * np.log(2 * np.pi * sgm**2) - 0.5 / \
-                sgm**2 * (X[i + 1] - a - 1 / (1 + np.exp(-b[i + 1])) * X[i])**2
+            if link_fun == 'identity':
+                sum += - 0.5 * np.log(2 * np.pi * sgm**2) - 0.5 / \
+                    sgm**2 * (X[i + 1] - a - b[i + 1] * X[i])**2
+
+            if link_fun == 'logistic':
+                sum += - 0.5 * np.log(2 * np.pi * sgm**2) - 0.5 / \
+                    sgm**2 * (X[i + 1] - a - 1 / (1 + np.exp(-b[i + 1])) * X[i])**2
+
+            if link_fun == 'identity_student':
+                sum += - (lam + 1) * 0.5 * np.log(1 + (X[i + 1] - a - b[i + 1] * X[i])**2 / lam)
 
     if model == 'poisson':
         alpha, beta, omega = params
@@ -196,15 +216,18 @@ def model_estimation(X, model, link_fun, specification):
         init_params = np.random.uniform(0, 1, size=num_par)
         res = minimize(model_loglikelihood, init_params,
                        (X, model, link_fun), method='Nelder-Mead')
+
         if np.isnan(res.fun) == False:
             res_iter[i, :-1] = res.x
             res_iter[i, -1] = res.fun
 
     init_params = res_iter[np.where(
         res_iter[:, -1] == res_iter[:, -1].min())][0][:-1]
+
     res = minimize(model_loglikelihood, init_params,
-                   (X, model), method='Nelder-Mead')
-    res = minimize(model_loglikelihood, res.x, (X, model),
+                   (X, model, link_fun), method='Nelder-Mead')
+
+    res = minimize(model_loglikelihood, res.x, (X, model, link_fun),
                    method='BFGS', options={'maxiter': 1})
 
     estimates = res.x
@@ -215,14 +238,11 @@ def model_estimation(X, model, link_fun, specification):
     T = X.shape[0]
     b = np.zeros_like(X)
     xi = np.zeros_like(b)
-    dbda, dbdw, dbdal, dbdb, dbds, dfidb = np.zeros_like(X), np.zeros_like(
-        X), np.zeros_like(X), np.zeros_like(X), np.zeros_like(X), np.zeros_like(X)
 
     if model == 'autoregressive':
         a, omega, alpha, beta, sgm = estimates
 
         for t in range(1, T - 1):
-
             if link_fun == 'identity':
                 b[t + 1] = omega + alpha * X[t - 1] * \
                     (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
@@ -234,7 +254,7 @@ def model_estimation(X, model, link_fun, specification):
                 xi[t + 1] = X[t + 1] - a - 1 / (1 + np.exp(-b[t + 1])) * X[t]
 
             if link_fun == 'identity_student':
-                b[t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[t] * X[t - 1])  /       (lam + (X[t] - a - b[t] * X[t - 1])**2) + beta * b[t]
+                b[t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[t] * X[t - 1]) / (lam + (X[t] - a - b[t] * X[t - 1])**2) + beta * b[t]
                 xi[t + 1] = X[t + 1] - a - b[t + 1] * X[t]
 
         if link_fun == 'identity':
@@ -244,6 +264,10 @@ def model_estimation(X, model, link_fun, specification):
         if link_fun == 'logistic':
             B_T = omega + alpha * (X[-1] - a - 1 / (1 + np.exp(-b[-1])) *
                                         X[-2]) * np.exp(-b[-1]) / (1 + np.exp(-b[-1]))**2 * X[-2] / sgm**2 + beta * b[-1]
+
+        if link_fun == 'identity_student':
+            B_T = omega + alpha * (lam + 1) * X[-2] * (X[-1] - a - b[-1] * X[-2]) / (lam + (X[-1] - a - b[-1] * X[-2])**2) + beta * b[-1]
+
 
     if model == 'poisson':
         alpha, beta, omega = estimates
@@ -256,7 +280,7 @@ def model_estimation(X, model, link_fun, specification):
         B_T = omega + alpha * (X[-1] - np.exp(b[-1])) * \
             (np.exp(b[-1])) + beta * b[-1]
 
-    if link_fun == 'identity': b = 1 / (1 + np.exp(-b))
+    if link_fun == 'logistic': b = 1 / (1 + np.exp(-b))
 
     return b, res, xi, std_err, std_b, init_params, B_T
 
@@ -270,7 +294,7 @@ if __name__ == '__main__':
     parser.add_argument("-m", "--model", type=int,
                         help='0 for AR(1), 1 for Poisson')
     parser.add_argument("-lf", "--link_fun", type=int,
-                        help='0 identity, 1 logistic')
+                        help='0 identity, 1 logistic, 2 identity_student')
     parser.add_argument("-d", "--dynamics", type=int,
                         help='Dynamics for b: 0 for GAS, 1 for sinusodial, 2 for step function, 3 for exponential decay')
     parser.add_argument("-lm", "--lmtest", action='store_true', help='LM test')
@@ -293,6 +317,8 @@ if __name__ == '__main__':
         link_fun = 'identity'
     if args.link_fun == 1:
         link_fun = 'logistic'
+    if args.link_fun == 2:
+        link_fun = 'identity_student'
 
     if args.dynamics == 0:
         dynamics = 'gas'
@@ -318,8 +344,9 @@ if __name__ == '__main__':
         beta = 0.06
         sgm = 0.1
         a = 0.1
+        lam = 2
         X, b = synt_data(model, dynamics, link_fun, a, omega, alpha,
-                         beta, sgm, size=n)
+                         beta, sgm, lam, size=n)
 
     if model == 'poisson':
         alpha = 0.081
@@ -377,28 +404,6 @@ if __name__ == '__main__':
         exit()
 
     if args.convergence:
-        # N = 100
-        # NN = 1
-        # c = 0
-        # sgmb_list = []
-        # for i in tqdm(range(NN)):
-        #     # np.random.seed()
-        #     b_list = np.empty(shape=N)
-        #     X, b = synt_data(model, a, omega, alpha,
-        #                      beta, sgm, dynamics=dynamics, size=n)
-        #     for j in range(N):
-        #         B, res, std_err, deltas, init_params = model_estimation(X, model, specification)
-        #         b_list[j] = B[-1]
-        #     scaler = MinMaxScaler()
-        #     b_list = scaler.fit_transform(b_list.reshape(-1,1))
-        #     sgmb_list.append(b_list.std())
-        # print(sgmb_list)
-        # # plt.figure(figsize=(8, 6), tight_layout=True)
-        # # plt.hist(sgmb_list, bins=40, color='blue', edgecolor='darkblue', alpha=0.6)
-        # # plt.title(r"$b_{T}$ standard deviations")
-        # # plt.savefig('../b_1000data_100init.png')
-        # # plt.show()
-
         if model == 'autoregressive':
             num_par = 5
         if model == 'poisson':

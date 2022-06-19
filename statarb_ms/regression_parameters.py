@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
-from factors import pca, risk_factors
+from StatArb_MS.statarb_ms.factors import pca, risk_factors
 from sklearn import linear_model
 from statsmodels.tsa.ar_model import AutoReg
 

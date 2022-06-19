@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import statsmodels.api as sm
-from data import get_returns
-from regression_parameters import auto_regression
+from StatArb_MS.statarb_ms.data import get_returns
+from StatArb_MS.statarb_ms.regression_parameters import auto_regression
 from scipy.stats import chi2, kstest, normaltest, shapiro, skew, ttest_1samp
 from sklearn.preprocessing import StandardScaler
 from statsmodels.graphics.tsaplots import plot_acf
