@@ -63,9 +63,13 @@ def synt_data(model, dynamics, link_fun, *args, size):
                     b[t + 1] = 0.5
                 if (t >= 600):
                     b[t + 1] = 0.1
-            # X[t + 1] = a + b[t + 1] * X[t] + np.random.normal(0, sgm)
-            X[t + 1] = a + 1 / (1 + np.exp(-b[t + 1])) * \
-                X[t] + np.random.normal(0, sgm)
+
+            if link_fun == 'logistic':
+                X[t + 1] = a + 1 / (1 + np.exp(-b[t + 1])) * \
+                    X[t] + np.random.normal(0, sgm)
+
+            if link_fun == 'identity':
+                X[t + 1] = a + b[t + 1] * X[t] + np.random.normal(0, sgm)
 
     if model == 'poisson':
         X[0] = np.random.poisson(b[0])
