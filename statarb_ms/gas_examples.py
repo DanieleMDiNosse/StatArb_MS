@@ -52,8 +52,6 @@ def synt_data(model, dynamics, link_fun, *args, size):
                 if link_fun == 'logistic':
                     b[t + 1] = omega + alpha * (X[t] - 1 / (1 + np.exp(-b[t])) *
                                                 X[t - 1]) * np.exp(-b[t]) / (1 + np.exp(-b[t]))**2 * X[t - 1] / sgm**2 + beta * b[t]
-                if link_fun == 'identity_student':
-                    b[t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[t] * X[t - 1])  / (lam + (X[t] - a - b[t] * X[t - 1])**2) + beta * b[t]
 
             if dynamics == 'sin':
                 b[t + 1] = 0.5 * np.sin(np.pi * (t + 1) / int(size / 10))
