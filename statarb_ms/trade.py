@@ -58,8 +58,6 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
 
     for day in tqdm(range(df_score.shape[0] - 1)):
         counter_no_trades = 0
-        factor_contribution = []
-        stock_contribution = []
 
         for stock in df_score.columns:
             stock_idx = df_returns.columns.get_loc(stock)
@@ -128,11 +126,13 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
             state == 's') / df_score.shape[1]
         perc_positions[day, 2] = np.count_nonzero(
             state == 'c') / df_score.shape[1]
-        PnL[day + 1] = PnL[day] + daily_PnL[day, :].sum() - \
-            (np.abs((invest_amount[day + 1] -
-             invest_amount[day]))).sum() * epsilon
 
-    return PnL, perc_positions, fact_cont, stock_cont, fees
+        fees[day] = (np.abs((invest_amount[day + 1] -
+         invest_amount[day]))).sum() * epsilon
+
+        PnL[day + 1] = PnL[day] + daily_PnL[day, :].sum() - fees[day]
+
+    return PnL, perc_positions, fees
 
 
 def spy_trading(df_returns, Q):
@@ -153,6 +153,20 @@ def spy_trading(df_returns, Q):
 
 
 def grid_search(hyperparameters, score_data):
+    '''This function performs a simple optimization of the thresholds s_bo, s_so, s_bc, s_sc that are used to trigger the opening and closing of positions (trading). It takes as argument a list of thresholds combinations (hyperparameters) and evaluate the Sharpe ratio of the corresponding PnL. These combinations can be obtained through the itertools package. Share ratios are evaluated through the sharpe_ratio function.
+
+    Parameters
+    ----------
+    hyperparameters : list or numpy ndarray
+        List of thresholds combinations.
+    score_data : pandas.core.frame.DataFrame
+        Dataframe of s-scores.
+
+    Returns
+    -------
+    results : pandas.core.frame.DataFrame
+        A single-entry dataframe with the best combination of thresholds and the corresponding Sharpe ratio.
+        '''
 
     results = pd.DataFrame(index=range(len(hyperparameters)), columns=[
                            'Hyperparameters', 'SharpeRatio'])
@@ -172,6 +186,7 @@ def grid_search(hyperparameters, score_data):
         results['SharpeRatio'][idx] = s_ratio
     results.to_pickle(f'/mnt/saved_data/gridsearch_{os.getpid()}.pkl')
 
+    return results
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -312,6 +327,7 @@ if __name__ == '__main__':
         end = time.time()
 
         telegram_send.send(messages=[f'GridSearch on {name} terminated'])
+
         pidnums = [int(x) for x in os.listdir('tmp')]
         pidnums.sort()
         logging.info('Merging files, then remove the splitted ones...')
@@ -332,11 +348,12 @@ if __name__ == '__main__':
         np.save(f'/mnt/saved_data/PnL/{name}', spy_pnl)
 
     else:
-        pnl, perc_positions, fact_cont, stock_cont, fees = trading(
+        pnl, perc_positions, fees = trading(
             df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookback_for_residual=length)
         name = input('Name of the file that will be saved (strategy): ')
         path = input('Path of the file that will be saved (strategy): ')
         np.save(f'{path}{name}', pnl)
+        np.save(f'{path}{name}_fees', fees)
         # name = input('Name of the file that will be saved (positions percentage): ')
         # np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
 

@@ -320,7 +320,7 @@ if __name__ == '__main__':
 
     chi2 = np.sqrt((B_T - b[-1])**2 / std_b[-1]**2)
 
-    MSE = mean_squared_error(b[:-1], B) # E' fino a -2 poiché gli ultimi due valori di X li uso per il forecast
+    MSE = mean_squared_error(b[:-1], B) # E' fino a -1 poiché gli ultimi due valori di X li uso per il forecast
 
     print('--------------------- Summary --------------------- \n')
     if model == 'autoregressive':
