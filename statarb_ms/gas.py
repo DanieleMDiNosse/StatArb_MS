@@ -18,6 +18,7 @@ def ML_errors(jac, hess_inv, params, X, specification):
     if specification == 'mis':
         var = np.dot(np.dot(hess_inv, J), hess_inv)
         std_err = np.sqrt([var[i, i] / T for i in range(num_par)])
+
     if specification == 'correct':
         std_err = np.sqrt([hess_inv[i, i] / T for i in range(num_par)])
 
