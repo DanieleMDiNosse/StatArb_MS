@@ -73,9 +73,6 @@ def synt_data(model, dynamics, link_fun, *args, size):
             if link_fun == 'identity':
                 X[t + 1] = a + b[t + 1] * X[t] + np.random.normal(0, sgm)
 
-            if link_fun == 'identity_student':
-                X[t + 1] = a + b[t + 1] * X[t] + t.rvs(lam)
-
     if model == 'poisson':
         X[0] = np.random.poisson(b[0])
         for t in range(size - 1):
