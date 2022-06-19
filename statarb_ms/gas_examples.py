@@ -127,6 +127,9 @@ def model_loglikelihood(params, X, model, link_fun):
                 b[i + 1] = omega + alpha * (X[i] - a - 1 / (1 + np.exp(-b[i])) *
                                             X[i - 1]) * np.exp(-b[i]) / (1 + np.exp(-b[i]))**2 * X[i - 1] / sgm**2 + beta * b[i]
 
+            if link_fun == 'identity_student':
+                b[t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[t] * X[t - 1])  / (lam + (X[t] - a - b[t] * X[t - 1])**2) + beta * b[t]
+
         sum = 0
         for i in range(T - 1):
             sum += - 0.5 * np.log(2 * np.pi * sgm**2) - 0.5 / \
@@ -229,6 +232,10 @@ def model_estimation(X, model, link_fun, specification):
                 b[t + 1] = omega + alpha * (X[t] - a - 1 / (1 + np.exp(-b[t])) *
                                             X[t - 1]) * np.exp(-b[t]) / (1 + np.exp(-b[t]))**2 * X[t - 1] / sgm**2 + beta * b[t]
                 xi[t + 1] = X[t + 1] - a - 1 / (1 + np.exp(-b[t + 1])) * X[t]
+
+            if link_fun == 'identity_student':
+                b[t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[t] * X[t - 1])  /       (lam + (X[t] - a - b[t] * X[t - 1])**2) + beta * b[t]
+                xi[t + 1] = X[t + 1] - a - b[t + 1] * X[t]
 
         if link_fun == 'identity':
             B_T = omega + alpha / sgm**2 * \
