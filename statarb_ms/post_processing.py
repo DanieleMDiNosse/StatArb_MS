@@ -1,3 +1,5 @@
+'''This file contains several functions that I used after the s-scores and PnL have been generated. They are not written with the purpose of being easily utilized by others, as they do not contain docstring or deep descriptions. Sometimes the function name tells the whole story about what that piece of code does, sometimes not. I am sorry if the interested user will have trouble. Please contact me at danielemdinosse@gmail.com if there is need of any help. '''
+
 import argparse
 import logging
 import os
@@ -10,8 +12,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import statsmodels.api as sm
-from data import get_returns
-from regression_parameters import auto_regression
+from StatArb_MS.statarb_ms.data import get_returns
+from StatArb_MS.statarb_ms.regression_parameters import auto_regression
 from scipy.stats import chi2, kstest, normaltest, shapiro, skew, ttest_1samp
 from sklearn.preprocessing import StandardScaler
 from statsmodels.graphics.tsaplots import plot_acf
@@ -21,6 +23,8 @@ from tqdm import tqdm
 
 
 def rejected_stocks():
+    '''This function generates bar plots indicating the percentage of stock whose speed of mean reversion has been rejected. '''
+
     subset = ['ORLY', 'JCI', 'WHR', 'NUE',
               'LHX', 'ABMD', 'BDX', 'D', 'SWN', 'WMB']
     score70gas_logistic = pd.read_pickle(
@@ -70,6 +74,7 @@ def rejected_stocks():
 
 
 def plot_returns(ret, ret_gas, spy_ret):
+    '''This function plots the returns of the portfolios and their distribution. '''
     ret_today, ret_gas_today, spy_ret_today = ret[1:], ret_gas[1:], spy_ret[1:]
     ret_yesterday, ret_gas_yesterday, spy_ret_yesterday = ret[:-
                                                               1], ret_gas[:-1], spy_ret[:-1]
@@ -184,7 +189,7 @@ def binary(x, threshold=0.05):
 
 
 def normtest_discreteOU():
-    '''Perform D'Agostino and Pearson normality test'''
+    '''Perform D'Agostino and Pearson's normality test on the residuals of the AR(1) process.'''
 
     subset = ['ORLY', 'JCI', 'WHR', 'NUE',
               'LHX', 'ABMD', 'BDX', 'D', 'SWN', 'WMB']
@@ -231,6 +236,7 @@ def normtest_discreteOU():
 
 
 def ljung_box_test():
+    '''This function performs the Ljung-Box's test on correlations on the residuals of the AR(1) process.'''
 
     subset = ['ORLY', 'JCI', 'WHR', 'NUE',
               'LHX', 'ABMD', 'BDX', 'D', 'SWN', 'WMB']
@@ -271,70 +277,6 @@ def ljung_box_test():
             # colorbar.set_ticklabels(['Rejected','Not rejected'])
             # plt.title(fr'{name} $\alpha$ < 0.05: {zeros}, $\alpha$ > 0.05: {ones}')
             # plt.savefig(f'../../{name}_{order}.png')
-    plt.show()
-
-
-def crosscorr(x, y, max_lag, bootstrap_test=False):
-    x_mean = np.mean(x)
-    y_mean = np.mean(y)
-    cross_corr = []
-    for d in range(max_lag):
-        cc = 0
-        for i in range(len(x) - d):
-            cc += (x[i] - x_mean) * (y[i + d] - y_mean)
-        cc = cc / np.sqrt(np.sum((x - x_mean)**2) * np.sum((y - y_mean)**2))
-        cross_corr.append(cc)
-    plt.plot(cross_corr, 'k')
-    plt.title('Cross-correlation function')
-    plt.xlabel('Lags')
-
-    if bootstrap_test:
-        cross_corr_s = []
-        for i in range(100):
-            xs, ys = x, y
-            np.random.shuffle(xs)
-            np.random.shuffle(ys)
-            xs_mean = np.mean(xs)
-            ys_mean = np.mean(ys)
-            cross_corr_s_i = []
-            for d in range(max_lag):
-                cc = 0
-                for i in range(len(x) - d):
-                    cc += (xs[i] - xs_mean) * (ys[i + d] - ys_mean)
-                cc = cc / np.sqrt(np.sum((xs - xs_mean)**2)
-                                  * np.sum((ys - ys_mean)**2))
-                cross_corr_s_i.append(cc)
-            cross_corr_s.append(cross_corr_s_i)
-        meancc = np.mean(np.array(cross_corr_s), axis=0)
-        stdcc = np.std(np.array(cross_corr_s), axis=0)
-        plt.plot(meancc - 3 * stdcc, 'crimson', lw=0.5)
-        plt.plot(meancc, 'crimson', lw=0.5)
-        plt.plot(meancc + 3 * stdcc, 'crimson', lw=0.5)
-        plt.fill_between(np.arange(0, max_lag), meancc + 3 *
-                         stdcc, meancc - 3 * stdcc, color='crimson', alpha=0.6)
-    plt.grid()
-    return cross_corr
-
-
-def onesample_ttest(name):
-    dis_res = np.load(go_up(1) + f'/saved_data/{name}.npy')
-    t_test = np.zeros(shape=(dis_res.shape[0], dis_res.shape[1]))
-    bin_vec = np.vectorize(binary)
-    for day in tqdm(range(dis_res.shape[0])):
-        for stock in range(dis_res.shape[1]):
-            t_test[day, stock] = ttest_1samp(dis_res[day, stock], popmean=0)[
-                1]  # p-values for lag=2
-
-    t_test = bin_vec(t_test)
-    ones = t_test.flatten().sum() / t_test.flatten().shape[0]
-    zeros = 1 - ones
-    ax = sns.heatmap(t_test.T,  cmap=['azure', 'black'])
-    plt.xticks(x_label_position, x_label_day, fontsize=11, rotation=90)
-    plt.yticks(y_label_position, y_label_day, fontsize=11)
-    colorbar = ax.collections[0].colorbar
-    colorbar.set_ticks(np.array([0, zeros, ones]))
-    colorbar.set_ticklabels(['Rejected', 'Not rejected'])
-    plt.title(f'Not rejected: {ones}, Rejected: {zeros}')
     plt.show()
 
 
@@ -430,7 +372,7 @@ def LM_test_statistic(X, params):
 
 
 def file_merge(pidnums, file_list):
-
+    '''This function takes the splitted files generated in the scoring.py module because of the multiprocessing implementation and merge them into a single one. '''
     for file in file_list:
         try:
             df_score = [pd.read_pickle(
@@ -452,6 +394,8 @@ def file_merge(pidnums, file_list):
 
 
 def sharpe_ratio(pnl, benchmark_pnl, period):
+    ''' This function evaluates the annualized Sharpe ratio.'''
+
     sharpe_ratio = []
     pnl_ret = get_returns(pd.DataFrame(pnl), export=False, m=1)
     benchmark_pnl_ret = get_returns(

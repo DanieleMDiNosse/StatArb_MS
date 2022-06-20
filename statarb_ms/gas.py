@@ -2,7 +2,7 @@ import argparse
 import math
 import time
 
-import loglikelihood
+from StatArb_MS.statarb_ms import loglikelihood
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -18,13 +18,14 @@ def ML_errors(jac, hess_inv, params, X, specification):
     if specification == 'mis':
         var = np.dot(np.dot(hess_inv, J), hess_inv)
         std_err = np.sqrt([var[i, i] / T for i in range(num_par)])
+
     if specification == 'correct':
         std_err = np.sqrt([hess_inv[i, i] / T for i in range(num_par)])
 
     return std_err
 
 
-def b_error(X, res, M, model, specification):
+def b_error(X, res, M, model, link_fun, specification):
     T = X.shape[0]
     b = np.zeros(shape=(M, T))
     J = np.outer(res.jac, res.jac)
@@ -35,40 +36,64 @@ def b_error(X, res, M, model, specification):
             if specification == 'correct':
                 a, omega, alpha, beta, sgm = np.random.multivariate_normal(
                     estimates, res.hess_inv / T)
+
                 for t in range(1, T - 1):
-                    b[m, t + 1] = omega + alpha * X[t - 1] * \
-                        (X[t] - a - b[m, t] * X[t - 1]) / \
-                        sgm**2 + beta * b[m, t]
+                    if link_fun == 'identity':
+                        b[m, t + 1] = omega + alpha * X[t - 1] * \
+                            (X[t] - a - b[m, t] * X[t - 1]) / \
+                            sgm**2 + beta * b[m, t]
+
+                    if link_fun == 'logistic':
+                        b[m, t + 1] = omega + alpha * X[t - 1] * \
+                            (X[t] - a - 1 / (1 + np.exp(-b[m, t])) * X[t - 1]) / \
+                            sgm**2 + beta * b[m, t]
+
+                    if link_fun == 'identity_student':
+                        b[m, t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[m, t] * X[t - 1])  / (lam + (X[t] - a - b[m, t] * X[t - 1])**2) + beta * b[m, t]
+
             else:
                 a, omega, alpha, beta, sgm = np.random.multivariate_normal(
                     estimates, np.dot(np.dot(res.hess_inv, J), res.hess_inv) / T)
+
                 for t in range(1, T - 1):
-                    b[m, t + 1] = omega + alpha * X[t - 1] * \
-                        (X[t] - a - b[m, t] * X[t - 1]) / \
-                        sgm**2 + beta * b[m, t]
+                    if link_fun == 'identity':
+                        b[m, t + 1] = omega + alpha * X[t - 1] * \
+                            (X[t] - a - b[m, t] * X[t - 1]) / \
+                            sgm**2 + beta * b[m, t]
+
+                    if link_fun == 'logistic':
+                        b[m, t + 1] = omega + alpha * X[t - 1] * \
+                            (X[t] - a - 1 / (1 + np.exp(-b[m, t])) * X[t - 1]) / \
+                            sgm**2 + beta * b[m, t]
+
+                    if link_fun == 'identity_student':
+                        b[m, t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[m, t] * X[t - 1])  / (lam + (X[t] - a - b[m, t] * X[t - 1])**2) + beta * b[m, t]
 
         if model == 'poisson':
             if specification == 'correct':
                 alpha, beta, omega = np.random.multivariate_normal(
                     estimates, res.hess_inv / T)
+
                 for t in range(T - 1):
                     b[m, t + 1] = omega + alpha * \
                         (X[t] - np.exp(b[m, t])) * \
                         (np.exp(b[m, t])) + beta * b[m, t]
+
             else:
                 alpha, beta, omega = np.random.multivariate_normal(
                     estimates, np.dot(np.dot(res.hess_inv, J), res.hess_inv) / T)
+
                 for t in range(T - 1):
                     b[m, t + 1] = omega + alpha * \
                         (X[t] - np.exp(b[m, t])) * \
                         (np.exp(b[m, t])) + beta * b[m, t]
 
-    # std_b = 0
     std_b = b.std(axis=0)
+
     return std_b
 
 
-def estimation(X, n_iter, targeting_estimation=False, verbose=False, visualization=False):
+def estimation(X, n_iter, link_fun, targeting_estimation=False, verbose=False, visualization=False):
     '''Estimation of GAS parameters'''
     T = X.shape[0]
     b = np.zeros(shape=T)
@@ -99,15 +124,16 @@ def estimation(X, n_iter, targeting_estimation=False, verbose=False, visualizati
 
     else:
         res_iter = np.zeros(shape=(n_iter, 5))
+
         for i in range(res_iter.shape[0]):
             init_params = np.random.uniform(0, 1, size=4)
             res = minimize(loglikelihood.loglikelihood,
-                           init_params, X, method='Nelder-Mead')
+                           init_params, (X, link_fun), method='Nelder-Mead')
 
             while np.isnan(res.fun) == True:
                 init_params = np.random.uniform(0, 1, size=4)
                 res = minimize(loglikelihood.loglikelihood,
-                               init_params, X, method='Nelder-Mead')
+                               init_params, (X, link_fun), method='Nelder-Mead')
 
             res_iter[i, :-1] = res.x
             res_iter[i, -1] = res.fun
@@ -120,12 +146,13 @@ def estimation(X, n_iter, targeting_estimation=False, verbose=False, visualizati
             res_iter[:, 4] == res_iter[:, 4].min())][0][:4]
 
         res = minimize(loglikelihood.loglikelihood,
-                       init_params, X, method='Nelder-Mead')
+                       init_params, (X, link_fun), method='Nelder-Mead')
         res = minimize(loglikelihood.loglikelihood,
-                       res.x, X, method='BFGS', options={'maxiter': 1})
+                       res.x, (X, link_fun), method='BFGS', options={'maxiter': 1})
+
         omega, a, alpha, beta = res.x
         res = [omega, a, alpha, beta]
-        sgm = 1
+        sgm, lam = 1, 1
 
     if verbose:
         print(f'Initial guess: \n {init_params}')
@@ -133,12 +160,19 @@ def estimation(X, n_iter, targeting_estimation=False, verbose=False, visualizati
         time.sleep(2.5)
 
     for t in range(1, T - 1):
-        b[t + 1] = omega + alpha * (X[t] - a - 1 / (1 + np.exp(-b[t])) *
-                                    X[t - 1]) * np.exp(-b[t]) / (1 + np.exp(-b[t]))**2 * X[t - 1] / sgm**2 + beta * b[t]
-        xi[t + 1] = X[t + 1] - a - 1 / (1 + np.exp(-b[t + 1])) * X[t]
+        if link_fun == 'identity':
+            b[t + 1] = omega + alpha * xi[t] * X[t - 1] / sgm**2 + beta * b[t]
+            xi[t + 1] = X[t - 1] - a - b[t - 1] * X[t]
 
-        # b[t + 1] = omega + alpha * xi[t] * X[t - 1] / sgm**2 + beta * b[t]
-        # xi[t + 1] = X[t - 1] - a - b[t - 1] * X[t]
+        if link_fun == 'logistic':
+            b[t + 1] = omega + alpha * (X[t] - a - 1 / (1 + np.exp(-b[t])) *
+                                        X[t - 1]) * np.exp(-b[t]) / (1 + np.exp(-b[t]))**2 * X[t - 1] / sgm**2 + beta * b[t]
+            xi[t + 1] = X[t + 1] - a - 1 / (1 + np.exp(-b[t + 1])) * X[t]
+
+        if link_fun == 'identity_student':
+            b[t + 1] = omega + alpha * (lam + 1) * X[t - 1] * (X[t] - a - b[t] * X[t - 1]) / (lam + (X[t] - a - b[t] * X[t - 1])**2) + beta * b[t]
+            xi[t + 1] = X[t + 1] - a - b[t + 1] * X[t]
+
 
     if visualization:
         plt.figure(figsize=(12, 5), tight_layout=True)
@@ -149,7 +183,9 @@ def estimation(X, n_iter, targeting_estimation=False, verbose=False, visualizati
             res.x[0],  res.x[1],  res.x[2], res.x[3]))
         plt.show()
 
-    return 1 / (1 + np.exp(-b)), a, xi, res
+    if link_fun == 'logistic': b = 1 / (1 + np.exp(-b))
+
+    return b, a, xi, res
 
 
 if __name__ == '__main__':
