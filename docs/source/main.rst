@@ -128,6 +128,10 @@ divided into five major streams:
    for example, typical time of convergence of the two assets.
 
    .. image:: images/pepsiandcoca.png
+      :alt: Classical example of pairs: Coca-Cola Co and PepsiCo,
+      Inc. Prices are normalized to start at 1 at the beginning of the
+      period.
+      :name: pcaexample
       :width: 300pt
 
       Classical example of pairs: Coca-Cola Co and PepsiCo, Inc. Prices
@@ -3248,7 +3252,7 @@ process, which is now written as
 
 .. math:: X_{t+1} = a + b_{t+1}X_t + \xi_{t+1} \qquad \xi_t \sim N(0,\sigma^2) \qquad t=1,...,\tilde{T}.
 
-The simple choice of identity function for :math:`h(b_t, \bm{\theta})`
+The simple choice of identity function for :math:`h(b_t, **{\theta}**)`
 (see discussion in `3.3 <#appAR1>`__) will allow :math:`b_t` to range
 also in the negative domain, but since these values are not compatible
 with the first equation in `[OUparameters] <#OUparameters>`__, when they
