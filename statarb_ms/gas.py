@@ -2,7 +2,7 @@ import argparse
 import math
 import time
 
-from StatArb_MS.statarb_ms import loglikelihood
+from loglikelihood import loglikelihood
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -127,12 +127,12 @@ def estimation(X, n_iter, link_fun, targeting_estimation=False, verbose=False, v
 
         for i in range(res_iter.shape[0]):
             init_params = np.random.uniform(0, 1, size=4)
-            res = minimize(loglikelihood.loglikelihood,
+            res = minimize(loglikelihood,
                            init_params, (X, link_fun), method='Nelder-Mead')
 
             while np.isnan(res.fun) == True:
                 init_params = np.random.uniform(0, 1, size=4)
-                res = minimize(loglikelihood.loglikelihood,
+                res = minimize(loglikelihood,
                                init_params, (X, link_fun), method='Nelder-Mead')
 
             res_iter[i, :-1] = res.x
@@ -145,9 +145,9 @@ def estimation(X, n_iter, link_fun, targeting_estimation=False, verbose=False, v
         init_params = res_iter[np.where(
             res_iter[:, 4] == res_iter[:, 4].min())][0][:4]
 
-        res = minimize(loglikelihood.loglikelihood,
+        res = minimize(loglikelihood,
                        init_params, (X, link_fun), method='Nelder-Mead')
-        res = minimize(loglikelihood.loglikelihood,
+        res = minimize(loglikelihood,
                        res.x, (X, link_fun), method='BFGS', options={'maxiter': 1})
 
         omega, a, alpha, beta = res.x

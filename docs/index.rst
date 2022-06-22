@@ -9,7 +9,7 @@ Welcome to Score-driven Models in Statistical Arbitrage's documentation!
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
-
+   source/main	
 
 
 Indices and tables

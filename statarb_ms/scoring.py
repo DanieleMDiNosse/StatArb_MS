@@ -11,11 +11,11 @@ import numpy as np
 import pandas as pd
 import telegram_send
 from data import price_data
-from StatArb_MS.statarb_ms.factors import money_on_stock, pca, risk_factors
-from StatArb_MS.statarb_ms.gas import estimation
-from StatArb_MS.statarb_ms.loglikelihood import loglikelihood
-from StatArb_MS.statarb_ms.post_processing import LM_test_statistic, file_merge
-from StatArb_MS.statarb_ms.regression_parameters import auto_regression, regression
+from factors import money_on_stock, pca, risk_factors
+from gas import estimation
+from loglikelihood import loglikelihood
+from post_processing import LM_test_statistic, file_merge
+from regression_parameters import auto_regression, regression
 from scipy.stats import normaltest
 from sklearn.metrics import r2_score
 from statsmodels.stats.diagnostic import acorr_ljungbox
@@ -262,9 +262,9 @@ if __name__ == '__main__':
         else:
             df_returns = pd.read_pickle(
                 "/mnt/saved_data/returns/ReturnsVolData.pkl")[:4030]
-            stocks = np.random.randint(0, df_returns.shape[1], size=10)
-            print(f'{df_returns.columns[stocks]}')
-            df_returns = df_returns[df_returns.columns[stocks]]
+            # stocks = np.random.randint(0, df_returns.shape[1], size=10)
+            # print(f'{df_returns.columns[stocks]}')
+            # df_returns = df_returns[df_returns.columns[stocks]]
 
     else:
         logging.info('I am computing scores from the simple returns')
@@ -290,7 +290,7 @@ if __name__ == '__main__':
         length = int(input('Length of the estimation window for the scores: '))
         name = input('Name of the dis_res file: ')
         logging.info(f'{name}, {length}')
-        dis_res = np.load(f"/mnt/saved_data/dis_res/{name}.npy")[:, stocks, :]
+        dis_res = np.load(f"/mnt/saved_data/dis_res/{name}.npy")#[:, stocks, :]
 
         try:
             telegram_send.send(
