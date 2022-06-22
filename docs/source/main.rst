@@ -282,12 +282,12 @@ Principal Component Analysis
   of the original data. In this context, Girshick [@girshick] and then
   Anderson [@anderson], described the asymptotic sampling distributions
   of the properties of PCs. Following Jolliffe [@jolliffe], PCs are
-  defined as follows. Suppose that :math:`\bm{x}` is a vector of
+  defined as follows. Suppose that :math:`\mathbf{x}` is a vector of
   :math:`p` random variables, the first PC is constructed as the linear
-  combination :math:`\bm{\alpha}_1 ^t \bm{x}` of the elements of
-  :math:`\bm{x}` in such a way that the variance is maximized, with
-  :math:`\bm{\alpha}_1^t` being a vector of constants. Then, the second
-  PC is again a linear combination :math:`\bm{\alpha}_2 ^t \bm{x}`, but
+  combination :math:`\mathbf{\alpha}_1 ^t \mathbf{x}` of the elements of
+  :math:`\mathbf{x}` in such a way that the variance is maximized, with
+  :math:`\mathbf{\alpha}_1^t` being a vector of constants. Then, the second
+  PC is again a linear combination :math:`\mathbf{\alpha}_2 ^t \mathbf{x}`, but
   this time uncorrelated with the first PC. The third PC is the same but
   uncorrelated with the second and first one and so on until the last
   :math:`pth` PC. The dimensionality reduction is then obtained by
@@ -297,39 +297,39 @@ Principal Component Analysis
   be further enlightened by the following classical derivation of them,
   even if there are other ways to obtain the same results, but this one
   is the most common  [3]_.
-| Consider again the vector of random variables :math:`\bm{x}` and its
-  known population covariance matrix :math:`\bm{\Sigma}`. Of course,
-  knowing :math:`\bm{\Sigma}` can often be pretentious and one can then
-  replace it with a sample covariance matrix :math:`\bm{S}`. The first
-  PC :math:`\bm{\alpha}_1 ^t \bm{x}` is the vector that maximize
-  :math:`var(\bm{\alpha}_1 ^t \bm{x}) = \bm{\alpha}_1^t \bm{\Sigma} \bm{\alpha}_1`,
+| Consider again the vector of random variables :math:`\mathbf{x}` and its
+  known population covariance matrix :math:`\mathbf{\Sigma}`. Of course,
+  knowing :math:`\mathbf{\Sigma}` can often be pretentious and one can then
+  replace it with a sample covariance matrix :math:`\mathbf{S}`. The first
+  PC :math:`\mathbf{\alpha}_1 ^t \mathbf{x}` is the vector that maximize
+  :math:`var(\mathbf{\alpha}_1 ^t \mathbf{x}) = \mathbf{\alpha}_1^t \mathbf{\Sigma} \mathbf{\alpha}_1`,
   but since it is required a vector of finite constants
-  :math:`\bm{\alpha}_1`, a constraint must be imposed, that is
-  :math:`\bm{\alpha}_1^t \bm{\alpha}_1 = \bm{1}`. It is not the only
+  :math:`\mathbf{\alpha}_1`, a constraint must be imposed, that is
+  :math:`\mathbf{\alpha}_1^t \mathbf{\alpha}_1 = \mathbf{1}`. It is not the only
   possible constraint that can be used, but again, it is the most common
   one. In general, every relation such as
-  :math:`\bm{\alpha}_j^t \bm{\alpha}_j = constant` is a good choice, as
+  :math:`\mathbf{\alpha}_j^t \mathbf{\alpha}_j = constant` is a good choice, as
   other kinds of constraints lead to a more difficult optimization
   problem, producing a set of variables different from the PCs. To
-  maximize :math:`\bm{\alpha}_1^t \Sigma \bm{\alpha}_1` subject to
-  :math:`\bm{\alpha}_1^t \bm{\alpha}_1 = 1` the standard approach is the
+  maximize :math:`\mathbf{\alpha}_1^t \Sigma \mathbf{\alpha}_1` subject to
+  :math:`\mathbf{\alpha}_1^t \mathbf{\alpha}_1 = 1` the standard approach is the
   use of Lagrange multipliers, maximizing therefore
 
-.. math:: \bm{\alpha}_1^t \bm{\Sigma} \bm{\alpha_1} - \lambda (\bm{\alpha}_1^t \bm{\alpha}_1 - 1),
+.. math:: \mathbf{\alpha}_1^t \mathbf{\Sigma} \mathbf{\alpha_1} - \lambda (\mathbf{\alpha}_1^t \mathbf{\alpha}_1 - 1),
 
 where :math:`\lambda` is a Lagrange multiplier. Differentiation with
-respect to :math:`\bm{\alpha}_1` leads to
+respect to :math:`\mathbf{\alpha}_1` leads to
 
-.. math:: \bm{\Sigma} \bm{\alpha}_1 - \lambda \bm{\alpha}_1 = 0 \to \left(\bm{\Sigma} - \lambda \bm{I}_p\right) \bm{\alpha}_1 = 0
+.. math:: \mathbf{\Sigma} \mathbf{\alpha}_1 - \lambda \mathbf{\alpha}_1 = 0 \to \left(\mathbf{\Sigma} - \lambda \mathbf{I}_p\right) \mathbf{\alpha}_1 = 0
 
-that is the characteristic polynomial for :math:`\bm{\Sigma}` whose
-roots are its eigenvalues, with :math:`\bm{I}_p` being a
+that is the characteristic polynomial for :math:`\mathbf{\Sigma}` whose
+roots are its eigenvalues, with :math:`\mathbf{I}_p` being a
 :math:`(p \times p)` identity matrix. Note now that
 
-.. math:: \bm{\alpha}_1^t \bm{\Sigma} \bm{\alpha}_1 = \bm{\alpha}_1^t \lambda \bm{\alpha}_1 = \lambda \bm{\alpha}_1^t\bm{\alpha}_1 = \lambda,
+.. math:: \mathbf{\alpha}_1^t \mathbf{\Sigma} \mathbf{\alpha}_1 = \mathbf{\alpha}_1^t \lambda \mathbf{\alpha}_1 = \lambda \mathbf{\alpha}_1^t\mathbf{\alpha}_1 = \lambda,
 
 and so the eigenvalue that maximize the variance of
-:math:`\bm{\alpha}_1 \bm{x}` is the largest one (:math:`\lambda_1`),
+:math:`\mathbf{\alpha}_1 \mathbf{x}` is the largest one (:math:`\lambda_1`),
 defining so the first principal component. The derivation of the second
 PC is then performed imposing another constraint on the covariance with
 the first PC that must be zero and that can be expresses in several
@@ -337,85 +337,85 @@ ways. Indeed
 
 .. math::
 
-   cov(\bm{\alpha}_1^t \bm{x}, \bm{\alpha}_2^t \bm{x}) = 0 = \bm{\alpha}_1^t \bm{\Sigma}\bm{\alpha}_2 = \bm{\alpha}_2^t \bm{\Sigma}\bm{\alpha}_1 = \bm{\alpha}_1^t \lambda_1 \bm{\alpha}_2 = \lambda_1 \bm{\alpha}_1^t \bm{\alpha}_2 = \lambda_2 \bm{\alpha}_1^t \bm{\alpha}_1.
+   cov(\mathbf{\alpha}_1^t \mathbf{x}, \mathbf{\alpha}_2^t \mathbf{x}) = 0 = \mathbf{\alpha}_1^t \mathbf{\Sigma}\mathbf{\alpha}_2 = \mathbf{\alpha}_2^t \mathbf{\Sigma}\mathbf{\alpha}_1 = \mathbf{\alpha}_1^t \lambda_1 \mathbf{\alpha}_2 = \lambda_1 \mathbf{\alpha}_1^t \mathbf{\alpha}_2 = \lambda_2 \mathbf{\alpha}_1^t \mathbf{\alpha}_1.
    \label{covfirstsecondpcs}
 
 Any of the relations on the right side of
-:math:`cov(\bm{\alpha}_1^t \bm{x}, \bm{\alpha}_2^t \bm{x}) = 0` can be
+:math:`cov(\mathbf{\alpha}_1^t \mathbf{x}, \mathbf{\alpha}_2^t \mathbf{x}) = 0` can be
 use without any particular variation on the final result. For example,
 the maximization problem can be written as
 
-.. math:: \bm{\alpha}_1^t \bm{\Sigma} \bm{\alpha}_2 - \lambda \bm{\alpha}_1^t \bm{\alpha_2} - \phi \bm{\alpha}_1^t \bm{\alpha}_1 = 0.
+.. math:: \mathbf{\alpha}_1^t \mathbf{\Sigma} \mathbf{\alpha}_2 - \lambda \mathbf{\alpha}_1^t \mathbf{\alpha_2} - \phi \mathbf{\alpha}_1^t \mathbf{\alpha}_1 = 0.
 
-Differentiation with respect to :math:`\bm{\alpha}_2` and multiplication
-of the resulting equation by :math:`\bm{\alpha}^t_2` gives
+Differentiation with respect to :math:`\mathbf{\alpha}_2` and multiplication
+of the resulting equation by :math:`\mathbf{\alpha}^t_2` gives
 
-.. math:: \bm{\alpha}_1^t \bm{\Sigma} \bm{\alpha}_2 - \lambda \bm{\alpha}_1^t \bm{\alpha}_2 - \phi \bm{\alpha}_1^t \bm{\alpha}_1 = 0.
+.. math:: \mathbf{\alpha}_1^t \mathbf{\Sigma} \mathbf{\alpha}_2 - \lambda \mathbf{\alpha}_1^t \mathbf{\alpha}_2 - \phi \mathbf{\alpha}_1^t \mathbf{\alpha}_1 = 0.
 
 The first two terms are equal for the
 `[covfirstsecondpcs] <#covfirstsecondpcs>`__ and the normalization on
-:math:`\bm{\alpha}_1` causes :math:`\phi = 0`. Therefore
+:math:`\mathbf{\alpha}_1` causes :math:`\phi = 0`. Therefore
 
-.. math:: (\bm{\Sigma} -  \lambda \bm{I}_p)\bm{\alpha}_2 = 0,
+.. math:: (\mathbf{\Sigma} -  \lambda \mathbf{I}_p)\mathbf{\alpha}_2 = 0,
 
 \ with one more time :math:`\lambda` being the eigenvalue of
-:math:`\bm{\Sigma}` and :math:`\bm{\alpha}_2` the corresponding
+:math:`\mathbf{\Sigma}` and :math:`\mathbf{\alpha}_2` the corresponding
 eigenvector. Using the same argument as before, :math:`\lambda` must be
 the greatest one in order to maximize the variance on the second PC.
-Assuming then that :math:`\bm{\Sigma}` does not have repeated
+Assuming then that :math:`\mathbf{\Sigma}` does not have repeated
 eigenvalues, :math:`\lambda = \lambda_2 \neq \lambda_1`, since if it did
-the constraint :math:`\bm{\alpha}_1^t \bm{\alpha}_2 = 0` would be
-violated. To summarize, the :math:`k`-th PC of :math:`\bm{x}` is
-:math:`\bm{\alpha}_k^t \bm{x}` and
-:math:`var(\bm{\alpha}^t_k\bm{x}) = \lambda _k` with :math:`\lambda_k`
-being the the :math:`k`-th largest eigenvalue of :math:`\bm{\Sigma}` and
-:math:`\bm{\alpha}_k` the corresponding eigenvalue. There are several
+the constraint :math:`\mathbf{\alpha}_1^t \mathbf{\alpha}_2 = 0` would be
+violated. To summarize, the :math:`k`-th PC of :math:`\mathbf{x}` is
+:math:`\mathbf{\alpha}_k^t \mathbf{x}` and
+:math:`var(\mathbf{\alpha}^t_k\mathbf{x}) = \lambda _k` with :math:`\lambda_k`
+being the the :math:`k`-th largest eigenvalue of :math:`\mathbf{\Sigma}` and
+:math:`\mathbf{\alpha}_k` the corresponding eigenvalue. There are several
 mathematical and statistical properties that PCs satisfy, based on the
 supposed known population covariance/correlation matrix
-:math:`\bm{\Sigma}`. In the context of samples, most of these properties
+:math:`\mathbf{\Sigma}`. In the context of samples, most of these properties
 still hold as the following one, the *spectral decomposition*, that will
 be useful in the next discussion about the number of PCs to retain in
 the statistical arbitrage strategies. In order to have a glimpse of it,
 it is just required to note that PCA results in an orthonormal linear
-transformation of :math:`\bm{x}`. Indeed, if :math:`\bm{z}` is the
+transformation of :math:`\mathbf{x}`. Indeed, if :math:`\mathbf{z}` is the
 vector that has as the :math:`k`-th element :math:`z_k` the :math:`k`-th
 PC, ordered by decreasing variance, then
 
-.. math:: \bm{z} = \bm{A}^{-1} \bm{x},
+.. math:: \mathbf{z} = \mathbf{A}^{-1} \mathbf{x},
 
-where :math:`\bm{A}^{-1}` is the orthogonal matrix whose :math:`k`-th
-column is :math:`\bm{a}_k`, the :math:`k`-th eigenvector of
-:math:`\bm{\Sigma}`. This relation states that what PCA does is a
-orthonormal linear transformation of :math:`\bm{x}`. Another relation
+where :math:`\mathbf{A}^{-1}` is the orthogonal matrix whose :math:`k`-th
+column is :math:`\mathbf{a}_k`, the :math:`k`-th eigenvector of
+:math:`\mathbf{\Sigma}`. This relation states that what PCA does is a
+orthonormal linear transformation of :math:`\mathbf{x}`. Another relation
 that follows from the derivation just made of PCs is that
 
 .. math::
 
-   \bm{\Sigma} \bm{A} = \bm{A} \bm{\Lambda} \to \bm{\Sigma} = \bm{A} \bm{\Lambda} \bm{A}^{-1}
+   \mathbf{\Sigma} \mathbf{A} = \mathbf{A} \mathbf{\Lambda} \to \mathbf{\Sigma} = \mathbf{A} \mathbf{\Lambda} \mathbf{A}^{-1}
    \label{saeqal}
 
-where :math:`\bm{\Lambda}` is the diagonal matrix whose :math:`k`-th
-diagonal element is :math:`\lambda_k`. Since :math:`\bm{\Sigma}` is a
+where :math:`\mathbf{\Lambda}` is the diagonal matrix whose :math:`k`-th
+diagonal element is :math:`\lambda_k`. Since :math:`\mathbf{\Sigma}` is a
 real and symmetric matrix, it admits an expression composed of only
 diagonal terms by mean of the spectral theorem. This means just
 expanding `[saeqal] <#saeqal>`__
 
 .. math::
 
-   \bm{\Sigma} = \lambda_1 \bm{\alpha}_1 \bm{\alpha}^t_1 + \lambda_2 \bm{\alpha}_2 \bm{\alpha}^t_2 + ... + \lambda_p \bm{\alpha}_p \bm{\alpha}^t_p.
+   \mathbf{\Sigma} = \lambda_1 \mathbf{\alpha}_1 \mathbf{\alpha}^t_1 + \lambda_2 \mathbf{\alpha}_2 \mathbf{\alpha}^t_2 + ... + \lambda_p \mathbf{\alpha}_p \mathbf{\alpha}^t_p.
    \label{spectraldecomposition}
 
 Now, the normalization constrain imposed on the eigenvalues
-:math:`\bm{\alpha}_j \bm{\alpha}_j^t = 1` leads to a useful expression
+:math:`\mathbf{\alpha}_j \mathbf{\alpha}_j^t = 1` leads to a useful expression
 of the covariance/correlation matrix that can be used to evaluate the
 fraction of variance preserved when retaining a subset of the PCs
 
-.. math:: \bm{\Sigma} = \lambda_1 \bm{1}  + \lambda_2 \bm{1} + ... + \lambda_p \bm{1}.
+.. math:: \mathbf{\Sigma} = \lambda_1 \mathbf{1}  + \lambda_2 \mathbf{1} + ... + \lambda_p \mathbf{1}.
 
 |
 | A trivial example is shown in Figure `1.2 <#pcaexample>`__ where in
   the upper panel I plotted two high correlated variables that act as
-  the vector of random variable :math:`\bm{x}`, while in the lower panel
+  the vector of random variable :math:`\mathbf{x}`, while in the lower panel
   the data are transformed in the first two PCs, the only ones in this
   case, resulting in reserving all the variation of the original data.
 
@@ -427,7 +427,7 @@ fraction of variance preserved when retaining a subset of the PCs
    Example of what PCA does on two high correlated data. Upper panel:
    original data, lower panel: transformed data.
 
-A less trivial example is to consider a vector :math:`\bm{x}` composed
+A less trivial example is to consider a vector :math:`\mathbf{x}` composed
 of 3 correlated random variables. The left panel of Figure
 `1.3 <#pcaexample1>`__ shows the scatter plot of such data where it can
 be seen the high degree of correlation between them. The application of
@@ -466,20 +466,20 @@ Random Matrix Theory
   theory, theoretical neuroscience, optimal control, neural networks,
   image processing, wireless communication etc. The basic idea that
   makes RMT so appealing is that empirical correlation matrices
-  :math:`\bm{S}` can be very noisy due to the small sample sizes and the
+  :math:`\mathbf{S}` can be very noisy due to the small sample sizes and the
   large number of features that are usually considered. For instance, in
   the case of financial stock returns, rolling type strategies can have
   a number of stocks :math:`N` comparable with the number of returns
   :math:`T`. Since the correlation matrix is symmetric with
   :math:`N(N-1)/2` different entries, this situation translates into a
   poor approximation of the "true" correlations between the assets, i.e.
-  noisy measurements are present in :math:`\bm{S}`. It is thus important
+  noisy measurements are present in :math:`\mathbf{S}`. It is thus important
   to devise a method that can compare and distinguish noisy signals that
   can be obtained from correlations between independent assets with
   informative signals that can be found between truly correlated assets.
-| In this perspective, let :math:`\bm{G}` be a :math:`T \times N` random
+| In this perspective, let :math:`\mathbf{G}` be a :math:`T \times N` random
   matrix and :math:`\sigma^2` the variance of its elements. Consider
-  then the density of the eigenvalues of :math:`\bm{G}`, defined as
+  then the density of the eigenvalues of :math:`\mathbf{G}`, defined as
 
 .. math:: \rho(\lambda) = \frac{1}{N} \frac{dn(\lambda)}{d\lambda},
 
@@ -487,7 +487,7 @@ Random Matrix Theory
 :math:`\lambda`. One of the first results of RMT is that as
 :math:`T \to \infty, N \to \infty` with :math:`Q=T/N \geq 1` fixed, the
 theoretical distribution of the eigenvalues :math:`\lambda` of
-:math:`\bm{G}` is
+:math:`\mathbf{G}` is
 
 .. math::
 
@@ -503,7 +503,7 @@ where
 
 The most important feature that arises from `[rmtdist] <#rmtdist>`__ is
 that, under the assumption of completely random entries in
-:math:`\bm{G}`, there are both a positive upper limit and a positive
+:math:`\mathbf{G}`, there are both a positive upper limit and a positive
 lower limit for the eigenvalues :math:`\lambda`. This means that there
 are no values between :math:`0` and :math:`\lambda_{min}` (except for
 the case :math:`Q=1` where :math:`\pho(\lambda)` diverges in zero) and
@@ -794,7 +794,7 @@ whose eigendecomposition is then performed using the arguments of the
 previous chapter. Each of the eigenvector is composed by :math:`N`
 elements
 
-.. math:: \bm{v}_{jt} = \left(v_{1jt}, v_{2jt}, ..., v_{Njt} \right),
+.. math:: \mathbf{v}_{jt} = \left(v_{1jt}, v_{2jt}, ..., v_{Njt} \right),
 
 having so one component on each of the original N-dimensional space. The
 time dependence of the eigenvectors is due to the rolling window
@@ -839,7 +839,7 @@ Figure `2.2 <#explainedvarianceavlee1>`__.
    Explained variance by 15 eigenvectors from 28/10/2002 to 28/02/2008.
    Figure taken from [@avellanedalee].
 
-The elements of :math:`\bm{v}_{jt}` can be used to construct
+The elements of :math:`\mathbf{v}_{jt}` can be used to construct
 market-neutral eigenportfolios in which the weight of stock :math:`i`
 relative to factor :math:`j` is
 
@@ -952,14 +952,14 @@ that allows the AR(1) Equation `[OUdis] <#OUdis>`__, i.e.
 .. math:: X_{i,t+1} = a_i + b_iX_{it} + \xi_{i,t+1} \qquad t=T-\tilde{T},...,T-1. \nonumber
 
 to be constructed from data. The vector of static parameters
-:math:`\bm{\theta}_i= (a_i, b_i, \sigma_i^2)` is assumed to be time
+:math:`\mathbf{\theta}_i= (a_i, b_i, \sigma_i^2)` is assumed to be time
 independent in the estimation window considered. This assumption is
 fairly arbitrary, giving anyway good results in the final returns, as it
 will be shown shortly. Its partial negation will be the starting point
 for the innovative discussion of this work, in which the autoregression
 parameter :math:`b` will be allowed to vary in time and filtered by a
 particular autoregressive process. That having been said,
-:math:`\bm{\theta}_i` is estimated via maximum likelihood and therefore,
+:math:`\mathbf{\theta}_i` is estimated via maximum likelihood and therefore,
 from relations `[parametersAR] <#parametersAR>`__, follows that
 
 .. math::
@@ -1280,7 +1280,7 @@ straightforward.
 
 Let :math:`y_t` be the dependent variable of interest, :math:`f_t` a
 time-varying parameter, :math:`x_t` an exogenous variables and
-:math:`\bm{\theta}` a vector of static parameters. The set of available
+:math:`\mathbf{\theta}` a vector of static parameters. The set of available
 information at time :math:`t` is defined as
 
 .. math::
@@ -1296,7 +1296,7 @@ generated by a certain known observation density (likelihood):
 
 .. math::
 
-   y_t \sim p(y_t | f_t, \mathcal{F}_{t-1}; \bm{\theta})
+   y_t \sim p(y_t | f_t, \mathcal{F}_{t-1}; \mathbf{\theta})
    \label{likelihood_}
 
 Following the work of Creal, Koopman and Lucas [@crealkoopmanlucas], the
@@ -1403,7 +1403,7 @@ relative simplicity of the optimization procedure, is the ability to
 minimize locally (i.e. at each temporal step) the Kullback-Leibler
 divergence (KL divergence) between the true unknown conditional density
 :math:`p_t \coloneqq p\left(\cdot |f_t\right)` and the model implied one
-:math:`\tilde{p}_{t+1} \coloneqq \tilde{p}\left(\cdot |\tilde{f}_{t+1};\bm{\theta}\right)`,
+:math:`\tilde{p}_{t+1} \coloneqq \tilde{p}\left(\cdot |\tilde{f}_{t+1};\mathbf{\theta}\right)`,
 see [@blasqueskoopmanlucasinfo]. Kullback-Leibler divergence is a
 statistical distance based on the well known definition of Shannon
 entropy and measures how much one distribution differs from a reference
@@ -1416,7 +1416,7 @@ divergence
 
 .. math::
 
-   \mathcal{D}_{KL}\left(p_t, \tilde{p}_{t+1} \right) = \int_Y p\left(y|f_t\right) \log{\frac{p\left(y|f_t\right)}{\tilde{p}\left(y|\tilde{f}_{t+1};\bm{\theta}\right)} dy},
+   \mathcal{D}_{KL}\left(p_t, \tilde{p}_{t+1} \right) = \int_Y p\left(y|f_t\right) \log{\frac{p\left(y|f_t\right)}{\tilde{p}\left(y|\tilde{f}_{t+1};\mathbf{\theta}\right)} dy},
    \label{KLdivergence}
 
 \ where :math:`Y\subseteq \mathbb{R}` is a subset of the real line and
@@ -1426,7 +1426,7 @@ follows from Equation `[KLdivergence] <#KLdivergence>`__ is
 
 .. math::
 
-   \mathcal{D}_{KL}\left(p_t, \tilde{p}_{t+1} \right) = \int_Y p\left(y|f_t\right)dy  - \int_Y p\left(y|f_t\right) \log{\tilde{p}\left(y|\tilde{f}_{t+1};\bm{\theta}\right)}dy
+   \mathcal{D}_{KL}\left(p_t, \tilde{p}_{t+1} \right) = \int_Y p\left(y|f_t\right)dy  - \int_Y p\left(y|f_t\right) \log{\tilde{p}\left(y|\tilde{f}_{t+1};\mathbf{\theta}\right)}dy
    \label{KLdivergence1}
 
 that is the difference between the information entropy of the true
@@ -1442,7 +1442,7 @@ negative, i.e. if
 
    \begin{split}
            \Delta_{t|t} &= \mathcal{D}_{KL}\left(p_t, \tilde{p}_{t+1} \right) - \mathcal{D}_{KL}\left(p_t, \tilde{p}_{t} \right) = \\ &=
-            \int_Y p \left( y|f_t \right) \left[ \log{\tilde{p}} \left( y|\tilde{f}_{t};\bm{\theta} \right) - \log{\tilde{p}} \left( y|\tilde{f}_{t+1};\bm{\theta} \right)  \right] < 0
+            \int_Y p \left( y|f_t \right) \left[ \log{\tilde{p}} \left( y|\tilde{f}_{t};\mathbf{\theta} \right) - \log{\tilde{p}} \left( y|\tilde{f}_{t+1};\mathbf{\theta} \right)  \right] < 0
        \end{split}
 
 where :math:`\Delta_{t|t}` is called the realized KL divergence. In most
@@ -1464,16 +1464,16 @@ Maximum Likelihood estimation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In general, in order to estimate the best set of fixed parameters
-:math:`\bm{\theta}`, it is necessary to maximize the probability of
+:math:`\mathbf{\theta}`, it is necessary to maximize the probability of
 getting a particular vector :math:`y_t` given the past information
 :math:`\mathcal{F}_t`, that is equivalent to maximize the sum of the
 likelihoods `[likelihood_] <#likelihood_>`__. Even in this case the
 straightforward procedure of Maximum Likelihood Estimation can be
-exploited. The estimated :math:`\hat{\bm{\theta}}` is therefore given by
+exploited. The estimated :math:`\hat{\mathbf{\theta}}` is therefore given by
 
 .. math::
 
-   \hat{\bm{\theta}} = \text{arg } \underset{\bm{\theta}}{\text{max}} \sum_{t=1}^T \mathcal{L}_t.
+   \hat{\mathbf{\theta}} = \text{arg } \underset{\mathbf{\theta}}{\text{max}} \sum_{t=1}^T \mathcal{L}_t.
    \label{mleestimate}
 
 \ It is important to spend some words about the errors that the
@@ -1487,24 +1487,24 @@ distributed as
   .. math::
 
      \begin{aligned}
-         \sqrt{T}(\hat{\bm{\theta}}-\bm{\theta}_0) &\overset{d}{\to} N\left(0,\mathcal{I}^{-1}(\bm{\theta}_0)\mathcal{J}(\bm{\theta}_0)\mathcal{I}^{-1}(\bm{\theta}_0)\right) \quad \textrm{as} \quad T \to \infty \quad \textrm{(Mis specified)} \label{mserr} \\
-         \sqrt{T}(\hat{\bm{\theta}}-\bm{\theta}_0) &\overset{d}{\to} N\left(0,\mathcal{I}^{-1}(\bm{\theta}_0)\right) \quad \textrm{as} \quad T \to \infty \quad \textrm{(Correct specified)} \label{wserr}\end{aligned}
+         \sqrt{T}(\hat{\mathbf{\theta}}-\mathbf{\theta}_0) &\overset{d}{\to} N\left(0,\mathcal{I}^{-1}(\mathbf{\theta}_0)\mathcal{J}(\mathbf{\theta}_0)\mathcal{I}^{-1}(\mathbf{\theta}_0)\right) \quad \textrm{as} \quad T \to \infty \quad \textrm{(Mis specified)} \label{mserr} \\
+         \sqrt{T}(\hat{\mathbf{\theta}}-\mathbf{\theta}_0) &\overset{d}{\to} N\left(0,\mathcal{I}^{-1}(\mathbf{\theta}_0)\right) \quad \textrm{as} \quad T \to \infty \quad \textrm{(Correct specified)} \label{wserr}\end{aligned}
 
   where
-  :math:`\mathcal{I}^{-1}(\bm{\theta}_0)=E[\mathcal{L}_T^{''}(\bm{\theta}_0)]`
+  :math:`\mathcal{I}^{-1}(\mathbf{\theta}_0)=E[\mathcal{L}_T^{''}(\mathbf{\theta}_0)]`
   is the inverse of the Fisher information matrix ,
-  :math:`\mathcal{J}(\bm{\theta}_0)=E[\mathcal{L}_T^{'}(\bm{\theta}_0) \otimes \mathcal{L} _T^{'}(\bm{\theta}_0)]`
+  :math:`\mathcal{J}(\mathbf{\theta}_0)=E[\mathcal{L}_T^{'}(\mathbf{\theta}_0) \otimes \mathcal{L} _T^{'}(\mathbf{\theta}_0)]`
   with :math:`\mathcal{L}_T` being the total log-likelihood of the
   observations and :math:`\overset{d}{\to}` denotes convergence in
-  distribution. The value :math:`\bm{\theta}_0` differs in the correct
+  distribution. The value :math:`\mathbf{\theta}_0` differs in the correct
   specified and mis specified case, as in the former there is actually a
-  true parameter :math:`\bm{\theta}_0` that generates the data and to
+  true parameter :math:`\mathbf{\theta}_0` that generates the data and to
   which the ML estimate can theoretically converge, while in the latter
   it must be taken as reference the (assumed unique) estimate obtained
   from an infinitely long time series :math:`y_t`. In empirical cases,
   neither are known and so, in general, in the asymptotic results of
   Equation `[mserr] <#mserr>`__ and `[wserr] <#wserr>`__, one uses as
-  :math:`\bm{\theta}_0` the ML estimate :math:`\bm{\hat{\theta}}`. These
+  :math:`\mathbf{\theta}_0` the ML estimate :math:`\mathbf{\hat{\theta}}`. These
   errors will have an impact on the variance of the filtered parameter
   :math:`\hat{f}_t`, denoted here as :math:`\mathcal{V}ar(\hat{f}_{t})`
   , but it is not the only source of uncertainty for it. Indeed, as
@@ -1520,7 +1520,7 @@ distributed as
   *in-sample simulation-based bands*. The first two of them are based on
   the linearization of the updating equation for :math:`f_t` while the
   last one uses the asymptotic distribution of the ML estimate
-  :math:`\bm{\hat{\theta}}`.
+  :math:`\mathbf{\hat{\theta}}`.
 
 In-sample non cumulative bands
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1532,7 +1532,7 @@ as :math:`\phi`), evaluated at the filtered value :math:`\hat{f}_t`
 
 .. math::
 
-   \hat{f}_{t+1}(Y^t, \hat{f}_t, \hat{\bm{\theta}}) \approx \phi(y_t, \hat{f}_t, \bm{\theta}_0) + \sum_{i=1}^q \nabla_{i,t} (\hat{\theta}_{i}-\theta_{0,i}),
+   \hat{f}_{t+1}(Y^t, \hat{f}_t, \hat{\mathbf{\theta}}) \approx \phi(y_t, \hat{f}_t, \mathbf{\theta}_0) + \sum_{i=1}^q \nabla_{i,t} (\hat{\theta}_{i}-\theta_{0,i}),
    \label{linearization}
 
 \ where at each time step the value of :math:`\hat{f}_t` is taken as
@@ -1540,7 +1540,7 @@ given and
 
 .. math::
 
-   \nabla_{i,t} = \frac{\partial{\phi(y_t, \hat{f}_t, \bm{\theta}})}{\partial{\theta_i}}.
+   \nabla_{i,t} = \frac{\partial{\phi(y_t, \hat{f}_t, \mathbf{\theta}})}{\partial{\theta_i}}.
        \label{nabla}
 
 Hence, the approximate variance of :math:`\hat{f}_{t+1}` is
@@ -1564,16 +1564,16 @@ In-sample cumulative delta-method bands
 
 The previous method does not account for the accumulation of the errors
 due to the fact that :math:`f_{t+1}` depend on :math:`f_t` that itself
-is affected by the estimator :math:`\bm{\hat{\theta}}`. The in-sample
+is affected by the estimator :math:`\mathbf{\hat{\theta}}`. The in-sample
 cumulative delta-method fixes this issue while it considers the same
 approximation as `[linearization] <#linearization>`__. The difference
 here is that the derivatives in `[nabla] <#nabla>`__ accounts for the
-variability of :math:`f_t` with respect to :math:`\bm{\hat{\theta}}`.
+variability of :math:`f_t` with respect to :math:`\mathbf{\hat{\theta}}`.
 Indeed,
 
 .. math::
 
-   \nabla_{i,t} = \frac{\partial{\phi(y_t, \hat{f}_t, \bm{\theta}})}{\partial{f_t}} \frac{\partial{f_t}}{\partial{\theta_i}} + \frac{\partial{\phi(y_t, \hat{f}_t, \bm{\theta}})}{\partial{\theta_i}},
+   \nabla_{i,t} = \frac{\partial{\phi(y_t, \hat{f}_t, \mathbf{\theta}})}{\partial{f_t}} \frac{\partial{f_t}}{\partial{\theta_i}} + \frac{\partial{\phi(y_t, \hat{f}_t, \mathbf{\theta}})}{\partial{\theta_i}},
    \label{nabla1}
 
 \ where the derivatives :math:`\frac{\partial{f_t}}{\partial{\theta_i}}`
@@ -1599,13 +1599,13 @@ one, that is, through `[mserr] <#mserr>`__ and `[wserr] <#wserr>`__
 
 .. math::
 
-   \hat{\bm{\theta}} &\overset{d}{\to} N(\bm{\theta}_0, T^{-1}\mathcal{W}),
+   \hat{\mathbf{\theta}} &\overset{d}{\to} N(\mathbf{\theta}_0, T^{-1}\mathcal{W}),
    \label{asymptoticMLestimate}
 
 \ where the form of covariance matrix :math:`\mathcal{W}` depends on the
 specification of the model. The idea is to obtain an estimate
-:math:`\hat{\bm{\theta}}` and then draw a certain number :math:`M` of
-parameters :math:`\bm{\theta}_i` from
+:math:`\hat{\mathbf{\theta}}` and then draw a certain number :math:`M` of
+parameters :math:`\mathbf{\theta}_i` from
 `[asymptoticMLestimate] <#asymptoticMLestimate>`__. For each of them all
 the values of :math:`\hat{f}_t` are evaluated using the GAS(1,1)
 recursion equation. The result is a distribution of :math:`\hat{f}_t`
@@ -1629,15 +1629,15 @@ following linear regression
 
 .. math::
 
-   \bm{1} = \nabla_{\bm{\delta},t} \gamma_{\bm{\delta}} +  \nabla_{\omega,t}\gamma_{\omega} + \mathcal{I}^{-d}_{t|t-1}\nabla_{\omega,t-i}\nabla_{\omega,t}\gamma_{a} + \textrm{residual} \qquad i=1,...,q
+   \mathbf{1} = \nabla_{\mathbf{\delta},t} \gamma_{\mathbf{\delta}} +  \nabla_{\omega,t}\gamma_{\omega} + \mathcal{I}^{-d}_{t|t-1}\nabla_{\omega,t-i}\nabla_{\omega,t}\gamma_{a} + \textrm{residual} \qquad i=1,...,q
    \label{LMregression}
 
-\ where :math:`\bm{\delta}` contains all the fixed parameters except of
+\ where :math:`\mathbf{\delta}` contains all the fixed parameters except of
 :math:`\omega`, while
-:math:`\gamma_{\bm{\delta}}, \gamma_{\omega},\gamma_{a}` are the
+:math:`\gamma_{\mathbf{\delta}}, \gamma_{\omega},\gamma_{a}` are the
 regression parameters and
-:math:`\nabla_{\bm{\delta},t}, \nabla_{\omega,t}` are the derivatives of
-the log-likelihood with respect to :math:`\bm{\delta}` and
+:math:`\nabla_{\mathbf{\delta},t}, \nabla_{\omega,t}` are the derivatives of
+the log-likelihood with respect to :math:`\mathbf{\delta}` and
 :math:`\omega` evaluated under the null hypothesis. It can be shown
 [@whitelm] that the ESS of `[LMregression] <#LMregression>`__ converges
 under the null to a :math:`\chi ^2` distribution with :math:`q` degrees
@@ -1666,30 +1666,30 @@ autoregressive model that, in general, can be represented as
 
 .. math::
 
-   y_{t+1} = \psi \left(Y^t;\bm{\theta} \right) + \xi_{t+1}
+   y_{t+1} = \psi \left(Y^t;\mathbf{\theta} \right) + \xi_{t+1}
    \label{nonlinearAR}
 
 \ where again :math:`Y^t` is the entire past story of :math:`y_t` up to
-time :math:`t`, :math:`\bm{\theta}` is a vector of static parameters and
-:math:`\xi_t \sim p_{\xi}(\bm{\theta})` is an additive innovation
+time :math:`t`, :math:`\mathbf{\theta}` is a vector of static parameters and
+:math:`\xi_t \sim p_{\xi}(\mathbf{\theta})` is an additive innovation
 distributed as :math:`p_{\xi}` whose form depends on
-:math:`\bm{\theta}`. The non linear representation
+:math:`\mathbf{\theta}`. The non linear representation
 `[nonlinearAR] <#nonlinearAR>`__ admits always the following AR(1)
 equivalence
 
 .. math::
 
-   y_{t+1} = h(b_t;\bm{\theta})y_t + \xi_{t+1}
+   y_{t+1} = h(b_t;\mathbf{\theta})y_t + \xi_{t+1}
    \label{AR1eq}
 
-where :math:`b_t= \phi \left(Y^t;\bm{\theta}\right)` and
-:math:`h\left(\cdot;\bm{\theta}\right)` is a link function that can be
+where :math:`b_t= \phi \left(Y^t;\mathbf{\theta}\right)` and
+:math:`h\left(\cdot;\mathbf{\theta}\right)` is a link function that can be
 used to modulate the behaviour of :math:`b_t` (more details below). The
 relation `[AR1eq] <#AR1eq>`__ is true if
-:math:`h(b_t;\bm{\theta}) = \psi \left(Y^t;\bm{\theta} \right)/y_t`.
+:math:`h(b_t;\mathbf{\theta}) = \psi \left(Y^t;\mathbf{\theta} \right)/y_t`.
 This equivalence does not pose problems since :math:`y_t` is present
 both in numerator and denominator and
-:math:`\psi \left(Y^t;\bm{\theta} \right)` is supposed to not diverge in
+:math:`\psi \left(Y^t;\mathbf{\theta} \right)` is supposed to not diverge in
 zero. The chosen update function :math:`\phi` is a GAS(1,1) recursion.
 Hence, with the representation `[AR1eq] <#AR1eq>`__, the descriptive
 dynamics is
@@ -1697,14 +1697,14 @@ dynamics is
 .. math::
 
    \begin{aligned}
-       y_{t+1} &=  h(b_t;\bm{\theta})y_t + \xi_{t+1} \qquad \xi_{t} \sim p_{\xi}(\bm{\theta}) \nonumber \\
+       y_{t+1} &=  h(b_t;\mathbf{\theta})y_t + \xi_{t+1} \qquad \xi_{t} \sim p_{\xi}(\mathbf{\theta}) \nonumber \\
        b_{t+1} &= \omega + \alpha s_t + \beta b_t
    \label{ARGAS}\end{aligned}
 
 where :math:`s_t` is the score of the likelihood as defined in
 `[score] <#score>`__. Dynamics is totally defined as long as the two
-functions :math:`h\left(\cdot;\bm{\theta}\right)` and
-:math:`p_{\xi}(\bm{\theta})` are specified. The link function is chosen
+functions :math:`h\left(\cdot;\mathbf{\theta}\right)` and
+:math:`p_{\xi}(\mathbf{\theta})` are specified. The link function is chosen
 according to the proprieties desired for the AR(1) process. It can
 allows for temporary non stationary behaviour if, for instance,
 :math:`-1 \leq h\left(b; \cdot \right) \leq 1`. This specification does
@@ -1770,10 +1770,10 @@ Therefore, the conditional log-likelihood becomes
 
 .. math::
 
-   \log{p(y_{t+1} | b_{t+1}, \mathcal{F}_t, \bm{\theta})} = -\frac{1}{2} \left(\log{2\pi} + \log{\sigma^2} + \frac{\left(y_{t+1} - b_{t+1}y_t\right)^2}{\sigma^2} \right),
+   \log{p(y_{t+1} | b_{t+1}, \mathcal{F}_t, \mathbf{\theta})} = -\frac{1}{2} \left(\log{2\pi} + \log{\sigma^2} + \frac{\left(y_{t+1} - b_{t+1}y_t\right)^2}{\sigma^2} \right),
    \label{log-likelihood}
 
-where :math:`\bm{\theta} = (a, \omega, \alpha, \beta, \sigma^2)`.
+where :math:`\mathbf{\theta} = (a, \omega, \alpha, \beta, \sigma^2)`.
 Computing the derivative with respect to :math:`b_t` for the score
 function results in the following update mechanism for the time varying
 parameter
@@ -1797,15 +1797,15 @@ summing all the log-likelihood of Equation
 .. math::
 
    \begin{split}
-       \mathcal{L}_T &= \sum_{t=1}^T \log{p(y_{t+1} | b_{t+1}, \mathcal{F}_t, \bm{\theta})} = \\ &=
+       \mathcal{L}_T &= \sum_{t=1}^T \log{p(y_{t+1} | b_{t+1}, \mathcal{F}_t, \mathbf{\theta})} = \\ &=
        - \frac{T-1}{2}(\log{2\pi} + \log{\sigma^2}) - \sum_{t=1}^T \frac{\left(y_{t+1} - b_{t+1}y_t\right)^2}{2\sigma^2}.
    \end{split}
    \label{totallog-likelihood}
 
-In order to find the value of :math:`\bm{\theta}` that is more likely to
+In order to find the value of :math:`\mathbf{\theta}` that is more likely to
 be the one associated with the total log-likelihood realized, it is
 necessary to maximize `[totallog-likelihood] <#totallog-likelihood>`__
-with respect to :math:`\bm{\theta}`. This is the procedure of the
+with respect to :math:`\mathbf{\theta}`. This is the procedure of the
 Maximum Likelihood Estimation, usually carried out numerically, whose
 details are provided in the next section.
 
@@ -1834,7 +1834,7 @@ information matrix, the dynamics is generated by the following relations
        X_{t+1} &\sim Poisson(e^{b_{t+1}}) \nonumber \\
        b_{t+1} &= \omega + \alpha (X_{t} - e^{b_{t}})e^{b_{t}} + \beta b_{t} \label{updatepoisson}\end{aligned}
 
-where :math:`\bm{\theta} = (\omega, \alpha, \beta)` is the vector of
+where :math:`\mathbf{\theta} = (\omega, \alpha, \beta)` is the vector of
 fixed parameter whose values are reported in the first column of Table
 `[tablepoissonestimates] <#tablepoissonestimates>`__. Now I can actually
 fit a GAS(1,1) model over these data, maximizing the corresponding
@@ -1846,7 +1846,7 @@ log-likelihood, given by
    \label{poissontotloglike}
 
 with :math:`b_t` given by `[updatepoisson] <#updatepoisson>`__. Once I
-have obtained the ML estimate :math:`\hat{\bm{\theta}}` I can check the
+have obtained the ML estimate :math:`\hat{\mathbf{\theta}}` I can check the
 filtered time series :math:`\hat{b}_t` generated from this optimal, that
 is
 
@@ -1873,7 +1873,7 @@ the following set of relations
 
 where
 
-.. math:: \mathcal{G}_t = \partial{\phi(X_t, \hat{b}_t, \bm{\theta}_0}) / \partial{\hat{b}_t} =  \beta+\alpha e^{\hat{b}_t}\left( X_t - 2e^{\hat{b}_t} \right).
+.. math:: \mathcal{G}_t = \partial{\phi(X_t, \hat{b}_t, \mathbf{\theta}_0}) / \partial{\hat{b}_t} =  \beta+\alpha e^{\hat{b}_t}\left( X_t - 2e^{\hat{b}_t} \right).
 
 All of the derivatives can be computed at each time step alongside
 :math:`\hat{b}_t`. There were no significant differences between errors
@@ -1889,11 +1889,11 @@ that I recall here
 
 .. math::
 
-   \hat{\bm{\theta}} &\overset{d}{\to} N\left(\frac{\bm{\theta}_0}{\sqrt{T}},\frac{\mathcal{I}^{-1}(\bm{\theta}_0)\mathcal{J}(\bm{\theta}_0)\mathcal{I}^{-1}(\bm{\theta}_0)}{T}\right).
+   \hat{\mathbf{\theta}} &\overset{d}{\to} N\left(\frac{\mathbf{\theta}_0}{\sqrt{T}},\frac{\mathcal{I}^{-1}(\mathbf{\theta}_0)\mathcal{J}(\mathbf{\theta}_0)\mathcal{I}^{-1}(\mathbf{\theta}_0)}{T}\right).
    \nonumber
 
 \ Specifically, the term
-:math:`\mathcal{I}^{-1}(\bm{\theta}_0)\mathcal{J}(\bm{\theta}_0)\mathcal{I}^{-1}(\bm{\theta}_0)`
+:math:`\mathcal{I}^{-1}(\mathbf{\theta}_0)\mathcal{J}(\mathbf{\theta}_0)\mathcal{I}^{-1}(\mathbf{\theta}_0)`
 is a product of small quantities, therefore the variance is itself
 really small. I argue that the major contribution to the error in the
 mis-specification case may be the filtering uncertainty and not the
@@ -1998,7 +1998,7 @@ conditional likelihood is
 
 .. math::
 
-   p_T(X_{t+1}|X_t, b_{t+1}, \bm{\theta}) = \prod_{t=0}^{T-1} \frac{1}{\sqrt{2 \pi \sigma^2}} \exp \left(\frac{\xi_{t+1}^2}{2\sigma^2} \right) = \prod_{t=0}^{T-1} \frac{1}{\sqrt{2 \pi \sigma^2}} \exp \left(\frac{(X_{t+1} - a - b_{t+1}X_t)^2}{2\sigma^2} \right)
+   p_T(X_{t+1}|X_t, b_{t+1}, \mathbf{\theta}) = \prod_{t=0}^{T-1} \frac{1}{\sqrt{2 \pi \sigma^2}} \exp \left(\frac{\xi_{t+1}^2}{2\sigma^2} \right) = \prod_{t=0}^{T-1} \frac{1}{\sqrt{2 \pi \sigma^2}} \exp \left(\frac{(X_{t+1} - a - b_{t+1}X_t)^2}{2\sigma^2} \right)
    \label{condlike}
 
 and so the score :math:`s_t`, that is the derivative of the
@@ -2021,7 +2021,7 @@ Hence, the equations for the evolution of :math:`b_t` are
 
 Maximizing the logarithm of `[condlike] <#condlike>`__ with
 :math:`b_{t+1}` as one of the above equations results in the ML estimate
-:math:`\hat{\bm{\theta}}` of :math:`\bm{\theta}`. The filtered
+:math:`\hat{\mathbf{\theta}}` of :math:`\mathbf{\theta}`. The filtered
 reconstruction of the autoregressive parameter :math:`\hat{b}_{t+1}` is
 
 .. math:: \hat{b}_{t+1} = \hat{\omega} + \hat{\alpha} \frac{X_{t-1} (X_t - \hat{a} - \hat{b}_t X_{t-1})}{\hat{\sigma}^2} + \hat{\beta} \hat{b}_t
@@ -2160,7 +2160,7 @@ made about the nature of the cointegration residuals. In this regard,
 here I can understand the degree of success of the filtering procedure
 in a controlled environment. Indeed, I can create shorter time series
 with one of the aforementioned dynamics, filter them with a GAS(1,1)
-model and use the ML estimates :math:`\bm{\hat{\theta}}` to reconstruct
+model and use the ML estimates :math:`\mathbf{\hat{\theta}}` to reconstruct
 the innovation terms :math:`\hat{\xi}_t`. For instance, in the
 autoregressive cases, I can test the normality of the filtered
 :math:`\hat{\xi}_t` by means of D’Agostino and Pearson’s normality test
@@ -2178,7 +2178,7 @@ issue in non-convex optimization problems, where the existence of
 multiple local maxima can bring the algorithm to stuck in different
 values starting from different points. Due to the likelihood
 multidimensional nature, the algorithm is indeed greatly affected by the
-initial guess for :math:`\bm{\theta}`, leading sometimes to divergences.
+initial guess for :math:`\mathbf{\theta}`, leading sometimes to divergences.
 When this happens, the message output of the algorithm is a failure and
 it returns the last best point found that is extremely improbable to lie
 in any maximum of the function  [10]_. In order to cope with this
@@ -2200,7 +2200,7 @@ jacobian, useful for error estimation. The final step with BFGS allows
 the last estimated parameter by Nelder-Mead to not move too much but to
 retrieve anyway the numerical approximation of derivatives. In Figure
 `3.4 <#conv>`__ it can be seen the distribution of 10 000 estimates
-:math:`\hat{\bm{\theta}}` for a randomly chosen cointegration residual
+:math:`\hat{\mathbf{\theta}}` for a randomly chosen cointegration residual
 (cumulative summed) for different number of repetitive optimizations.
 The residual is one of the actual residuals obtained in the replica of
 the Avellaneda and Lee’s strategy. In particular, it refers to JWM and
@@ -3276,7 +3276,7 @@ the sake of clarity, I report them here:
 
 .. math::
 
-   \log{p(X_{t+1} | b_{t+1}, \mathcal{F}_t, \bm{\theta})} = -\frac{1}{2} \left(\log{2\pi} + \log{\sigma^2} + \frac{\xi_{t+1}^2}{\sigma^2} \right),  \qquad \bm{\theta} = (a, \omega, \alpha, \beta, \sigma^2)
+   \log{p(X_{t+1} | b_{t+1}, \mathcal{F}_t, \mathbf{\theta})} = -\frac{1}{2} \left(\log{2\pi} + \log{\sigma^2} + \frac{\xi_{t+1}^2}{\sigma^2} \right),  \qquad \mathbf{\theta} = (a, \omega, \alpha, \beta, \sigma^2)
    \nonumber
 
 is
@@ -3287,18 +3287,18 @@ is
    \nonumber
 
 The idea is, as always, to maximize the total log-likelihood to estimate
-the value of :math:`\bm{\theta}`. At each time step, I evaluate the last
+the value of :math:`\mathbf{\theta}`. At each time step, I evaluate the last
 equations until the final time step at :math:`t=\tilde{T}` when I have
 all the values of the log-likelihood and I can obtain the total
 log-likelihood that I aim to maximize, that is
 
 .. math::
 
-   \log{p_T(X_{t+1} | b_{t+1}, \mathcal{F}_t, \bm{\theta})} = -\frac{1}{2} \sum_{t=1}^{T-1} \left(\log{2\pi} + \log{\sigma^2} + \frac{\xi_{t+1}^2}{\sigma^2} \right),  \qquad \bm{\theta} = (a, \omega, \alpha, \beta, \sigma^2).
+   \log{p_T(X_{t+1} | b_{t+1}, \mathcal{F}_t, \mathbf{\theta})} = -\frac{1}{2} \sum_{t=1}^{T-1} \left(\log{2\pi} + \log{\sigma^2} + \frac{\xi_{t+1}^2}{\sigma^2} \right),  \qquad \mathbf{\theta} = (a, \omega, \alpha, \beta, \sigma^2).
    \label{totallikelihood}
 
 I choose to set :math:`\sigma = 1` and estimate
-:math:`\tilde{\bm{\theta}} = (a, \omega, \alpha, \beta)`. This is able
+:math:`\tilde{\mathbf{\theta}} = (a, \omega, \alpha, \beta)`. This is able
 to reduce the computational time needed and to stabilize estimations.
 Indeed, the sample size :math:`\tilde{T}` is small and I assumed
 :math:`\sigma=1` was a reasonable choice. Moreover, the number of
@@ -3306,7 +3306,7 @@ repetitive optimizations with the Nelder-Mead algorithm was set to
 :math:`3`. In this case, maximizing Equation
 `[totallikelihood] <#totallikelihood>`__ is equivalent to maximize
 
-.. math:: \log{p_T(X_{t+1} | b_{t+1}, \mathcal{F}_t, \bm{\tilde{\theta}})} = -\frac{1}{2} \sum_{t=1}^{T-1} \xi_{t+1}^2,
+.. math:: \log{p_T(X_{t+1} | b_{t+1}, \mathcal{F}_t, \mathbf{\tilde{\theta}})} = -\frac{1}{2} \sum_{t=1}^{T-1} \xi_{t+1}^2,
 
 that is the Ordinary Least Squares (OLS) method, although the estimation
 procedure I used is the same of Section `3.4 <#filter>`__.
@@ -3315,7 +3315,7 @@ As already mentioned, GAS models allow for the implementation of a
 Lagrange Multiplier test to test the null hypothesis of a constant
 parameter (in this case :math:`b_t`) against the GAS alternative. The
 idea is to first estimate the static parameter
-:math:`\bm{\tilde{\theta}}` and then use Equation
+:math:`\mathbf{\tilde{\theta}}` and then use Equation
 `[LMregression] <#LMregression>`__ to run the test. The values of
 :math:`\tilde{T}` investigated are 70, 80 and 90 days and, for all of
 them, I rejected the null hypothesis with :math:`p < 0.05`.
@@ -3395,14 +3395,14 @@ while in the GAS framework the percentages grow considerably to value
    of mean reversion.
 
 This problem is caused by the fact that using a link function
-:math:`h\left(b_t;\bm{\theta}\right)=b_t` (identity function) I allow
-the parameter :math:`h\left(b_t;\bm{\theta}\right)` to wonder all values
+:math:`h\left(b_t;\mathbf{\theta}\right)=b_t` (identity function) I allow
+the parameter :math:`h\left(b_t;\mathbf{\theta}\right)` to wonder all values
 in :math:`\mathbb{R}`. Therefore, a solution can be to restrict the
 time-varying parameter in a narrower region through a different link
 function. For instance, consider the situation in which the AR(1)
 process is written employing the logistic link function
 
-.. math:: h\left(b_t;\bm{\theta}\right)= \frac{1}{1+e^{-b_t}}.
+.. math:: h\left(b_t;\mathbf{\theta}\right)= \frac{1}{1+e^{-b_t}}.
 
 \ Thereby,
 
@@ -3417,15 +3417,15 @@ always. Figure `5.3 <#const_vs_filter1>`__ shows the estimation on the
 same residuals as the last two plots in Figure
 `5.1 <#const_vs_filter>`__, but with the use of the new parametrization.
 It can be seen how it is able to fix the problem of non admissible
-values for :math:`h(b_t;\bm{\hat{\theta}})`.
+values for :math:`h(b_t;\mathbf{\hat{\theta}})`.
 
 .. figure:: images/const_vs_gas_logistic.png
-   :alt: Dynamics of :math:`h(b_t;\bm{\hat{\theta}})`. For comparison
+   :alt: Dynamics of :math:`h(b_t;\mathbf{\hat{\theta}})`. For comparison
    see the last two plots of Figure `5.3 <#const_vs_filter1>`__.
    :name: const_vs_filter1
    :width: 80.0%
 
-   Dynamics of :math:`h(b_t;\bm{\hat{\theta}})`. For comparison see the
+   Dynamics of :math:`h(b_t;\mathbf{\hat{\theta}})`. For comparison see the
    last two plots of Figure `5.3 <#const_vs_filter1>`__.
 
 I tried to run the whole estimation procedure for the s-scores with the
@@ -3513,8 +3513,8 @@ another distribution is used and the procedure is repeated.
    :alt: Percentages of refused :math:`\kappa` due to the filter on the
    speed of mean reversion for :math:`\tilde{T}=70` in the three cases
    investigated: constant :math:`b`, :math:`b_t` and
-   :math:`h(b_t;\bm{\hat{\theta}})` with
-   :math:`h(\cdot;\bm{\hat{\theta}})` set to a logistic function. The
+   :math:`h(b_t;\mathbf{\hat{\theta}})` with
+   :math:`h(\cdot;\mathbf{\hat{\theta}})` set to a logistic function. The
    subset of stocks used is composed of ORLY, JCI, WHR, NUE, LHX, ABMD,
    BDX, D, SWN, WMB.
    :name: percentagesrefused1
@@ -3522,8 +3522,8 @@ another distribution is used and the procedure is repeated.
    Percentages of refused :math:`\kappa` due to the filter on the speed
    of mean reversion for :math:`\tilde{T}=70` in the three cases
    investigated: constant :math:`b`, :math:`b_t` and
-   :math:`h(b_t;\bm{\hat{\theta}})` with
-   :math:`h(\cdot;\bm{\hat{\theta}})` set to a logistic function. The
+   :math:`h(b_t;\mathbf{\hat{\theta}})` with
+   :math:`h(\cdot;\mathbf{\hat{\theta}})` set to a logistic function. The
    subset of stocks used is composed of ORLY, JCI, WHR, NUE, LHX, ABMD,
    BDX, D, SWN, WMB.
 
