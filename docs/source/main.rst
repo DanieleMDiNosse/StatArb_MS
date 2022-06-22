@@ -127,11 +127,12 @@ divided into five major streams:
    information about future forecasting or dynamics characteristics as,
    for example, typical time of convergence of the two assets.
 
-   .. figure:: images/pepsiandcoca.png
+   .. image:: images/pepsiandcoca.png
       :alt: Classical example of pairs: Coca-Cola Co and PepsiCo,
       Inc. Prices are normalized to start at 1 at the beginning of the
       period.
       :name: pcaexample
+      :width: 300pt
 
       Classical example of pairs: Coca-Cola Co and PepsiCo, Inc. Prices
       are normalized to start at 1 at the beginning of the period.
@@ -414,7 +415,7 @@ fraction of variance preserved when retaining a subset of the PCs
 
 .. math:: \bm{\Sigma} = \lambda_1 \bm{1}  + \lambda_2 \bm{1} + ... + \lambda_p \bm{1}.
 
-| 
+|
 | A trivial example is shown in Figure `1.2 <#pcaexample>`__ where in
   the upper panel I plotted two high correlated variables that act as
   the vector of random variable :math:`\bm{x}`, while in the lower panel
@@ -762,7 +763,7 @@ the procedure is
 .. math::
 
    \begin{aligned}
-   &\to \text{Extract risk factors} \nonumber \\ 
+   &\to \text{Extract risk factors} \nonumber \\
        [t + (T-\tilde{T}), t + T] &\to \text{Model residuals}  \nonumber\\
        t + (T + 1) &\to \text{Trade on signals} \nonumber \\
        t &\to t+1.
@@ -1062,7 +1063,7 @@ for the strategy is
 .. math::
 
    \begin{aligned}
-       E_{t+1} &= E_t + E_t r \Delta t + \sum_{i=1}^N Q_{it}R_{it} - \left( \sum_{i=1}^N Q_{it} \right)r \Delta t  + \sum_{i=1}^N Q_{it} D_{it}/S_{it} - \sum_{i=1}^N  |Q_{i(t+1)}-Q_{it}| \delta \nonumber \\  Q_{it} &= \Lambda_t E_t 
+       E_{t+1} &= E_t + E_t r \Delta t + \sum_{i=1}^N Q_{it}R_{it} - \left( \sum_{i=1}^N Q_{it} \right)r \Delta t  + \sum_{i=1}^N Q_{it} D_{it}/S_{it} - \sum_{i=1}^N  |Q_{i(t+1)}-Q_{it}| \delta \nonumber \\  Q_{it} &= \Lambda_t E_t
    \label{PnL}\end{aligned}
 
 \ where :math:`r` is the interest rate assumed equal for both borrowing
@@ -1484,7 +1485,7 @@ theoretical results in [@MLprop], specifically the two theorems on the
 asymptotic normality of the ML estimators, follow that the estimate is
 distributed as
 
-| 
+|
 
   .. math::
 
@@ -1799,7 +1800,7 @@ summing all the log-likelihood of Equation
 .. math::
 
    \begin{split}
-       \mathcal{L}_T &= \sum_{t=1}^T \log{p(y_{t+1} | b_{t+1}, \mathcal{F}_t, \bm{\theta})} = \\ &= 
+       \mathcal{L}_T &= \sum_{t=1}^T \log{p(y_{t+1} | b_{t+1}, \mathcal{F}_t, \bm{\theta})} = \\ &=
        - \frac{T-1}{2}(\log{2\pi} + \log{\sigma^2}) - \sum_{t=1}^T \frac{\left(y_{t+1} - b_{t+1}y_t\right)^2}{2\sigma^2}.
    \end{split}
    \label{totallog-likelihood}
@@ -3178,12 +3179,12 @@ optimizations.
 .. container:: center
 
    =============== ============
-   :math:`\Lambda` Sharpe Ratio    
+   :math:`\Lambda` Sharpe Ratio
    =============== ============
-   1%              -0.477          
-   2.5%            0.115           
-   3%              0.263           
-   5%              0.655           
+   1%              -0.477
+   2.5%            0.115
+   3%              0.263
+   5%              0.655
    =============== ============
 
    [difflambda]
@@ -3628,12 +3629,12 @@ Test set: 2012-2020
 .. container:: center
 
    =============== ============
-   :math:`\Lambda` Sharpe Ratio    
+   :math:`\Lambda` Sharpe Ratio
    =============== ============
-   1%              -0.579          
-   2.5%            -0.095          
-   3%              0.031           
-   5%              0.372           
+   1%              -0.579
+   2.5%            -0.095
+   3%              0.031
+   5%              0.372
    =============== ============
 
    [difflambda1]
