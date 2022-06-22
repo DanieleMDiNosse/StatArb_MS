@@ -128,10 +128,6 @@ divided into five major streams:
    for example, typical time of convergence of the two assets.
 
    .. image:: images/pepsiandcoca.png
-      :alt: Classical example of pairs: Coca-Cola Co and PepsiCo,
-      Inc. Prices are normalized to start at 1 at the beginning of the
-      period.
-      :name: pcaexample
       :width: 300pt
 
       Classical example of pairs: Coca-Cola Co and PepsiCo, Inc. Prices
