@@ -1,10 +1,4 @@
-.. role:: raw-latex(raw)
-   :format: latex
-..
-
-.. contents::
-   :depth: 3
-..
+.. _main
 
 Pair Trading
 ============
@@ -1196,7 +1190,7 @@ Figure `2.10 <#tradingtime>`__
    returns (actual time) versus volume integrated returns (trading
    time). Figure taken from [@avellanedalee].
 
-SCORE-DRIVEN MODELS
+Score-driven models
 ===================
 
 The model devised by Avellaneda and Lee is statistically reliable and in
