@@ -1,5 +1,10 @@
 .. _main
 
+*************
+Master Thesis
+*************
+
+
 Pair Trading
 ============
 
