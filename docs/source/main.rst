@@ -6,7 +6,7 @@
    :depth: 3
 ..
 
-PAIR TRADING
+Pair Trading
 ============
 
 | The idea behind statistical arbitrage is fairly simple yet quite
@@ -568,7 +568,7 @@ behaviour of their prices.
    distribution that reveal the great distance between the first
    eigenvector, associated with the market component, and the others.
 
-AVELLANEDA AND LEE’S STRATEGY
+Avellaneda and Lee's strategy
 =============================
 
 The discussion in the previous chapter put the basis to understand the
@@ -2228,7 +2228,7 @@ have been obtained also for other residuals.
   the LM test was able to not reject/reject the null hypothesis of
   constant parameter correctly (:math:`p<0.05`).
 
-REFINE AVELLANEDA AND LEE’S STRATEGY
+Refine Avellaneda and Lee's strategy
 ====================================
 
 Previous chapters were essential for the creation of a new model that
@@ -3200,7 +3200,7 @@ optimizations.
    average number of open positions is :math:`\sim 140`. The value of
    :math:`\tilde{T}=70` and the set used is the test set.
 
-APPLICATION OF GAS MODELS TO THE STRATEGY
+Application of GAS models to the strategy
 =========================================
 
 In chapter 3 I have presented the family of Generalized Autoregressive
