@@ -14,6 +14,7 @@ Contents:
    :maxdepth: 4
 
    source/main
+   source/modules
 
 
 Indices and tables
