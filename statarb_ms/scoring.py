@@ -264,7 +264,9 @@ if __name__ == '__main__':
                 "/mnt/saved_data/returns/ReturnsVolData.pkl")[:4030]
             # stocks = np.random.randint(0, df_returns.shape[1], size=10)
             # print(f'{df_returns.columns[stocks]}')
-            # df_returns = df_returns[df_returns.columns[stocks]]
+            stocks = ['ORLY', 'JCI', 'WHR', 'NUE',
+                      'LHX', 'ABMD', 'BDX', 'D', 'SWN', 'WMB']
+            df_returns = df_returns[stocks]
 
     else:
         logging.info('I am computing scores from the simple returns')

@@ -5,9 +5,9 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import statsmodels.api as sm
-from StatArb_MS.statarb_ms.gas import ML_errors, b_error
-from StatArb_MS.statarb_ms.post_processing import LM_test_statistic
-from StatArb_MS.statarb_ms.regression_parameters import regression
+from gas import ML_errors, b_error
+from post_processing import LM_test_statistic
+from regression_parameters import regression
 from scipy.optimize import minimize
 from scipy.stats import chi2, norm, normaltest, poisson
 from scipy.stats import t as t_student
@@ -233,7 +233,7 @@ def model_estimation(X, model, link_fun, specification):
     estimates = res.x
     std_err = ML_errors(res.jac, res.hess_inv, estimates, X, specification)
 
-    std_b = b_error(X, res, 2000, model, specification)
+    std_b = b_error(X, res, 2000, model, link_fun, specification)
 
     T = X.shape[0]
     b = np.zeros_like(X)
@@ -358,8 +358,8 @@ if __name__ == '__main__':
     fig, axs = plt.subplots(2, 1, tight_layout=True, figsize=(14, 5))
     axs[0].plot(X[:n], 'k', label='Real', linewidth=1)
     axs[1].plot(b[:n], 'k', label='Real', linewidth=1)
-    axs[0].set_ylabel('X')
-    axs[1].set_ylabel('b')
+    axs[0].set_ylabel(r'$X_t$')
+    axs[1].set_ylabel(r'$b_t$')
 
     B, res, xi, std_err, std_b, init_params, B_T = model_estimation(
         X, model, link_fun, specification)
@@ -388,13 +388,13 @@ if __name__ == '__main__':
     print('--------------------------------------------------- \n')
 
     axs[1].plot(B[:n], 'crimson', label='Filtered', linewidth=1)
-    axs[1].hlines(B[:n].mean(), 0, n, 'crimson', label='Filtered mean: {:.2f}'.format(
-        B.mean()), linestyle='dashed', linewidth=1)
-    axs[1].fill_between(list(range(n - 1)), B[:n - 1] + 1.96 * std_b,
-                        B[:n - 1] - 1.96 * std_b, color='crimson', alpha=0.4, label='95% conf int')
+    # axs[1].hlines(B[:n].mean(), 0, n, 'crimson', label='Filtered mean: {:.2f}'.format(
+    #     B.mean()), linestyle='dashed', linewidth=1)
+    axs[1].fill_between(list(range(n - 1)), B[:n - 1] + 1.96 * std_b[:n - 1],
+                        B[:n - 1] - 1.96 * std_b[:n - 1], color='crimson', alpha=0.4, label='95% conf int')
 
-    axs[0].legend()
-    axs[1].legend()
+    axs[0].legend(fontsize=12)
+    axs[1].legend(fontsize=12)
     plt.show()
 
     if args.lmtest:
