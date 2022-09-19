@@ -412,95 +412,43 @@ def sharpe_ratio(pnl, benchmark_pnl, period):
 
 
 def yearly_returns():
+    '''This function generates a bar plot for the yearly returns.'''
+
     plt.style.use('seaborn')
-    pnls80 = np.array(
-        [np.load(f'../saved_data/PnL/pnl_LBFGSB(80days({i})).npy') for i in range(15)])
+
+    type = input('GAS_AR [gas] or AR [volume_returns]?: ')
+    if type == 'gas':
+        type1 = 'GAS'
+    if type == 'volume_returns':
+        type1 = 'AvellanedaLee'
+    set = input('Validation set [validation] or test set [test]?: ')
+    if set == 'test':
+        set1 = 'VOLOPT_TEST'
+    if set == 'validation':
+        set1 = 'VOLOPT'
+    length = int(input('Length of the estimation window for the scores: '))
+
+    pnl = np.array(np.load(f'/mnt/saved_data/PnL/{type}/{set}/pnl_{type1}({length}days){set1}.npy'))
+    plt.plot(pnl)
+
     plt.figure(figsize=(8, 6), tight_layout=True)
-    yearly_rets = np.zeros(shape=(pnls80.shape[0], 15))
 
-    for k in range(pnls80.shape[0]):
-        pnl = pnls80[k]
-        for i, j in zip(range(0, 3528, 252), range(15)):
-            yearly_rets[k, j] = (pnl[i + 252] - pnl[i]) / pnl[i] * 100
-        # last year is not totally complete
-        yearly_rets[k, -1] = (pnl[-1] - pnl[-250]) / pnl[-250] * 100
+    years = int(pnl.shape[0]/252)
+    yearly_rets = np.zeros(shape=(years+1))
 
-    yearly_rets_mean = yearly_rets.mean(axis=0)
-    yearly_rets_std = yearly_rets.std(axis=0)
-    plt.bar(np.arange(15), yearly_rets_mean, color='black', alpha=0.8)
-    plt.bar(np.arange(15), 2 * yearly_rets_std,
-            bottom=yearly_rets_mean, color='crimson', alpha=0.5)
-    plt.bar(np.arange(15), - 2 * yearly_rets_std,
-            bottom=yearly_rets_mean, color='crimson', alpha=0.5)
-    xlabel = [str(1996 + i) for i in range(15)]
-    plt.xticks(np.arange(15), xlabel, rotation=90)
+    for i, j in zip(range(0, years*252, 252), range(years)):
+        yearly_rets[j] = (pnl[i + 252] - pnl[i]) / pnl[i] * 100
+    # last year is not totally complete
+    yearly_rets[-1] = (pnl[-1] - pnl[-250]) / pnl[-250] * 100
+
+    plt.bar(np.arange(years+1), yearly_rets, color='black', alpha=0.8)
+    if set == 'validation':
+        xlabel = [str(1996 + i) for i in range(years+1)]
+    else:
+        xlabel = [str(2012 + i) for i in range(years+1)]
+    plt.xticks(np.arange(years+1), xlabel, rotation=90)
     plt.ylabel('%')
-    plt.title('Yearly returns (80 days)')
-
-    pnls60 = np.array(
-        [np.load(f'../saved_data/PnL/pnl_LBFGSB(60days({i})).npy') for i in range(15)])
-    plt.figure(figsize=(8, 6), tight_layout=True)
-    yearly_rets = np.zeros(shape=(pnls60.shape[0], 15))
-
-    for k in range(pnls60.shape[0]):
-        pnl = pnls60[k]
-        for i, j in zip(range(0, 3528, 252), range(15)):
-            yearly_rets[k, j] = (pnl[i + 252] - pnl[i]) / pnl[i] * 100
-        # last year is not totally complete
-        yearly_rets[k, -1] = (pnl[-1] - pnl[-250]) / pnl[-250] * 100
-
-    yearly_rets_mean = yearly_rets.mean(axis=0)
-    yearly_rets_std = yearly_rets.std(axis=0)
-    plt.bar(np.arange(15), yearly_rets_mean, color='black', alpha=0.8)
-    plt.bar(np.arange(15), 2 * yearly_rets_std,
-            bottom=yearly_rets_mean, color='crimson', alpha=0.5)
-    plt.bar(np.arange(15), - 2 * yearly_rets_std,
-            bottom=yearly_rets_mean, color='crimson', alpha=0.5)
-    xlabel = [str(1996 + i) for i in range(15)]
-    plt.xticks(np.arange(15), xlabel, rotation=90)
-    plt.ylabel('%')
-    plt.title('Yearly returns (60 days)')
-
-    pnlAL60 = np.load(f'../saved_data/PnL/pnl_AvellanedaLee(60days).npy')
-    plt.figure(figsize=(8, 6), tight_layout=True)
-    yearly_rets = np.zeros(shape=15)
-
-    for i, j in zip(range(0, 3528, 252), range(15)):
-        yearly_rets[j] = (pnlAL60[i + 252] - pnlAL60[i]) / pnlAL60[i] * 100
-
-    yearly_rets[-1] = (pnlAL60[-1] - pnlAL60[-250]) / \
-        pnlAL60[-250] * 100  # last year is not totally complete
-    plt.bar(np.arange(15), yearly_rets, color='black', alpha=0.8)
-    xlabel = [str(1996 + i) for i in range(15)]
-    plt.xticks(np.arange(15), xlabel, rotation=90)
-    plt.ylabel('%')
-    plt.title('Yearly returns (60 days)')
-
-    pnlAL80 = np.load(f'../saved_data/PnL/pnl_AvellanedaLee(80days).npy')
-    plt.figure(figsize=(8, 6), tight_layout=True)
-    yearly_rets = np.zeros(shape=15)
-    for i, j in zip(range(0, 3528, 252), range(15)):
-        yearly_rets[j] = (pnlAL80[i + 252] - pnlAL80[i]) / pnlAL80[i] * 100
-    yearly_rets[-1] = (pnlAL80[-1] - pnlAL80[-250]) / \
-        pnlAL80[-250] * 100  # last year is not totally complete
-    plt.bar(np.arange(15), yearly_rets, color='black', alpha=0.8)
-    xlabel = [str(1996 + i) for i in range(15)]
-    plt.xticks(np.arange(15), xlabel, rotation=90)
-    plt.ylabel('%')
-    plt.title('Yearly returns (80 days)')
-
-    pnlAL100 = np.load(f'../saved_data/PnL/pnl_AvellanedaLee(100days).npy')
-    plt.figure(figsize=(8, 6), tight_layout=True)
-    yearly_rets = np.zeros(shape=15)
-    for i, j in zip(range(0, 3528, 252), range(15)):
-        yearly_rets[j] = (pnlAL100[i + 252] - pnlAL100[i]) / pnlAL100[i] * 100
-    yearly_rets[-1] = (pnlAL100[-1] - pnlAL100[-250]) / \
-        pnlAL100[-250] * 100  # last year is not totally complete
-    plt.bar(np.arange(15), yearly_rets, color='black', alpha=0.8)
-    xlabel = [str(1996 + i) for i in range(15)]
-    plt.xticks(np.arange(15), xlabel, rotation=90)
-    plt.ylabel('%')
-    plt.title('Yearly returns (100 days)')
+    plt.title('Yearly returns')
     plt.show()
 
 

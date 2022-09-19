@@ -42,6 +42,7 @@ def synt_data(model, dynamics, link_fun, *args, size):
     np.random.seed(666)
     X = np.zeros(shape=size)
     b = np.zeros(shape=size)
+    # alpha = np.zeros(shape=size)
 
     if model == 'autoregressive':
         X[1] = np.random.normal(0, sgm)
@@ -50,8 +51,12 @@ def synt_data(model, dynamics, link_fun, *args, size):
             if dynamics == 'gas':
 
                 if link_fun == 'identity':
-                    b[t + 1] = omega + alpha * X[t - 1] * \
+                    b[t + 1] = omega + alpha[t + 1] * X[t - 1] * \
                         (X[t] - a - b[t] * X[t - 1]) / sgm**2 + beta * b[t]
+                    
+                    # alpha[t +1] = omega_al + beta_al * alpha[t] + alpha_al * X[t - 1] * \
+                    #     (X[t] - a - b[t] * X[t - 1]) / sgm**2 * X[t - 2] * \
+                    #     (X[t - 1] - a - b[t - 1] * X[t - 2]) / sgm**2
 
                 if link_fun == 'logistic':
                     b[t + 1] = omega + alpha * (X[t] - 1 / (1 + np.exp(-b[t])) *
