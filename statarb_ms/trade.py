@@ -41,7 +41,7 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
 
     PnL = np.zeros(df_score.shape[0])
     PnL[0] = 1.00
-    fraction = 0.05
+    fraction = 0.01
     lookback_for_factors = 252
     daily_PnL = np.zeros(shape=df_returns.shape)
     state = np.array(['c' for i in range(df_returns.shape[1])])
@@ -49,6 +49,7 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
     day_counter_short = np.zeros(shape=df_returns.shape[1], dtype=int)
     perc_positions = np.zeros(shape=(df_returns.shape[0], 3))
     invest_amount = np.zeros(shape=(df_returns.shape[0] + 1))
+    beta_tensor_sum = np.zeros(shape=(df_returns.shape[0], beta_tensor.shape[2]))
 
     prod = np.zeros(shape=((df_score.shape[0] - 1) * df_score.shape[1]))
     K = np.zeros(shape=((df_score.shape[0] - 1) * df_score.shape[1]))
@@ -59,6 +60,24 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
     for day in tqdm(range(df_score.shape[0] - 1)):
         counter_no_trades = 0
 
+        # idx_positions_long = np.array(df_score.iloc[0].index[df_score.iloc[0] < -s_bo])
+        # idx_positions_short = np.array(df_score.iloc[0].index[df_score.iloc[0] < s_so])
+        # idx_positions = np.append(idx_positions_long, idx_positions_short)
+
+        # Select all the indexes of stocks that trigger a long+short position on day=day except for the
+        # ones already opened (--> all the indexes of NEW positions)
+        opened_long = np.argwhere(state == 'l')[:, 0]
+        opened_short = np.argwhere(state == 's')[:, 0]
+        idx_positions_long = np.argwhere(np.array(df_score.iloc[day] < -s_bo))[:, 0]
+        idx_positions_long = list(set(idx_positions_long) - set(opened_long))
+        idx_positions_short = np.argwhere(np.array(df_score.iloc[day] > s_so))[:, 0]
+        idx_positions_short = list(set(idx_positions_short) - set(opened_short))
+        idx_positions = np.append(idx_positions_long, idx_positions_short).astype('int32')
+
+        # Sum the betas over all the indexes of stock that trigger a long+short position on day=day. This
+        # term will be used to evaluate the amount invested in each stock.
+        beta_tensor_sum[day, :] = beta_tensor[day, idx_positions, :].sum(axis=0)
+
         for stock in df_score.columns:
             stock_idx = df_returns.columns.get_loc(stock)
 
@@ -68,9 +87,7 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
 
             if df_score[stock][day] < -s_bo and (state[stock_idx] == 'c'):
                 state[stock_idx] = 'l'
-                k = PnL[day] * fraction / \
-                    (1 +
-                     (np.dot(beta_tensor[day, stock_idx, :], Q[day, :, stock_idx])))
+                k = PnL[day] * fraction / (1 + (Q[day, :, stock_idx] * beta_tensor_sum[day]).sum())
                 daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(
                     beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
                 invest_amount[day + 1] = np.dot(
@@ -79,17 +96,14 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
 
             if (day > 0) and (df_score[stock][day] < -s_sc) and (state[stock_idx] == 'l'):
                 day_counter_long[stock_idx] += 1
-                k = PnL[day - day_counter_long[stock_idx]] * fraction / (1 + (np.dot(
-                    beta_tensor[day - day_counter_long[stock_idx], stock_idx, :], Q[day - day_counter_long[stock_idx], :, stock_idx])))
+                k = PnL[day - day_counter_long[stock_idx]] * fraction / (1 + (Q[day - day_counter_long[stock_idx], :, stock_idx] * beta_tensor_sum[day - day_counter_long[stock_idx]]).sum())
                 daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(beta_tensor[day - day_counter_long[stock_idx],
                                                  stock_idx, :], np.matmul(Q[day - day_counter_long[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
                 continue
 
             if df_score[stock][day] > s_so and (state[stock_idx] == 'c'):
                 state[stock_idx] = 's'
-                k = PnL[day] * fraction / \
-                    (1 + np.dot(beta_tensor[day,
-                     stock_idx, :], Q[day, :, stock_idx]))
+                k = PnL[day] * fraction / (1 + (Q[day, :, stock_idx] * beta_tensor_sum[day]).sum())
                 daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(
                     beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
                 invest_amount[day + 1] = np.dot(
@@ -98,8 +112,7 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
 
             if (day > 0) and (df_score[stock][day] > s_bc) and (state[stock_idx] == 's'):
                 day_counter_short[stock_idx] += 1
-                k = PnL[day - day_counter_short[stock_idx]] * fraction / (1 + np.dot(
-                    beta_tensor[day - day_counter_short[stock_idx], stock_idx, :], Q[day - day_counter_short[stock_idx], :, stock_idx]))
+                k = PnL[day - day_counter_long[stock_idx]] * fraction / (1 + (Q[day - day_counter_short[stock_idx], :, stock_idx] * beta_tensor_sum[day - day_counter_short[stock_idx]]).sum())
                 daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(beta_tensor[day - day_counter_short[stock_idx],
                                                  stock_idx, :], np.matmul(Q[day - day_counter_short[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
                 continue
@@ -179,12 +192,12 @@ def grid_search(hyperparameters, score_data):
         s_bo, s_so, s_bc, s_sc = hyper
         pnl, perc_positions, fact_cont, stock_cont, fees = trading(
             df_returns, df_score, Q, beta_tensor, s_bo=hyper[0], s_so=hyper[1], s_bc=hyper[2], s_sc=hyper[3], lookback_for_residual=length)
-        spy = np.load('/mnt/saved_data/PnL/pnl_firstcomp.npy')[:pnl.shape[0]]
+        spy = np.load('/mnt/hdd/saved_data/PnL/pnl_firstcomp.npy')[:pnl.shape[0]]
         s_ratio = sharpe_ratio(pnl, spy, period=pnl.shape[0])[0]
         print(s_ratio)
         results['Hyperparameters'][idx] = hyper
         results['SharpeRatio'][idx] = s_ratio
-    results.to_pickle(f'/mnt/saved_data/gridsearch_{os.getpid()}.pkl')
+    results.to_pickle(f'/mnt/hdd/saved_data/gridsearch_{os.getpid()}.pkl')
 
     return results
 
@@ -257,37 +270,37 @@ if __name__ == '__main__':
 
         if args.test_set:
             df_returns = pd.read_pickle(
-                "/mnt/saved_data/returns/ReturnsData.pkl")[4029 + 9:]
+                "/mnt/hdd/saved_data/returns/ReturnsData.pkl")[4029 + 9:]
             # This dataframe has shape ReturnsData.shape[0] - 10
             df_returns.index = range(df_returns.shape[0])
-            Q = np.load('/mnt/saved_data/Qs/Q_volint_test.npy')
+            Q = np.load('/mnt/hdd/saved_data/Qs/Q_volint_test.npy')
             beta_tensor = np.load(
-                f'/mnt/saved_data/betas/beta_tensor{length}_volint_test.npy')
-            df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')
+                f'/mnt/hdd/saved_data/betas/beta_tensor{length}_volint_test.npy')
+            df_score = pd.read_pickle(f'/mnt/hdd/saved_data/scores/{name}.pkl')
             df_score.index = range(df_score.shape[0])
         else:
             df_returns = pd.read_pickle(
-                "/mnt/saved_data/returns/ReturnsData.pkl")[9:]
+                "/mnt/hdd/saved_data/returns/ReturnsData.pkl")[9:]
             # This dataframe has shape ReturnsData.shape[0] - 10
             df_returns.index = range(df_returns.shape[0])
-            Q = np.load('/mnt/saved_data/Qs/Q_volint.npy')[:-10, :, :]
+            Q = np.load('/mnt/hdd/saved_data/Qs/Q_volint.npy')[:-10, :, :]
             beta_tensor = np.load(
-                f'/mnt/saved_data/betas/beta_tensor{length}_volint.npy')[:-10, :, :]
+                f'/mnt/hdd/saved_data/betas/beta_tensor{length}_volint.npy')[:-10, :, :]
             df_score = pd.read_pickle(
-                f'/mnt/saved_data/scores/{name}.pkl')[:-10]
+                f'/mnt/hdd/saved_data/scores/{name}.pkl')[:-10]
             df_score.index = range(df_score.shape[0])
 
     else:
         logging.info('I am using scores obtained from simple returns')
         time.sleep(0.3)
         df_returns = pd.read_pickle(
-            "/mnt/saved_data/returns/ReturnsData.pkl")[:4030]
-        Q = np.load('/mnt/saved_data/Qs/Q.npy')
+            "/mnt/hdd/saved_data/returns/ReturnsData.pkl")[:4030]
+        Q = np.load('/mnt/hdd/saved_data/Qs/Q.npy')
         length = int(
             input('Lenght of estimation window for AR(1) parameters: '))
         name = input('Name of the s-score data file: ')
-        beta_tensor = np.load(f'/mnt/saved_data/betas/beta_tensor{length}.npy')
-        df_score = pd.read_pickle(f'/mnt/saved_data/scores/{name}.pkl')
+        beta_tensor = np.load(f'/mnt/hdd/saved_data/betas/beta_tensor{length}.npy')
+        df_score = pd.read_pickle(f'/mnt/hdd/saved_data/scores/{name}.pkl')
 
         if length == 50:
             s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.75, 0.8
@@ -334,10 +347,10 @@ if __name__ == '__main__':
         file_merge(pidnums, ['gridsearch'])
         os.system('rm tmp/*')
 
-        gs = pd.read_pickle(f'/mnt/saved_data/gridsearch_{name}.pkl')
+        gs = pd.read_pickle(f'/mnt/hdd/saved_data/gridsearch_{name}.pkl')
         idxs = np.where(gs.values[:, 1] == gs['SharpeRatio'].max())
         gs = gs.iloc[idxs]
-        gs.to_pickle(f'/mnt/saved_data/gridsearch_{name}.pkl')
+        gs.to_pickle(f'/mnt/hdd/saved_data/gridsearch_{name}.pkl')
         exit()
 
     if args.spy:
@@ -345,7 +358,7 @@ if __name__ == '__main__':
         time.sleep(0.3)
         spy_pnl = spy_trading(df_returns, Q)
         name = input('Name of the file that will be saved (spy): ')
-        np.save(f'/mnt/saved_data/PnL/{name}', spy_pnl)
+        np.save(f'/mnt/hdd/saved_data/PnL/{name}', spy_pnl)
 
     else:
         pnl, perc_positions, fees = trading(
