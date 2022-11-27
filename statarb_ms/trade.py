@@ -146,6 +146,11 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
          invest_amount[day]))).sum() * epsilon
 
         PnL[day + 1] = PnL[day] + daily_PnL[day, :].sum() - fees[day]
+        if (day > 790) and (day < 795):
+            print(day)
+            print('PnL', PnL[day])
+            print('daily_PnL', daily_PnL[day, :].sum())
+            print('fees', fees[day])
 
     return PnL, perc_positions, fees
 
