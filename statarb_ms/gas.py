@@ -94,7 +94,10 @@ def b_error(X, res, M, model, link_fun, specification):
 
 
 def estimation(X, n_iter, link_fun, targeting_estimation=False, verbose=False, visualization=False):
-    '''Estimation of GAS parameters'''
+    '''Estimation of GAS parameters. In order to obtain a more accurate estimation of the parameters that maximaze the likelihood function,
+    n_iter is the number of times that the estimation procedure starts all over. All the estimated vectors of paramters are stored and the
+    one that maximize the most the likelihood is choosen. Then a new estimation is carried out using this vector as starting point. This
+    needs a lot of computations, but it is the best procedure I found.'''
     T = X.shape[0]
     b = np.zeros(shape=T)
     xi = np.zeros(shape=T)
@@ -137,10 +140,6 @@ def estimation(X, n_iter, link_fun, targeting_estimation=False, verbose=False, v
 
             res_iter[i, :-1] = res.x
             res_iter[i, -1] = res.fun
-
-            # if np.isnan(res.fun) == False:
-            #     res_iter[i, :-1] = res.x
-            #     res_iter[i, -1] = res.fun
 
         init_params = res_iter[np.where(
             res_iter[:, 4] == res_iter[:, 4].min())][0][:4]
