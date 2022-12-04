@@ -374,7 +374,8 @@ def LM_test_statistic(X, params):
 def file_merge(pidnums, file_list):
     '''This function takes the splitted files generated in the scoring.py module because of the multiprocessing implementation and merge them into a single one. '''
 
-    path = input("Path of the saved file: ")
+    # path = input("Path of the saved file: ")
+    path = '/home/ddinosse/saved_data'
 
     for file in file_list:
         try:
@@ -382,7 +383,7 @@ def file_merge(pidnums, file_list):
                 f'{path}/{file}_{i}.pkl') for i in pidnums]
             name = input(f'Name for the {file} pkl file: ')
             pd.concat(df_score, ignore_index=True).to_pickle(
-                f'/mnt/saved_data/{name}.pkl')
+                f'{path}/{name}.pkl')
         except:
             splitted_files = [
                 np.load(f'{path}/{file}_{i}.npy') for i in pidnums]

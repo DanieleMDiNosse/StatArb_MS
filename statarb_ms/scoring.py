@@ -87,11 +87,11 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
 
     if export:
         np.save(
-            f'tmp1/beta_tensor_{os.getpid()}', beta_tensor)
-        np.save(f'tmp1/alphas_{os.getpid()}', alphas)
-        np.save(f'tmp1/Q_{os.getpid()}', Q)
-        np.save(f'tmp1/dis_res_{os.getpid()}', dis_res)
-        np.save(f'tmp1/res_{os.getpid()}', res)
+            f'saved_data/beta_tensor_{os.getpid()}', beta_tensor)
+        np.save(f'saved_data/alphas_{os.getpid()}', alphas)
+        np.save(f'saved_data/Q_{os.getpid()}', Q)
+        np.save(f'saved_data/dis_res_{os.getpid()}', dis_res)
+        np.save(f'saved_data/res_{os.getpid()}', res)
 
 
 def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_factors, lookback_for_residual):
@@ -100,6 +100,7 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
     '''
 
     num_par = 4
+    targeting_estimation = False
     trading_days = df_returns.shape[0] - lookback_for_factors
     n_stocks = df_returns.shape[1]
     score = np.zeros(shape=(trading_days, n_stocks))
@@ -135,8 +136,7 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
                 parameters, discrete_pred, xi, discrete_conf_int = auto_regression(
                     X)
                 a, b = parameters[0], parameters[1]
-
-                r2[i, stock_idx] = r2_score(X[:-1], np.array(discrete_pred))
+                # r2[i, stock_idx] = r2_score(X, np.array(discrete_pred))
                 const_AR_par[i, stock_idx, :] = parameters
                 AR_res[i, stock_idx, :] = xi
 
@@ -173,28 +173,26 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
                     sgm_eq[i, stock_idx] = np.std(xi) * np.sqrt(1 / (1 - b**2))
                     score[i, stock_idx] = -m / sgm_eq[i, stock_idx]
 
-    logging.info(f'Total number of estimation for process {os.getpid()}: {n_stocks * trading_days}', f'Number of negative b values for process {os.getpid()}: {c}',
-                 f'Number of stock with speed of mean reversion refused for process {os.getpid()}: {ccc}', f'Number of zero b for process {os.getpid()}: {cc}')
+    # logging.info(f'Total number of estimation for process {os.getpid()}: {n_stocks * trading_days}', f'Number of negative b values for process {os.getpid()}: {c}',
+    #              f'Number of stock with speed of mean reversion refused for process {os.getpid()}: {ccc}', f'Number of zero b for process {os.getpid()}: {cc}')
 
     df_score = pd.DataFrame(score, columns=df_returns.columns)
 
     if method == 'gas_modelization':
-        path = input('Where do you want to save the output files?: ')
-        df_score.to_pickle(f'{path}/df_score_gas_{os.getpid()}.pkl')
-        np.save(f'{path}/estimates_gas_{os.getpid()}', estimates)
-        np.save(f'{path}/bs_{os.getpid()}', bs)
-        np.save(f'{path}/sgm_eq_gas_{os.getpid()}', sgm_eq)
-        np.save(f'{path}/kappas_gas_{os.getpid()}', kappas)
-        np.save(f'{path}/AR_res_gas_{os.getpid()}', AR_res_gas)
+        df_score.to_pickle(f'/home/ddinosse/saved_data/df_score_gas_{os.getpid()}.pkl')
+        np.save(f'/home/ddinosse/saved_data/estimates_gas_{os.getpid()}', estimates)
+        np.save(f'/home/ddinosse/saved_data/bs_{os.getpid()}', bs)
+        np.save(f'/home/ddinosse/saved_data/sgm_eq_gas_{os.getpid()}', sgm_eq)
+        np.save(f'/home/ddinosse/saved_data/kappas_gas_{os.getpid()}', kappas)
+        np.save(f'/home/ddinosse/saved_data/AR_res_gas_{os.getpid()}', AR_res_gas)
 
     if method == 'constant_speed':
-        path = input('Where do you want to save the output files?: ')
-        df_score.to_pickle(f'/mnt/saved_data/df_score_{os.getpid()}.pkl')
-        np.save(f'{path}/r2_{os.getpid()}', r2)
-        np.save(f'{path}/const_AR_par_{os.getpid()}', const_AR_par)
-        np.save(f'{path}/sgm_eq_{os.getpid()}', sgm_eq)
-        np.save(f'{path}/AR_res_{os.getpid()}', AR_res)
-        np.save(f'{path}/kappas_{os.getpid()}', kappas)
+        df_score.to_pickle(f'/home/ddinosse/saved_data/df_score_{os.getpid()}.pkl')
+        np.save(f'/home/ddinosse/saved_data/r2_{os.getpid()}', r2)
+        np.save(f'/home/ddinosse/saved_data/const_AR_par_{os.getpid()}', const_AR_par)
+        np.save(f'/home/ddinosse/saved_data/sgm_eq_{os.getpid()}', sgm_eq)
+        np.save(f'/home/ddinosse/saved_data/AR_res_{os.getpid()}', AR_res)
+        np.save(f'/home/ddinosse/saved_data/kappas_{os.getpid()}', kappas)
 
 
 if __name__ == '__main__':
@@ -226,11 +224,13 @@ if __name__ == '__main__':
     start = time.time()
     np.random.seed()
 
+    path = '/home/ddinosse/saved_data'
+    length = 70
 
 
 # ---------- Volume integrated returns or simple returns ----------
     if args.vol_int:
-        path = input("Path of ReturnsVolData: ")
+        # path = input("Path of ReturnsVolData: ")
         logging.info(
             'Using volume integrated returns')
         if args.test_set:
@@ -242,7 +242,7 @@ if __name__ == '__main__':
             df_returns = pd.read_pickle(
                 f"{path}")[:4030]
     else:
-        path = input("Path of ReturnsData: ")
+        # path = input("Path of ReturnsData: ")
         logging.info('Using the simple returns')
         if args.test_set:
             logging.info('Using test set')
@@ -283,8 +283,8 @@ if __name__ == '__main__':
             link_fun = 0 # Anyway it is not used
             logging.info('Estimation of constant k')
         # ----------------------------------------
-        path = input("Path of the dis_res file: ")
-        length = int(input('Length of the estimation window for the scores: '))
+        # path = input("Path of the dis_res file: ")/home/ddinosse/
+        # length = int(input('Length of the estimation window for the scores: '))
         # name = input('Name of the dis_res file: ')
         logging.info(f'Length: {length}')
         dis_res = np.load(f"{path}")  # [:, stocks, :]
@@ -328,8 +328,8 @@ if __name__ == '__main__':
     else:
         logging.info('Estimating residual process...')
         time.sleep(0.3)
-        length = int(
-            input('Lenght of the estimation window for the residuals: '))
+        # length = int(
+        #     input('Lenght of the estimation window for the residuals: '))
         processes = [mp.Process(target=generate_data, args=(
             i, 15, 252, length, True)) for i in df]
 
