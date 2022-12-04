@@ -373,24 +373,27 @@ def LM_test_statistic(X, params):
 
 def file_merge(pidnums, file_list):
     '''This function takes the splitted files generated in the scoring.py module because of the multiprocessing implementation and merge them into a single one. '''
+
+    path = input("Path of the saved file: ")
+
     for file in file_list:
         try:
             df_score = [pd.read_pickle(
-                f'/mnt/saved_data/{file}_{i}.pkl') for i in pidnums]
+                f'{path}/{file}_{i}.pkl') for i in pidnums]
             name = input(f'Name for the {file} pkl file: ')
             pd.concat(df_score, ignore_index=True).to_pickle(
                 f'/mnt/saved_data/{name}.pkl')
         except:
             splitted_files = [
-                np.load(f'/mnt/saved_data/{file}_{i}.npy') for i in pidnums]
+                np.load(f'{path}/{file}_{i}.npy') for i in pidnums]
             name = input(f'Name for the {file} npy file: ')
-            np.save(f'/mnt/saved_data/{name}', np.vstack(splitted_files))
+            np.save(f'{path}/{name}', np.vstack(splitted_files))
 
     for file in file_list:
         try:
-            [os.remove(f'/mnt/saved_data/{file}_{i}.pkl') for i in pidnums]
+            [os.remove(f'{path}/{file}_{i}.pkl') for i in pidnums]
         except:
-            [os.remove(f'/mnt/saved_data/{file}_{i}.npy') for i in pidnums]
+            [os.remove(f'{path}/{file}_{i}.npy') for i in pidnums]
 
 
 def sharpe_ratio(pnl, benchmark_pnl, period):

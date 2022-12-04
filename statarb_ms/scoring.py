@@ -24,9 +24,9 @@ from tqdm import tqdm
 
 
 def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_for_residual=60, export=True):
-    '''This function uses an amount of days equal to lookback_for_factors to evaluate the PCA components and an amount equal to lookback_for_residual
-    to evaluate the parameters of the Ornstein-Uhlenbeck process for the residuals. The output is composed by the dataframe of s_score for each stock
-    and the beta factors.
+    '''This function uses an amount of days equal to lookback_for_factors to evaluate the PCA components and then uses them as regressor
+    for stock returns. Once terminated, the function saves the parameters of the regressions (alphas and beta_tensor) and the residuals (res)
+    together with its cumulative sum (dis_res).
 
     Parameters
     ----------
@@ -43,12 +43,7 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
 
     Returns
     -------
-    X : numpy ndarray
-        Discrete version of the Ornstein Uhlenbeck process. This array will be used to estimate s-scores.
-    beta_tensor : numpy ndarray
-        Weights of each of the pca components for each day and each stock. Dimensions are (trading days x n_stocks x n_factors).
-    Q : numpy ndarray
-        Money to invest on each factors for each days. Dimensions are dim (trading days x n_factors x n_components x n_stocks)
+    None
     '''
 
     trading_days = df_returns.shape[0] - lookback_for_factors
@@ -92,20 +87,19 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
 
     if export:
         np.save(
-            f'/mnt/saved_data/beta_tensor_{os.getpid()}', beta_tensor)
-        np.save(f'/mnt/saved_data/alphas_{os.getpid()}', alphas)
-        np.save(f'/mnt/saved_data/Q_{os.getpid()}', Q)
-        np.save(f'/mnt/saved_data/dis_res_{os.getpid()}', dis_res)
-        np.save(f'/mnt/saved_data/res_{os.getpid()}', res)
+            f'tmp1/beta_tensor_{os.getpid()}', beta_tensor)
+        np.save(f'tmp1/alphas_{os.getpid()}', alphas)
+        np.save(f'tmp1/Q_{os.getpid()}', Q)
+        np.save(f'tmp1/dis_res_{os.getpid()}', dis_res)
+        np.save(f'tmp1/res_{os.getpid()}', res)
 
 
-def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_factors, lookback_for_residual, targeting_estimation=False):
+def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_factors, lookback_for_residual):
+    ''' This function uses an amount equal to lookback_for_residual to evaluate the parameters of the Ornstein-Uhlenbeck process for the residuals
+     and then compute the s-scores.
+    '''
 
-    if targeting_estimation:
-        num_par = 3
-    else:
-        num_par = 4
-
+    num_par = 4
     trading_days = df_returns.shape[0] - lookback_for_factors
     n_stocks = df_returns.shape[1]
     score = np.zeros(shape=(trading_days, n_stocks))
@@ -126,8 +120,8 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
-    for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
-        for stock in df_returns.columns:
+    for i in tqdm(range(2), desc=f'{os.getpid()}'):
+        for stock in df_returns.columns[:1]:
             stock_idx = df_returns.columns.get_loc(stock)
             X = dis_res[i, stock_idx, :]
 
@@ -178,35 +172,29 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
                     m = a / (1 - b)
                     sgm_eq[i, stock_idx] = np.std(xi) * np.sqrt(1 / (1 - b**2))
                     score[i, stock_idx] = -m / sgm_eq[i, stock_idx]
-    try:
-        telegram_send.send(messages=[f'Total number of estimation for process {os.getpid()}: {n_stocks * trading_days}', f'Number of negative b values for process {os.getpid()}: {c}',
-                           f'Number of stock with speed of mean reversion refused for process {os.getpid()}: {ccc}', f'Number of zero b for process {os.getpid()}: {cc}'])
-    except Exception:
-        logging.warning(
-            'Unable to send info to Telegram bot, probably due to no internet connection')
-        messages = [f'Total number of estimation for process {os.getpid()}: {n_stocks * trading_days}', f'Number of negative b values for process {os.getpid()}: {c}',
-                    f'Number of stock with speed of mean reversion refused for process {os.getpid()}: {ccc}', f'Number of zero b for process {os.getpid()}: {cc}']
-        logging.info(messages)
+
+    logging.info(f'Total number of estimation for process {os.getpid()}: {n_stocks * trading_days}', f'Number of negative b values for process {os.getpid()}: {c}',
+                 f'Number of stock with speed of mean reversion refused for process {os.getpid()}: {ccc}', f'Number of zero b for process {os.getpid()}: {cc}')
 
     df_score = pd.DataFrame(score, columns=df_returns.columns)
 
     if method == 'gas_modelization':
-        logging.info('Saving files...')
-        df_score.to_pickle(f'/mnt/saved_data/df_score_gas_{os.getpid()}.pkl')
-        np.save(f'/mnt/saved_data/estimates_gas_{os.getpid()}', estimates)
-        np.save(f'/mnt/saved_data/bs_{os.getpid()}', bs)
-        np.save(f'/mnt/saved_data/sgm_eq_gas_{os.getpid()}', sgm_eq)
-        np.save(f'/mnt/saved_data/kappas_gas_{os.getpid()}', kappas)
-        np.save(f'/mnt/saved_data/AR_res_gas_{os.getpid()}', AR_res_gas)
+        path = input('Where do you want to save the output files?: ')
+        df_score.to_pickle(f'{path}/df_score_gas_{os.getpid()}.pkl')
+        np.save(f'{path}/estimates_gas_{os.getpid()}', estimates)
+        np.save(f'{path}/bs_{os.getpid()}', bs)
+        np.save(f'{path}/sgm_eq_gas_{os.getpid()}', sgm_eq)
+        np.save(f'{path}/kappas_gas_{os.getpid()}', kappas)
+        np.save(f'{path}/AR_res_gas_{os.getpid()}', AR_res_gas)
 
     if method == 'constant_speed':
-        logging.info('Saving files...')
+        path = input('Where do you want to save the output files?: ')
         df_score.to_pickle(f'/mnt/saved_data/df_score_{os.getpid()}.pkl')
-        np.save(f'/mnt/saved_data/r2_{os.getpid()}', r2)
-        np.save(f'/mnt/saved_data/const_AR_par_{os.getpid()}', const_AR_par)
-        np.save(f'/mnt/saved_data/sgm_eq_{os.getpid()}', sgm_eq)
-        np.save(f'/mnt/saved_data/AR_res_{os.getpid()}', AR_res)
-        np.save(f'/mnt/saved_data/kappas_{os.getpid()}', kappas)
+        np.save(f'{path}/r2_{os.getpid()}', r2)
+        np.save(f'{path}/const_AR_par_{os.getpid()}', const_AR_par)
+        np.save(f'{path}/sgm_eq_{os.getpid()}', sgm_eq)
+        np.save(f'{path}/AR_res_{os.getpid()}', AR_res)
+        np.save(f'{path}/kappas_{os.getpid()}', kappas)
 
 
 if __name__ == '__main__':
@@ -238,76 +226,79 @@ if __name__ == '__main__':
     start = time.time()
     np.random.seed()
 
-    if args.gas == True:
-        method = 'gas_modelization'
 
-        if args.link_fun == 0:
-            link_fun = 'identity'
-        if args.link_fun == 1:
-            link_fun = 'logistic'
-        if args.link_fun == 2:
-            link_fun = 'identity_student'
 
-    else:
-        method = 'constant_speed'
-
+# ---------- Volume integrated returns or simple returns ----------
     if args.vol_int:
+        path = input("Path of ReturnsVolData: ")
         logging.info(
-            'I am computing scores from the volume integrated returns')
-
+            'Using volume integrated returns')
         if args.test_set:
             logging.info('Using test set')
             df_returns = pd.read_pickle(
-                "/mnt/saved_data/returns/ReturnsVolData.pkl")[4029:]
+                f"{path}")[4029:]
         else:
+            logging.info('Using validation set')
             df_returns = pd.read_pickle(
-                "/mnt/saved_data/returns/ReturnsVolData.pkl")[:4030]
-            # stocks = np.random.randint(0, df_returns.shape[1], size=10)
-            # print(f'{df_returns.columns[stocks]}')
-            stocks = ['ORLY', 'JCI', 'WHR', 'NUE',
-                      'LHX', 'ABMD', 'BDX', 'D', 'SWN', 'WMB']
-            df_returns = df_returns[stocks]
-
+                f"{path}")[:4030]
     else:
-        logging.info('I am computing scores from the simple returns')
-
+        path = input("Path of ReturnsData: ")
+        logging.info('Using the simple returns')
         if args.test_set:
             logging.info('Using test set')
             df_returns = pd.read_pickle(
-                "/mnt/saved_data/returns/ReturnsData.pkl")[4029:]
+                f"{path}")[4029:]
         else:
+            logging.info('Using validation set')
             df_returns = pd.read_pickle(
-                "/mnt/saved_data/returns/ReturnsData.pkl")[:4030]
+                f"{path}")[:4030]
+# ------------------------------------------------------------
 
+# ---------- Split validation test or test test for multiprocessing ----------
     if args.test_set:
         df = [df_returns[:565], df_returns[313:879], df_returns[627:1193], df_returns[941:1507],
               df_returns[1255:1821], df_returns[1569:2135], df_returns[1883:2449], df_returns[2197:]]
     else:
         df = [df_returns[:750], df_returns[498:1249], df_returns[997:1748], df_returns[1496:2247],
               df_returns[1995:2746], df_returns[2494:3245], df_returns[2993:3744], df_returns[3492:]]
+# ----------------------------------------------------------------------------
 
+
+# ================ COMPUTE ONLY THE SCORES, provided that residuals are already computed ================
     if args.scoring:
         logging.info('Computing the s-scores...')
-        time.sleep(0.3)
+        # ---------- constant k or gas k ----------
+        if args.gas == True:
+            method = 'gas_modelization'
+            logging.info('Estimation of k via GAS')
+
+            if args.link_fun == 0:
+                link_fun = 'identity'
+            if args.link_fun == 1:
+                link_fun = 'logistic'
+            if args.link_fun == 2:
+                link_fun = 'identity_student'
+        else:
+            method = 'constant_speed'
+            link_fun = 0 # Anyway it is not used
+            logging.info('Estimation of constant k')
+        # ----------------------------------------
+        path = input("Path of the dis_res file: ")
         length = int(input('Length of the estimation window for the scores: '))
-        name = input('Name of the dis_res file: ')
-        logging.info(f'{name}, {length}')
-        dis_res = np.load(f"/mnt/saved_data/dis_res/{name}.npy")#[:, stocks, :]
+        # name = input('Name of the dis_res file: ')
+        logging.info(f'Length: {length}')
+        dis_res = np.load(f"{path}")  # [:, stocks, :]
 
-        try:
-            telegram_send.send(
-                messages=[f'========== Start Scoring, Length: {length}, {time.asctime()} =========='])
-        except Exception:
-            logging.warning(
-                'Unable to send infos to Telegram bot, probably due to no internet connection')
-
+# ---------- Validation set or test set ----------
         if args.test_set:
             dr = [dis_res[:565, :, :], dis_res[313:879, :, :], dis_res[627:1193, :, :], dis_res[941:1507, :, :],
                   dis_res[1255:1821, :, :], dis_res[1569:2135, :, :], dis_res[1883:2449, :, :], dis_res[2197:, :, :]]
         else:
             dr = [dis_res[:750, :, :], dis_res[498:1249, :, :], dis_res[997:1748, :, :], dis_res[1496:2247, :, :],
                   dis_res[1995:2746, :, :], dis_res[2494:3245, :, :], dis_res[2993:3744, :, :], dis_res[3492:, :, :]]
+# --------------------------------------------------
 
+# ---------- Creation and initialization of the processes ----------
         processes = [mp.Process(target=only_scoring, args=(
             i, j, method, link_fun, args.n_iter, 252, length)) for i, j in zip(dr, df)]
 
@@ -333,13 +324,7 @@ if __name__ == '__main__':
         file_merge(pidnums, file_list)
         os.system('rm tmp/*')
 
-        try:
-            telegram_send.send(
-                messages=[f'============= End Scoring for {length} =============='])
-        except Exception:
-            print(
-                'Unable to send infos to Telegram bot, probably due to no internet connection')
-
+# ==================== COMPUTE ONLY THE RESIDUALS ====================
     else:
         logging.info('Estimating residual process...')
         time.sleep(0.3)
@@ -347,13 +332,6 @@ if __name__ == '__main__':
             input('Lenght of the estimation window for the residuals: '))
         processes = [mp.Process(target=generate_data, args=(
             i, 15, 252, length, True)) for i in df]
-
-        try:
-            telegram_send.send(
-                messages=[f'==========  Start Residuals, Length: {length}, {time.asctime()} =========='])
-        except Exception:
-            logging.warning(
-                'Unable to send infos to Telegram bot, probably due to no internet connection')
 
         os.system('rm tmp/*')
         for p in processes:
@@ -371,13 +349,6 @@ if __name__ == '__main__':
         file_merge(pidnums, file_list)
         os.system('rm tmp/*')
 
-        try:
-            telegram_send.send(
-                messages=[f'============= End Residuals for {length} =============='])
-        except Exception:
-            print(
-                'Unable to send infos to Telegram bot, probably due to no internet connection')
-
     time_elapsed = (end - start)
-    logging.info('Time required for generate s-scores: %.2f seconds' %
+    logging.info('Time required: %.2f seconds' %
                  time_elapsed)
