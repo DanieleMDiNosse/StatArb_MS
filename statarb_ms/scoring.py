@@ -23,7 +23,7 @@ from statsmodels.tsa.stattools import adfuller
 from tqdm import tqdm
 
 
-def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_for_residual=60, export=True):
+def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_for_residual=60, export=True, path='/mnt/hdd/saved_data'):
     '''This function uses an amount of days equal to lookback_for_factors to evaluate the PCA components and then uses them as regressor
     for stock returns. Once terminated, the function saves the parameters of the regressions (alphas and beta_tensor) and the residuals (res)
     together with its cumulative sum (dis_res).
@@ -57,7 +57,7 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
-    for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
+    for i in tqdm(range(2), desc=f'{os.getpid()}'):
         # Una finestra temporale di 252 giorni è traslata di 1 giorno. Ogni volta viene eseguita una PCA su tale periodo
         # ed i fattori di rischio sono quindi valutati.
         # [0,252[, [1,253[ ecc -> ogni period comprende un anno di trading (252 giorni)
@@ -68,7 +68,7 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
         # ritorni dei fattori di rischio per ogni periodo
         factors = risk_factors(period, Q[i], eigenvectors)
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
-        for stock in df_returns.columns:
+        for stock in df_returns.columns[:2]:
 
             stock_idx = df_returns.columns.get_loc(stock)
             beta0, betas, conf_inter, residuals, pred, _ = regression(
@@ -87,14 +87,14 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
 
     if export:
         np.save(
-            f'saved_data/beta_tensor_{os.getpid()}', beta_tensor)
-        np.save(f'saved_data/alphas_{os.getpid()}', alphas)
-        np.save(f'saved_data/Q_{os.getpid()}', Q)
-        np.save(f'saved_data/dis_res_{os.getpid()}', dis_res)
-        np.save(f'saved_data/res_{os.getpid()}', res)
+            f'{path}/beta_tensor_{os.getpid()}', beta_tensor)
+        np.save(f'{path}/alphas_{os.getpid()}', alphas)
+        np.save(f'{path}/Q_{os.getpid()}', Q)
+        np.save(f'{path}/dis_res_{os.getpid()}', dis_res)
+        np.save(f'{path}/res_{os.getpid()}', res)
 
 
-def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_factors, lookback_for_residual):
+def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_factors, lookback_for_residual, path):
     ''' This function uses an amount equal to lookback_for_residual to evaluate the parameters of the Ornstein-Uhlenbeck process for the residuals
      and then compute the s-scores.
     '''
@@ -179,20 +179,20 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
     df_score = pd.DataFrame(score, columns=df_returns.columns)
 
     if method == 'gas_modelization':
-        df_score.to_pickle(f'/home/ddinosse/saved_data/df_score_gas_{os.getpid()}.pkl')
-        np.save(f'/home/ddinosse/saved_data/estimates_gas_{os.getpid()}', estimates)
-        np.save(f'/home/ddinosse/saved_data/bs_{os.getpid()}', bs)
-        np.save(f'/home/ddinosse/saved_data/sgm_eq_gas_{os.getpid()}', sgm_eq)
-        np.save(f'/home/ddinosse/saved_data/kappas_gas_{os.getpid()}', kappas)
-        np.save(f'/home/ddinosse/saved_data/AR_res_gas_{os.getpid()}', AR_res_gas)
+        df_score.to_pickle(f'{path}/df_score_gas_{os.getpid()}.pkl')
+        np.save(f'{path}/estimates_gas_{os.getpid()}', estimates)
+        np.save(f'{path}/bs_{os.getpid()}', bs)
+        np.save(f'{path}/sgm_eq_gas_{os.getpid()}', sgm_eq)
+        np.save(f'{path}/kappas_gas_{os.getpid()}', kappas)
+        np.save(f'{path}/AR_res_gas_{os.getpid()}', AR_res_gas)
 
     if method == 'constant_speed':
-        df_score.to_pickle(f'/home/ddinosse/saved_data/df_score_{os.getpid()}.pkl')
-        np.save(f'/home/ddinosse/saved_data/r2_{os.getpid()}', r2)
-        np.save(f'/home/ddinosse/saved_data/const_AR_par_{os.getpid()}', const_AR_par)
-        np.save(f'/home/ddinosse/saved_data/sgm_eq_{os.getpid()}', sgm_eq)
-        np.save(f'/home/ddinosse/saved_data/AR_res_{os.getpid()}', AR_res)
-        np.save(f'/home/ddinosse/saved_data/kappas_{os.getpid()}', kappas)
+        df_score.to_pickle(f'{path}/df_score_{os.getpid()}.pkl')
+        np.save(f'{path}/r2_{os.getpid()}', r2)
+        np.save(f'{path}/const_AR_par_{os.getpid()}', const_AR_par)
+        np.save(f'{path}/sgm_eq_{os.getpid()}', sgm_eq)
+        np.save(f'{path}/AR_res_{os.getpid()}', AR_res)
+        np.save(f'{path}/kappas_{os.getpid()}', kappas)
 
 
 if __name__ == '__main__':
@@ -211,6 +211,7 @@ if __name__ == '__main__':
                         help='Use test set with the hyperparameters tuned on the validation set')
     parser.add_argument("-nit", "--n_iter", type=int,
                         help='Number of Nelder-Mead optimization (minus 1) before the final BFGS optimization.', default=2)
+    parser.add_argument("-sr", "--server", action="store_true", help="If passed, use paths for running the code on the SNS server")
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -224,8 +225,10 @@ if __name__ == '__main__':
     start = time.time()
     np.random.seed()
 
-    path = '/home/ddinosse/saved_data'
-    length = 70
+    if args.server:
+        path = '/home/ddinosse/saved_data'
+    else:
+        path = '/mnt/hdd/saved_data'
 
 
 # ---------- Volume integrated returns or simple returns ----------
@@ -236,22 +239,22 @@ if __name__ == '__main__':
         if args.test_set:
             logging.info('Using test set')
             df_returns = pd.read_pickle(
-                f"{path}")[4029:]
+                f"{path}/returns/ReturnsVolData.pkl")[4029:]
         else:
             logging.info('Using validation set')
             df_returns = pd.read_pickle(
-                f"{path}")[:4030]
+                f"{path}/returns/ReturnsVolData.pkl")[:4030]
     else:
         # path = input("Path of ReturnsData: ")
         logging.info('Using the simple returns')
         if args.test_set:
             logging.info('Using test set')
             df_returns = pd.read_pickle(
-                f"{path}")[4029:]
+                f"{path}/returns/ReturnsData.pkl")[4029:]
         else:
             logging.info('Using validation set')
             df_returns = pd.read_pickle(
-                f"{path}")[:4030]
+                f"{path}/returns/ReturnsData.pkl")[:4030]
 # ------------------------------------------------------------
 
 # ---------- Split validation test or test test for multiprocessing ----------
@@ -284,10 +287,10 @@ if __name__ == '__main__':
             logging.info('Estimation of constant k')
         # ----------------------------------------
         # path = input("Path of the dis_res file: ")/home/ddinosse/
-        # length = int(input('Length of the estimation window for the scores: '))
+        length = int(input('Length of the estimation window for the scores: '))
         # name = input('Name of the dis_res file: ')
         logging.info(f'Length: {length}')
-        dis_res = np.load(f"{path}")  # [:, stocks, :]
+        dis_res = np.load(f"{path}/dis_res/dis_res{length}.npy")  # [:, stocks, :]
 
 # ---------- Validation set or test set ----------
         if args.test_set:
@@ -300,7 +303,7 @@ if __name__ == '__main__':
 
 # ---------- Creation and initialization of the processes ----------
         processes = [mp.Process(target=only_scoring, args=(
-            i, j, method, link_fun, args.n_iter, 252, length)) for i, j in zip(dr, df)]
+            i, j, method, link_fun, args.n_iter, 252, length, path)) for i, j in zip(dr, df)]
 
         os.system('rm tmp/*')
         for p in processes:
@@ -321,17 +324,17 @@ if __name__ == '__main__':
                          'const_AR_par', 'r2', 'df_score']
 
         logging.info('Merging files, then remove splitted ones...')
-        file_merge(pidnums, file_list)
+        file_merge(pidnums, file_list, path)
         os.system('rm tmp/*')
 
 # ==================== COMPUTE ONLY THE RESIDUALS ====================
     else:
         logging.info('Estimating residual process...')
         time.sleep(0.3)
-        # length = int(
-        #     input('Lenght of the estimation window for the residuals: '))
+        length = int(
+            input('Lenght of the estimation window for the residuals: '))
         processes = [mp.Process(target=generate_data, args=(
-            i, 15, 252, length, True)) for i in df]
+            i, 15, 252, length, True, path)) for i in df]
 
         os.system('rm tmp/*')
         for p in processes:
@@ -346,7 +349,7 @@ if __name__ == '__main__':
         file_list = ['res', 'dis_res', 'beta_tensor', 'alphas', 'Q']
 
         logging.info('Merging files, then remove splitted ones...')
-        file_merge(pidnums, file_list)
+        file_merge(pidnums, file_list, path)
         os.system('rm tmp/*')
 
     time_elapsed = (end - start)

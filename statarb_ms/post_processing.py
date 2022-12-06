@@ -371,11 +371,8 @@ def LM_test_statistic(X, params):
     return pvalue
 
 
-def file_merge(pidnums, file_list):
+def file_merge(pidnums, file_list, path):
     '''This function takes the splitted files generated in the scoring.py module because of the multiprocessing implementation and merge them into a single one. '''
-
-    # path = input("Path of the saved file: ")
-    path = '/home/ddinosse/saved_data'
 
     for file in file_list:
         try:
