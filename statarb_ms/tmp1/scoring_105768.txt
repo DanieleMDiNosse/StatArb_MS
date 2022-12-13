@@ -1,0 +1,10 @@
+Thu Dec  8 18:45:54 2022 -> 5.02 % 
+Fri Dec  9 02:27:50 2022 -> 15.06 % 
+Fri Dec  9 14:00:14 2022 -> 30.12 % 
+Sat Dec 10 05:20:37 2022 -> 50.20 % 
+Sat Dec 10 22:59:25 2022 -> 75.30 % 
+
+ Total number of estimation: 177288 
+ Negative b: 0 
+ k refused: 10477 
+ Zero b: 9053

@@ -47,17 +47,26 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
     '''
 
     trading_days = df_returns.shape[0] - lookback_for_factors
+    # trading_days = 10
     n_stocks = df_returns.shape[1]
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     alphas = np.zeros(shape=(trading_days, n_stocks))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
     dis_res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
     res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
+    counter_step, N = 0, 1
 
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
-    for i in tqdm(range(2), desc=f'{os.getpid()}'):
+    for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
+
+        if counter_step >= trading_days/20*N:
+            counter_step = 0
+            N += 1
+            with open(f'tmp1/generate_data_{os.getpid()}.txt', 'a', encoding='utf-8') as file:
+                file.write(f'{time.asctime()} -> {i/trading_days * 100:.2f} % \n')
+
         # Una finestra temporale di 252 giorni è traslata di 1 giorno. Ogni volta viene eseguita una PCA su tale periodo
         # ed i fattori di rischio sono quindi valutati.
         # [0,252[, [1,253[ ecc -> ogni period comprende un anno di trading (252 giorni)
@@ -68,7 +77,7 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
         # ritorni dei fattori di rischio per ogni periodo
         factors = risk_factors(period, Q[i], eigenvectors)
         # Ottenuti i fattori di rischio si procede con la stima del processo dei residui per ogni compagnia.
-        for stock in df_returns.columns[:2]:
+        for stock in df_returns.columns:
 
             stock_idx = df_returns.columns.get_loc(stock)
             beta0, betas, conf_inter, residuals, pred, _ = regression(
@@ -84,6 +93,8 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
             res[i, stock_idx, :] = residuals
             X = np.cumsum(residuals)
             dis_res[i, stock_idx, :] = X
+
+            counter_step += 1
 
     if export:
         np.save(
@@ -102,6 +113,7 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
     num_par = 4
     targeting_estimation = False
     trading_days = df_returns.shape[0] - lookback_for_factors
+    # trading_days = 10
     n_stocks = df_returns.shape[1]
     score = np.zeros(shape=(trading_days, n_stocks))
     estimates = np.zeros(shape=(trading_days, n_stocks, num_par + 1))
@@ -116,13 +128,22 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
 
     # I initialize some counters.
     c, cc, ccc = 0, 0, 0
+    counter_step, N = 0, 1
 
     # I create some empty file named as the process PID, in order to use them to merge all the files (via file_merge function) that the different processes will create.
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
-    for i in tqdm(range(2), desc=f'{os.getpid()}'):
-        for stock in df_returns.columns[:1]:
+    for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
+
+        if counter_step >= trading_days/20*N:
+            counter_step = 0
+            N += 1
+            with open(f'tmp1/scoring_{os.getpid()}.txt', 'a', encoding='utf-8') as file:
+                file.write(f'{time.asctime()} -> {i/trading_days * 100:.2f} % \n')
+        counter_step += 1
+
+        for stock in df_returns.columns:
             stock_idx = df_returns.columns.get_loc(stock)
             X = dis_res[i, stock_idx, :]
 
@@ -173,6 +194,8 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
                     sgm_eq[i, stock_idx] = np.std(xi) * np.sqrt(1 / (1 - b**2))
                     score[i, stock_idx] = -m / sgm_eq[i, stock_idx]
 
+    with open(f'tmp1/scoring_{os.getpid()}.txt', 'a', encoding='utf-8') as file:
+        file.write(f'\n Total number of estimation: {n_stocks*trading_days} \n Negative b: {c} \n k refused: {ccc} \n Zero b: {cc}')
     # logging.info(f'Total number of estimation for process {os.getpid()}: {n_stocks * trading_days}', f'Number of negative b values for process {os.getpid()}: {c}',
     #              f'Number of stock with speed of mean reversion refused for process {os.getpid()}: {ccc}', f'Number of zero b for process {os.getpid()}: {cc}')
 
@@ -281,6 +304,8 @@ if __name__ == '__main__':
                 link_fun = 'logistic'
             if args.link_fun == 2:
                 link_fun = 'identity_student'
+
+            logging.info(f'Link function: {link_fun}')
         else:
             method = 'constant_speed'
             link_fun = 0 # Anyway it is not used
@@ -329,7 +354,7 @@ if __name__ == '__main__':
 
 # ==================== COMPUTE ONLY THE RESIDUALS ====================
     else:
-        logging.info('Estimating residual process...')
+        logging.info('Estimating residual process')
         time.sleep(0.3)
         length = int(
             input('Lenght of the estimation window for the residuals: '))

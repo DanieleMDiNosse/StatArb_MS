@@ -146,11 +146,11 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
          invest_amount[day]))).sum() * epsilon
 
         PnL[day + 1] = PnL[day] + daily_PnL[day, :].sum() - fees[day]
-        if (day > 790) and (day < 795):
-            print(day)
-            print('PnL', PnL[day])
-            print('daily_PnL', daily_PnL[day, :].sum())
-            print('fees', fees[day])
+        # if (day > 790) and (day < 795):
+        #     print(day)
+        #     print('PnL', PnL[day])
+        #     print('daily_PnL', daily_PnL[day, :].sum())
+        #     print('fees', fees[day])
 
     return PnL, perc_positions, fees
 
@@ -194,17 +194,24 @@ def grid_search(hyperparameters, score_data):
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
+    i = 0
+
     for hyper in hyperparameters:
+
+        i += 1
+        with open(f'tmp1/grid_search_{os.getpid()}.txt', 'a', encoding='utf-8') as file:
+            file.write(f'{time.asctime()} -> {i/len(hyperparameters) * 100:.2f} % \n')
+
         idx = hyperparameters.index(hyper)
         s_bo, s_so, s_bc, s_sc = hyper
-        pnl, perc_positions, fact_cont, stock_cont, fees = trading(
+        pnl, perc_positions, fees = trading(
             df_returns, df_score, Q, beta_tensor, s_bo=hyper[0], s_so=hyper[1], s_bc=hyper[2], s_sc=hyper[3], lookback_for_residual=length)
-        spy = np.load('/mnt/hdd/saved_data/PnL/pnl_firstcomp.npy')[:pnl.shape[0]]
+        spy = np.load(f'{path}/PnL/pnl_firstcomp.npy')[:pnl.shape[0]]
         s_ratio = sharpe_ratio(pnl, spy, period=pnl.shape[0])[0]
         print(s_ratio)
         results['Hyperparameters'][idx] = hyper
         results['SharpeRatio'][idx] = s_ratio
-    results.to_pickle(f'/mnt/hdd/saved_data/gridsearch_{os.getpid()}.pkl')
+    results.to_pickle(f'{path}/gridsearch_{os.getpid()}.pkl')
 
     return results
 
@@ -223,6 +230,7 @@ if __name__ == '__main__':
                         help='Use optimized thresholds for the GAS case.')
     parser.add_argument('-t', '--test_set', action='store_true',
                         help='Use test set with the hyperparameters tuned on the validation set.')
+    parser.add_argument("-sr", "--server", action="store_true", help="If passed, use paths for running the code on the SNS server")
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -233,6 +241,11 @@ if __name__ == '__main__':
     logging.basicConfig(level=levels[args.log])
 
     start = time.time()
+
+    if args.server:
+        path = '/home/ddinosse/saved_data'
+    else:
+        path = '/mnt/hdd/saved_data'
 
     if args.vol_int:
         # Le quantità Q, beta_tensor e df_score sono state generate tramite il dataframe pesato con i volumi. Il primo valore di tale dataframe utilizza le informazioni dei ritorni semplici indicizzati da 9 e le informazioni dei volumi relativi al 10° giorno. Il 9° valore del dataframe dei ritorni corrisponde alla quantità (R(10) - R(9)) / R(9), quindi al ritorno che leggo a chiusura del 10° giorno. A tale chiusura leggo anche il valore del volume al 10° giorno.
@@ -249,7 +262,10 @@ if __name__ == '__main__':
         name = input('Name of the s-score data file: ')
 
         if length == 50:
-            s_bo, s_so, s_bc, s_sc = 1.20, 1.30, 0.55, 0.75
+            if args.gas:
+                s_bo, s_so, s_bc, s_sc = 1.30, 1.25, 0.75, 0.65
+            else:
+                s_bo, s_so, s_bc, s_sc = 1.20, 1.30, 0.55, 0.75
 
         elif length == 60:
             s_bo, s_so, s_bc, s_sc = 1.20, 1.15, 0.80, 0.65
@@ -277,37 +293,37 @@ if __name__ == '__main__':
 
         if args.test_set:
             df_returns = pd.read_pickle(
-                "/mnt/hdd/saved_data/returns/ReturnsData.pkl")[4029 + 9:]
+                f"{path}/returns/ReturnsData.pkl")[4029 + 9:]
             # This dataframe has shape ReturnsData.shape[0] - 10
             df_returns.index = range(df_returns.shape[0])
-            Q = np.load('/mnt/hdd/saved_data/Qs/Q_volint_test.npy')
+            Q = np.load(f'{path}/Qs/Q_volint_test.npy')
             beta_tensor = np.load(
-                f'/mnt/hdd/saved_data/betas/beta_tensor{length}_volint_test.npy')
-            df_score = pd.read_pickle(f'/mnt/hdd/saved_data/scores/{name}.pkl')
+                f'{path}/betas/beta_tensor{length}_volint_test.npy')
+            df_score = pd.read_pickle(f'{path}/scores/{name}.pkl')
             df_score.index = range(df_score.shape[0])
         else:
             df_returns = pd.read_pickle(
-                "/mnt/hdd/saved_data/returns/ReturnsData.pkl")[9:]
+                f"{path}/returns/ReturnsData.pkl")[9:]
             # This dataframe has shape ReturnsData.shape[0] - 10
             df_returns.index = range(df_returns.shape[0])
-            Q = np.load('/mnt/hdd/saved_data/Qs/Q_volint.npy')[:-10, :, :]
+            Q = np.load(f'{path}/Qs/Q_volint.npy')[:-10, :, :]
             beta_tensor = np.load(
-                f'/mnt/hdd/saved_data/betas/beta_tensor{length}_volint.npy')[:-10, :, :]
+                f'{path}/betas/beta_tensor{length}_volint.npy')[:-10, :, :]
             df_score = pd.read_pickle(
-                f'/mnt/hdd/saved_data/scores/{name}.pkl')[:-10]
+                f'{path}/scores/{name}.pkl')[:-10]
             df_score.index = range(df_score.shape[0])
 
     else:
         logging.info('I am using scores obtained from simple returns')
         time.sleep(0.3)
         df_returns = pd.read_pickle(
-            "/mnt/hdd/saved_data/returns/ReturnsData.pkl")[:4030]
-        Q = np.load('/mnt/hdd/saved_data/Qs/Q.npy')
+            f"{path}/returns/ReturnsData.pkl")[:4030]
+        Q = np.load(f'{path}/Qs/Q.npy')
         length = int(
             input('Lenght of estimation window for AR(1) parameters: '))
         name = input('Name of the s-score data file: ')
-        beta_tensor = np.load(f'/mnt/hdd/saved_data/betas/beta_tensor{length}.npy')
-        df_score = pd.read_pickle(f'/mnt/hdd/saved_data/scores/{name}.pkl')
+        beta_tensor = np.load(f'{path}/betas/beta_tensor{length}.npy')
+        df_score = pd.read_pickle(f'{path}/scores/{name}.pkl')
 
         if length == 50:
             s_bo, s_so, s_bc, s_sc = 1.10, 1.15, 0.75, 0.8
@@ -346,18 +362,16 @@ if __name__ == '__main__':
             p.join()
         end = time.time()
 
-        telegram_send.send(messages=[f'GridSearch on {name} terminated'])
-
         pidnums = [int(x) for x in os.listdir('tmp')]
         pidnums.sort()
         logging.info('Merging files, then remove the splitted ones...')
-        file_merge(pidnums, ['gridsearch'])
+        file_merge(pidnums, ['gridsearch'], path)
         os.system('rm tmp/*')
 
-        gs = pd.read_pickle(f'/mnt/hdd/saved_data/gridsearch_{name}.pkl')
+        gs = pd.read_pickle(f'{path}/gridsearch/gridsearch_{name}.pkl')
         idxs = np.where(gs.values[:, 1] == gs['SharpeRatio'].max())
         gs = gs.iloc[idxs]
-        gs.to_pickle(f'/mnt/hdd/saved_data/gridsearch_{name}.pkl')
+        gs.to_pickle(f'{path}/gridsearch/gridsearch_{name}.pkl')
         exit()
 
     if args.spy:
@@ -365,15 +379,15 @@ if __name__ == '__main__':
         time.sleep(0.3)
         spy_pnl = spy_trading(df_returns, Q)
         name = input('Name of the file that will be saved (spy): ')
-        np.save(f'/mnt/hdd/saved_data/PnL/{name}', spy_pnl)
+        np.save(f'{path}/PnL/{name}', spy_pnl)
 
     else:
         pnl, perc_positions, fees = trading(
             df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookback_for_residual=length)
-        name = input('Name of the file that will be saved (strategy): ')
-        path = input('Path of the file that will be saved (strategy): ')
-        np.save(f'{path}{name}', pnl)
-        np.save(f'{path}{name}_fees', fees)
+        name = input('Name of the file that will be saved (PnL): ')
+        # path = input('Path of the file that will be saved (PnL): ')
+        np.save(f'{path}/PnL/{name}', pnl)
+        np.save(f'{path}/PnL/{name}_fees', fees)
         # name = input('Name of the file that will be saved (positions percentage): ')
         # np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
 
