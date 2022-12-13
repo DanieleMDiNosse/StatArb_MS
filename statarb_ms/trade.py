@@ -229,7 +229,10 @@ if __name__ == '__main__':
         name = input('Name of the s-score data file: ')
 
         if length == 50:
-            s_bo, s_so, s_bc, s_sc = 1.20, 1.30, 0.55, 0.75
+            if args.gas:
+                s_bo, s_so, s_bc, s_sc = 1.30, 1.25, 0.75, 0.65
+            else:
+                s_bo, s_so, s_bc, s_sc = 1.20, 1.30, 0.55, 0.75
 
         elif length == 60:
             s_bo, s_so, s_bc, s_sc = 1.20, 1.15, 0.80, 0.65
