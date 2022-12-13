@@ -352,8 +352,8 @@ if __name__ == '__main__':
             df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookback_for_residual=length)
         name = input('Name of the file that will be saved (strategy): ')
         path = input('Path of the file that will be saved (strategy): ')
-        np.save(f'{path}{name}', pnl)
-        np.save(f'{path}{name}_fees', fees)
+        np.save(f'{path}/{name}', pnl)
+        np.save(f'{path}/{name}_fees', fees)
         # name = input('Name of the file that will be saved (positions percentage): ')
         # np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
 
