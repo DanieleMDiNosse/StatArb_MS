@@ -60,20 +60,15 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
     for day in tqdm(range(df_score.shape[0] - 1)):
         counter_no_trades = 0
 
-        # idx_positions_long = np.array(df_score.iloc[0].index[df_score.iloc[0] < -s_bo])
-        # idx_positions_short = np.array(df_score.iloc[0].index[df_score.iloc[0] < s_so])
-        # idx_positions = np.append(idx_positions_long, idx_positions_short)
-
         # Select all the indexes of stocks that trigger a long+short position on day=day except for the
         # ones already opened (--> all the indexes of NEW positions)
-        opened_long = np.argwhere(state == 'l')[:, 0] # indexes long positions opened
-        opened_short = np.argwhere(state == 's')[:, 0] # indexes short positions opened
-
-        idx_positions_long = np.argwhere(np.array(df_score.iloc[day] < -s_bo))[:, 0] # new triggered scores for long
+        opened_long = np.argwhere(state == 'l')[:, 0] # indexes long positions already opened
+        opened_short = np.argwhere(state == 's')[:, 0] # indexes short positions already opened
+        idx_positions_long = np.argwhere(np.array(df_score.iloc[day] < -s_bo))[:, 0] # all triggered scores for long
         idx_positions_long = list(set(idx_positions_long).difference(opened_long)) # remove the already opened long positions
         idx_positions_short = np.argwhere(np.array(df_score.iloc[day] > s_so))[:, 0]
         idx_positions_short = list(set(idx_positions_short).difference(opened_short))
-        idx_positions = np.append(idx_positions_long, idx_positions_short).astype('int32')
+        idx_positions = np.append(idx_positions_long, idx_positions_short).astype('int32') # Indexes of all new positions
 
         # Somma di tutti i coefficienti beta relativi alle stesse componenti lungo i fattori di rischio
         # Sto quindi considerando sempre la stessa componente v_ijt che però è moltiplicata di volta in volta
@@ -92,7 +87,7 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
                 k = PnL[day] * fraction / (1 + (np.dot(Q[day, :, stock_idx], beta_tensor_sum[day])))
                 daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(
                     beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
-                invest_amount[day + 1] = np.dot(
+                invest_amount[day + 1] += np.dot(
                     beta_tensor[day, stock_idx, :], Q[day, :, stock_idx])
                 continue
 
@@ -108,7 +103,7 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
                 k = PnL[day] * fraction / (1 + (np.dot(Q[day, :, stock_idx], beta_tensor_sum[day])))
                 daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(
                     beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
-                invest_amount[day + 1] = np.dot(
+                invest_amount[day + 1] += np.dot(
                     beta_tensor[day, stock_idx, :], Q[day, :, stock_idx])
                 continue
 
