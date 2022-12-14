@@ -23,7 +23,7 @@ from statsmodels.tsa.stattools import adfuller
 from tqdm import tqdm
 
 
-def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_for_residual=60, export=True, path='/mnt/hdd/saved_data'):
+def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_for_residual=60, path='/mnt/hdd/saved_data'):
     '''This function uses an amount of days equal to lookback_for_factors to evaluate the PCA components and then uses them as regressor
     for stock returns. Once terminated, the function saves the parameters of the regressions (alphas and beta_tensor) and the residuals (res)
     together with its cumulative sum (dis_res).
@@ -47,13 +47,14 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
     '''
 
     trading_days = df_returns.shape[0] - lookback_for_factors
-    # trading_days = 10
     n_stocks = df_returns.shape[1]
+
     beta_tensor = np.zeros(shape=(trading_days, n_stocks, n_factor))
     alphas = np.zeros(shape=(trading_days, n_stocks))
     Q = np.zeros(shape=(trading_days, n_factor, n_stocks))
     dis_res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
     res = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
+
     counter_step, N = 0, 1
 
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
@@ -61,11 +62,12 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
 
     for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
 
-        if counter_step >= trading_days/20*N:
+        if counter_step >= trading_days / 20 * N:
             counter_step = 0
             N += 1
             with open(f'tmp1/generate_data_{os.getpid()}.txt', 'a', encoding='utf-8') as file:
-                file.write(f'{time.asctime()} -> {i/trading_days * 100:.2f} % \n')
+                file.write(
+                    f'{time.asctime()} -> {i/trading_days * 100:.2f} % \n')
 
         # Una finestra temporale di 252 giorni è traslata di 1 giorno. Ogni volta viene eseguita una PCA su tale periodo
         # ed i fattori di rischio sono quindi valutati.
@@ -96,13 +98,12 @@ def generate_data(df_returns, n_factor=15, lookback_for_factors=252, lookback_fo
 
             counter_step += 1
 
-    if export:
-        np.save(
-            f'{path}/beta_tensor_{os.getpid()}', beta_tensor)
-        np.save(f'{path}/alphas_{os.getpid()}', alphas)
-        np.save(f'{path}/Q_{os.getpid()}', Q)
-        np.save(f'{path}/dis_res_{os.getpid()}', dis_res)
-        np.save(f'{path}/res_{os.getpid()}', res)
+    np.save(
+        f'{path}/beta_tensor_{os.getpid()}', beta_tensor)
+    np.save(f'{path}/alphas_{os.getpid()}', alphas)
+    np.save(f'{path}/Q_{os.getpid()}', Q)
+    np.save(f'{path}/dis_res_{os.getpid()}', dis_res)
+    np.save(f'{path}/res_{os.getpid()}', res)
 
 
 def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_factors, lookback_for_residual, path):
@@ -113,8 +114,8 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
     num_par = 4
     targeting_estimation = False
     trading_days = df_returns.shape[0] - lookback_for_factors
-    # trading_days = 10
     n_stocks = df_returns.shape[1]
+
     score = np.zeros(shape=(trading_days, n_stocks))
     estimates = np.zeros(shape=(trading_days, n_stocks, num_par + 1))
     bs = np.zeros(shape=(trading_days, n_stocks, lookback_for_residual))
@@ -127,20 +128,22 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
     kappas = np.zeros(shape=(trading_days, n_stocks))
 
     # I initialize some counters.
-    c, cc, ccc = 0, 0, 0
+    negative_b, zero_b, refused_k = 0, 0, 0
     counter_step, N = 0, 1
 
-    # I create some empty file named as the process PID, in order to use them to merge all the files (via file_merge function) that the different processes will create.
+    # I create some empty file named as the process PID, in order to use them to
+    # merge all the files (via file_merge function) that the different processes will create.
     with open(f'tmp/{os.getpid()}', 'w', encoding='utf-8') as file:
         pass
 
     for i in tqdm(range(trading_days), desc=f'{os.getpid()}'):
 
-        if counter_step >= trading_days/20*N:
+        if counter_step >= trading_days / 20 * N:
             counter_step = 0
             N += 1
             with open(f'tmp1/scoring_{os.getpid()}.txt', 'a', encoding='utf-8') as file:
-                file.write(f'{time.asctime()} -> {i/trading_days * 100:.2f} % \n')
+                file.write(
+                    f'{time.asctime()} -> {i/trading_days * 100:.2f} % \n')
         counter_step += 1
 
         for stock in df_returns.columns:
@@ -149,7 +152,7 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
 
             # Avoid estimation on zero residuals
             if X.any(axis=0) == 0:
-                cc += 1
+                zero_b += 1
                 continue
 
             if method == 'constant_speed':
@@ -178,26 +181,25 @@ def only_scoring(dis_res, df_returns, method, link_fun, n_iter, lookback_for_fac
                     parameters, discrete_pred, xi, discrete_conf_int = auto_regression(
                         X)
                     a, b = parameters[0], parameters[1]
-                    c += 1
+                    negative_b += 1
 
             if b == 0.0:
-                cc += 1
+                zero_b += 1
                 continue
             else:
                 k = -np.log(b) * lookback_for_factors
                 kappas[i, stock_idx] = k
                 if k < lookback_for_factors / (0.5 * lookback_for_residual):
                     score[i, stock_idx] = 0
-                    ccc += 1
+                    refused_k += 1
                 else:
                     m = a / (1 - b)
                     sgm_eq[i, stock_idx] = np.std(xi) * np.sqrt(1 / (1 - b**2))
                     score[i, stock_idx] = -m / sgm_eq[i, stock_idx]
 
     with open(f'tmp1/scoring_{os.getpid()}.txt', 'a', encoding='utf-8') as file:
-        file.write(f'\n Total number of estimation: {n_stocks*trading_days} \n Negative b: {c} \n k refused: {ccc} \n Zero b: {cc}')
-    # logging.info(f'Total number of estimation for process {os.getpid()}: {n_stocks * trading_days}', f'Number of negative b values for process {os.getpid()}: {c}',
-    #              f'Number of stock with speed of mean reversion refused for process {os.getpid()}: {ccc}', f'Number of zero b for process {os.getpid()}: {cc}')
+        file.write(
+            f'\n Total number of estimation: {n_stocks*trading_days} \n Negative b: {negative_b} \n k refused: {refused_k} \n Zero b: {zero_b}')
 
     df_score = pd.DataFrame(score, columns=df_returns.columns)
 
@@ -234,7 +236,8 @@ if __name__ == '__main__':
                         help='Use test set with the hyperparameters tuned on the validation set')
     parser.add_argument("-nit", "--n_iter", type=int,
                         help='Number of Nelder-Mead optimization (minus 1) before the final BFGS optimization.', default=2)
-    parser.add_argument("-sr", "--server", action="store_true", help="If passed, use paths for running the code on the SNS server")
+    parser.add_argument("-sr", "--server", action="store_true",
+                        help="If passed, use paths for running the code on the SNS server")
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -256,9 +259,8 @@ if __name__ == '__main__':
 
 # ---------- Volume integrated returns or simple returns ----------
     if args.vol_int:
-        # path = input("Path of ReturnsVolData: ")
-        logging.info(
-            'Using volume integrated returns')
+        logging.info('Using volume integrated returns')
+
         if args.test_set:
             logging.info('Using test set')
             df_returns = pd.read_pickle(
@@ -268,8 +270,8 @@ if __name__ == '__main__':
             df_returns = pd.read_pickle(
                 f"{path}/returns/ReturnsVolData.pkl")[:4030]
     else:
-        # path = input("Path of ReturnsData: ")
-        logging.info('Using the simple returns')
+        logging.info('Using simple returns')
+
         if args.test_set:
             logging.info('Using test set')
             df_returns = pd.read_pickle(
@@ -296,7 +298,8 @@ if __name__ == '__main__':
         # ---------- constant k or gas k ----------
         if args.gas == True:
             method = 'gas_modelization'
-            logging.info('Estimation of k via GAS')
+            logging.info(
+                'Estimation of mean reversion velocity via GAS models')
 
             if args.link_fun == 0:
                 link_fun = 'identity'
@@ -308,14 +311,14 @@ if __name__ == '__main__':
             logging.info(f'Link function: {link_fun}')
         else:
             method = 'constant_speed'
-            link_fun = 0 # Anyway it is not used
-            logging.info('Estimation of constant k')
+            link_fun = 0  # Anyway it is not used, but needed for the function
+            logging.info(
+                'Estimation of constant a constant mean reversion velocity')
         # ----------------------------------------
-        # path = input("Path of the dis_res file: ")/home/ddinosse/
         length = int(input('Length of the estimation window for the scores: '))
-        # name = input('Name of the dis_res file: ')
-        logging.info(f'Length: {length}')
-        dis_res = np.load(f"{path}/dis_res/dis_res{length}.npy")  # [:, stocks, :]
+        logging.info(f'Length of the time window for the estimation: {length}')
+        # [:, stocks, :]
+        dis_res = np.load(f"{path}/dis_res/dis_res{length}.npy")
 
 # ---------- Validation set or test set ----------
         if args.test_set:
@@ -333,7 +336,7 @@ if __name__ == '__main__':
         os.system('rm tmp/*')
         for p in processes:
             p.start()
-            time.sleep(0.5)
+            time.sleep(0.2)
         for p in processes:
             p.join()
         end = time.time()
@@ -348,14 +351,14 @@ if __name__ == '__main__':
             file_list = ['kappas', 'AR_res', 'sgm_eq',
                          'const_AR_par', 'r2', 'df_score']
 
-        logging.info('Merging files, then remove splitted ones...')
+        logging.info('Merging files, then remove splitted ones')
         file_merge(pidnums, file_list, path)
         os.system('rm tmp/*')
 
 # ==================== COMPUTE ONLY THE RESIDUALS ====================
     else:
         logging.info('Estimating residual process')
-        time.sleep(0.3)
+        time.sleep(0.2)
         length = int(
             input('Lenght of the estimation window for the residuals: '))
         processes = [mp.Process(target=generate_data, args=(

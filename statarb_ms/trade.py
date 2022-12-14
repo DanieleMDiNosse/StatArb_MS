@@ -43,18 +43,15 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
     PnL[0] = 1.00
     fraction = 0.01
     lookback_for_factors = 252
+
     daily_PnL = np.zeros(shape=df_returns.shape)
     state = np.array(['c' for i in range(df_returns.shape[1])])
     day_counter_long = np.zeros(shape=df_returns.shape[1], dtype=int)
     day_counter_short = np.zeros(shape=df_returns.shape[1], dtype=int)
     perc_positions = np.zeros(shape=(df_returns.shape[0], 3))
     invest_amount = np.zeros(shape=(df_returns.shape[0] + 1))
-    beta_tensor_sum = np.zeros(shape=(df_returns.shape[0], beta_tensor.shape[2]))
-
-    prod = np.zeros(shape=((df_score.shape[0] - 1) * df_score.shape[1]))
-    K = np.zeros(shape=((df_score.shape[0] - 1) * df_score.shape[1]))
-    fact_cont = np.zeros(shape=df_score.shape[0] - 1)
-    stock_cont = np.zeros(shape=df_score.shape[0] - 1)
+    beta_tensor_sum = np.zeros(
+        shape=(df_returns.shape[0], beta_tensor.shape[2]))
     fees = np.zeros(shape=df_score.shape[0] - 1)
 
     for day in tqdm(range(df_score.shape[0] - 1)):
@@ -62,18 +59,27 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
 
         # Select all the indexes of stocks that trigger a long+short position on day=day except for the
         # ones already opened (--> all the indexes of NEW positions)
-        opened_long = np.argwhere(state == 'l')[:, 0] # indexes long positions already opened
-        opened_short = np.argwhere(state == 's')[:, 0] # indexes short positions already opened
-        idx_positions_long = np.argwhere(np.array(df_score.iloc[day] < -s_bo))[:, 0] # all triggered scores for long
-        idx_positions_long = list(set(idx_positions_long).difference(opened_long)) # remove the already opened long positions
-        idx_positions_short = np.argwhere(np.array(df_score.iloc[day] > s_so))[:, 0]
-        idx_positions_short = list(set(idx_positions_short).difference(opened_short))
-        idx_positions = np.append(idx_positions_long, idx_positions_short).astype('int32') # Indexes of all new positions
+        # indexes long positions already opened
+        opened_long = np.argwhere(state == 'l')[:, 0]
+        # indexes short positions already opened
+        opened_short = np.argwhere(state == 's')[:, 0]
+        # all triggered scores for long
+        idx_positions_long = np.argwhere(
+            np.array(df_score.iloc[day] < -s_bo))[:, 0]
+        idx_positions_long = list(set(idx_positions_long).difference(
+            opened_long))  # remove the already opened long positions
+        idx_positions_short = np.argwhere(
+            np.array(df_score.iloc[day] > s_so))[:, 0]
+        idx_positions_short = list(
+            set(idx_positions_short).difference(opened_short))
+        idx_positions = np.append(idx_positions_long, idx_positions_short).astype(
+            'int32')  # Indexes of all new positions
 
         # Somma di tutti i coefficienti beta relativi alle stesse componenti lungo i fattori di rischio
         # Sto quindi considerando sempre la stessa componente v_ijt che però è moltiplicata di volta in volta
         # per un diverso beta a seconda della stock che triggera la posizione. Sto sommando tutti questi beta.
-        beta_tensor_sum[day, :] = beta_tensor[day, idx_positions, :].sum(axis=0)
+        beta_tensor_sum[day, :] = beta_tensor[day,
+                                              idx_positions, :].sum(axis=0)
 
         for stock in df_score.columns:
             stock_idx = df_returns.columns.get_loc(stock)
@@ -84,7 +90,8 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
 
             if df_score[stock][day] < -s_bo and (state[stock_idx] == 'c'):
                 state[stock_idx] = 'l'
-                k = PnL[day] * fraction / (1 + (np.dot(Q[day, :, stock_idx], beta_tensor_sum[day])))
+                k = PnL[day] * fraction / \
+                    (1 + (np.dot(Q[day, :, stock_idx], beta_tensor_sum[day])))
                 daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(
                     beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
                 invest_amount[day + 1] += np.dot(
@@ -93,14 +100,16 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
 
             if (day > 0) and (df_score[stock][day] < -s_sc) and (state[stock_idx] == 'l'):
                 day_counter_long[stock_idx] += 1
-                k = PnL[day - day_counter_long[stock_idx]] * fraction / (1 + (np.dot(Q[day - day_counter_long[stock_idx], :, stock_idx], beta_tensor_sum[day - day_counter_long[stock_idx]])))
+                k = PnL[day - day_counter_long[stock_idx]] * fraction / (1 + (np.dot(
+                    Q[day - day_counter_long[stock_idx], :, stock_idx], beta_tensor_sum[day - day_counter_long[stock_idx]])))
                 daily_PnL[day, stock_idx] = k * (df_returns[stock][day + lookback_for_factors] - np.matmul(beta_tensor[day - day_counter_long[stock_idx],
                                                  stock_idx, :], np.matmul(Q[day - day_counter_long[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
                 continue
 
             if df_score[stock][day] > s_so and (state[stock_idx] == 'c'):
                 state[stock_idx] = 's'
-                k = PnL[day] * fraction / (1 + (np.dot(Q[day, :, stock_idx], beta_tensor_sum[day])))
+                k = PnL[day] * fraction / \
+                    (1 + (np.dot(Q[day, :, stock_idx], beta_tensor_sum[day])))
                 daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(
                     beta_tensor[day, stock_idx, :], np.matmul(Q[day, :, :], df_returns.iloc[day + lookback_for_factors])))
                 invest_amount[day + 1] += np.dot(
@@ -109,7 +118,8 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
 
             if (day > 0) and (df_score[stock][day] > s_bc) and (state[stock_idx] == 's'):
                 day_counter_short[stock_idx] += 1
-                k = PnL[day - day_counter_long[stock_idx]] * fraction / (1 + (np.dot(Q[day - day_counter_short[stock_idx], :, stock_idx], beta_tensor_sum[day - day_counter_short[stock_idx]])))
+                k = PnL[day - day_counter_long[stock_idx]] * fraction / (1 + (np.dot(
+                    Q[day - day_counter_short[stock_idx], :, stock_idx], beta_tensor_sum[day - day_counter_short[stock_idx]])))
                 daily_PnL[day, stock_idx] = k * (-df_returns[stock][day + lookback_for_factors] + np.matmul(beta_tensor[day - day_counter_short[stock_idx],
                                                  stock_idx, :], np.matmul(Q[day - day_counter_short[stock_idx], :, :], df_returns.iloc[day + lookback_for_factors])))
                 continue
@@ -138,14 +148,9 @@ def trading(df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookba
             state == 'c') / df_score.shape[1]
 
         fees[day] = (np.abs((invest_amount[day + 1] -
-         invest_amount[day]))).sum() * epsilon
+                             invest_amount[day]))).sum() * epsilon
 
         PnL[day + 1] = PnL[day] + daily_PnL[day, :].sum() - fees[day]
-        # if (day > 790) and (day < 795):
-        #     print(day)
-        #     print('PnL', PnL[day])
-        #     print('daily_PnL', daily_PnL[day, :].sum())
-        #     print('fees', fees[day])
 
     return PnL, perc_positions, fees
 
@@ -195,7 +200,8 @@ def grid_search(hyperparameters, score_data):
 
         i += 1
         with open(f'tmp1/grid_search_{os.getpid()}.txt', 'a', encoding='utf-8') as file:
-            file.write(f'{time.asctime()} -> {i/len(hyperparameters) * 100:.2f} % \n')
+            file.write(
+                f'{time.asctime()} -> {i/len(hyperparameters) * 100:.2f} % \n')
 
         idx = hyperparameters.index(hyper)
         s_bo, s_so, s_bc, s_sc = hyper
@@ -209,6 +215,7 @@ def grid_search(hyperparameters, score_data):
     results.to_pickle(f'{path}/gridsearch_{os.getpid()}.pkl')
 
     return results
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -225,7 +232,8 @@ if __name__ == '__main__':
                         help='Use optimized thresholds for the GAS case.')
     parser.add_argument('-t', '--test_set', action='store_true',
                         help='Use test set with the hyperparameters tuned on the validation set.')
-    parser.add_argument("-sr", "--server", action="store_true", help="If passed, use paths for running the code on the SNS server")
+    parser.add_argument("-sr", "--server", action="store_true",
+                        help="If passed, use paths for running the code on the SNS server")
 
     args = parser.parse_args()
     levels = {'critical': logging.CRITICAL,
@@ -243,17 +251,26 @@ if __name__ == '__main__':
         path = '/mnt/hdd/saved_data'
 
     if args.vol_int:
-        # Le quantità Q, beta_tensor e df_score sono state generate tramite il dataframe pesato con i volumi. Il primo valore di tale dataframe utilizza le informazioni dei ritorni semplici indicizzati da 9 e le informazioni dei volumi relativi al 10° giorno. Il 9° valore del dataframe dei ritorni corrisponde alla quantità (R(10) - R(9)) / R(9), quindi al ritorno che leggo a chiusura del 10° giorno. A tale chiusura leggo anche il valore del volume al 10° giorno.
+        # Le quantità Q, beta_tensor e df_score sono state generate tramite il dataframe
+        # pesato con i volumi. Il primo valore di tale dataframe utilizza le informazioni
+        # dei ritorni semplici indicizzati da 9 e le informazioni dei volumi relativi al
+        # 10° giorno. Il 9° valore del dataframe dei ritorni corrisponde alla quantità
+        # (R(10) - R(9)) / R(9), quindi al ritorno che leggo a chiusura del 10° giorno.
+        # A tale chiusura leggo anche il valore del volume al 10° giorno.
 
-        # Di conseguenza, il df_returns qui di seguito deve partire dal 9° valore. Q, beta_tensor e df_score devono finire invece al -10, siccome sono stati generati dal dataframe pesato coi volumi che in realtà parte dalle infor a chiusura del 10° giorno e sfora sempre di 10 giorni la fine di df_returns.
+        # Di conseguenza, il df_returns qui di seguito deve partire dal 9° valore. Q,
+        # beta_tensor e df_score devono finire invece al -10, siccome sono stati generati
+        # dal dataframe pesato coi volumi che in realtà parte dalle info a chiusura del
+        # 10° giorno e sfora sempre di 10 giorni la fine di df_returns.
 
-        logging.info('I am using scores obtained from modified returns')
-        time.sleep(0.3)
+        logging.info('I am using s-scores obtained from volume weighted returns')
+        time.sleep(0.2)
+
         if args.gas:
             logging.info('GAS case')
-        time.sleep(0.3)
+
         length = int(
-            input('Lenght of estimation window for AR(1) parameters: '))
+            input('Lenght of estimation window used for AR(1) parameters: '))
         name = input('Name of the s-score data file: ')
 
         if length == 50:
@@ -309,13 +326,14 @@ if __name__ == '__main__':
             df_score.index = range(df_score.shape[0])
 
     else:
-        logging.info('I am using scores obtained from simple returns')
-        time.sleep(0.3)
+        logging.info('I am using s-scores obtained from simple returns')
+        time.sleep(0.2)
+
         df_returns = pd.read_pickle(
             f"{path}/returns/ReturnsData.pkl")[:4030]
         Q = np.load(f'{path}/Qs/Q.npy')
         length = int(
-            input('Lenght of estimation window for AR(1) parameters: '))
+            input('Lenght of estimation window used for AR(1) parameters: '))
         name = input('Name of the s-score data file: ')
         beta_tensor = np.load(f'{path}/betas/beta_tensor{length}.npy')
         df_score = pd.read_pickle(f'{path}/scores/{name}.pkl')
@@ -380,11 +398,9 @@ if __name__ == '__main__':
         pnl, perc_positions, fees = trading(
             df_returns, df_score, Q, beta_tensor, s_bo, s_so, s_bc, s_sc, lookback_for_residual=length)
         name = input('Name of the file that will be saved (PnL): ')
-        # path = input('Path of the file that will be saved (PnL): ')
         np.save(f'{path}/PnL/{name}', pnl)
-        np.save(f'{path}/PnL/{name}_fees', fees)
-        # name = input('Name of the file that will be saved (positions percentage): ')
-        # np.save(go_up(1) + f'/saved_data/{name}', perc_positions)
+        # np.save(f'{path}/PnL/{name}_fees', fees)
+        # np.save(go_up(1) + f'/saved_data/{name}_percpos', perc_positions)
 
     end = time.time()
     time_elapsed = (end - start) / 60
