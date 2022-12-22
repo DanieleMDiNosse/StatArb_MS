@@ -345,9 +345,8 @@ if __name__ == '__main__':
         beta = 0.06
         sgm = 0.1
         a = 0.1
-        lam = 2
-        X, b = synt_data(model, dynamics, link_fun, a, omega, alpha,
-                         beta, sgm, lam, size=n)
+        X, b = synt_data(model, dynamics, link_fun, omega, alpha,
+                         beta, sgm, size=n)
 
     if model == 'poisson':
         alpha = 0.081
